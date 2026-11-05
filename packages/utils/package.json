@@ -1,0 +1,14 @@
+{
+  "name": "@artil/utils",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./fetch": "./src/fetch.ts",
+    "./shell": "./src/shell.ts",
+    "./text": "./src/text.ts",
+    "./time": "./src/time.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  }
+}

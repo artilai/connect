@@ -1,0 +1,11 @@
+{
+  "name": "@artil/channels",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./contract": "./src/contract.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  }
+}

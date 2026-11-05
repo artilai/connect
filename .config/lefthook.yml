@@ -1,0 +1,30 @@
+output:
+  - failure
+
+pre-commit:
+  jobs:
+    - name: lint
+      run: bun run lint --fix --no-error-on-unmatched-pattern {staged_files}
+      stage_fixed: true
+    - name: format
+      run: bun run fmt --no-error-on-unmatched-pattern {staged_files}
+      stage_fixed: true
+    - name: migrations
+      glob:
+        - "apps/server/src/db/schema.ts"
+        - "apps/server/migrations/**"
+      run: bun run db:check
+
+pre-push:
+  parallel: true
+  jobs:
+    - name: lint
+      run: bun run lint
+    - name: format
+      run: bun run fmt --check
+    - name: knip
+      run: bun run knip
+    - name: migrations
+      run: bun run db:check
+    - name: typecheck
+      run: bun run typecheck

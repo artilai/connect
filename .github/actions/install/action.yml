@@ -1,0 +1,11 @@
+name: Install dependencies
+description: Set up Bun and install the workspace from the lockfile.
+
+runs:
+  using: composite
+  steps:
+    - name: Set up Bun
+      uses: oven-sh/setup-bun@v2
+    - name: Install dependencies
+      shell: bash
+      run: bun install --frozen-lockfile

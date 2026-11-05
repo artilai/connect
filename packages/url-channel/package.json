@@ -1,0 +1,15 @@
+{
+  "name": "@artil/url-channel",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./channel": "./src/channel.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@artil/channels": "workspace:*",
+    "@artil/errors": "workspace:*"
+  }
+}
