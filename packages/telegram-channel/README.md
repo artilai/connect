@@ -7,6 +7,7 @@ or by asking for updates, and sends them back.
 
 | Import                            | What it gives                                                   |
 | --------------------------------- | --------------------------------------------------------------- |
+| `@artil/telegram-channel`         | `channel`, the definition the server creates the channel from   |
 | `@artil/telegram-channel/channel` | `createTelegramChannel`, the `Channel` over a Telegram provider |
 | `@artil/telegram-channel/bot-api` | `createBotApi`, the provider that calls the Bot API             |
 | `@artil/telegram-channel/chats`   | Reading Telegram user ids and @usernames                        |

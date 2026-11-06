@@ -8,14 +8,14 @@ import { AppError } from "@artil/errors";
 import { admissions, refusals } from "../access/admission";
 import type { AgentEnv } from "../agents/env";
 import { type ArrivalKind, channelKinds } from "../channels/kinds";
-import { onlyInCloud } from "../cloud";
+import { missingChannel } from "../cloud";
 import type { FileLinks } from "../files/links";
 import { jsonResponse } from "../http/openapi";
 import { readId, validateQuery } from "../http/validate";
 import { attachmentSchema, toAttachment } from "./attachments";
 import { createDraftReader, sendBodyLimit } from "./draft";
 import { type MessageRecord, type MessagesRepository, messageListLimit } from "./repository";
-import { channelNames, draftSchema, type Send } from "./send";
+import { draftSchema, type Send } from "./send";
 
 const direction = z.enum(["inbound", "outbound"]);
 
@@ -133,9 +133,7 @@ export function createMessageRoutes({
     .get("/", docs.list, validateQuery(listSchema), (c) => {
       const filter = c.req.valid("query");
 
-      if (filter.channel && !channels.has(filter.channel)) {
-        throw onlyInCloud(channelNames[filter.channel]);
-      }
+      if (filter.channel && !channels.has(filter.channel)) throw missingChannel(filter.channel);
 
       return c.json(messages.list({ agentId: c.var.agent.id, filter }).map(toMessage));
     })

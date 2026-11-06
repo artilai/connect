@@ -1,6 +1,7 @@
 import { type CallToolResult, McpServer, type ToolAnnotations } from "@modelcontextprotocol/server";
 import { z } from "zod";
 
+import type { Channel } from "@artil/channels/contract";
 import { AppError } from "@artil/errors";
 
 import { describeRefusal, type Refusal } from "../access/admission";
@@ -75,38 +76,43 @@ const readSchema = z.object({
     .describe("The message's id, from messages.list or an event"),
 });
 
-// How each channel the server has addresses recipients.
-const recipientsByChannel = {
-  telegram: "the id of someone who wrote to the agent's bot first, or a bot's @username",
-  url: "the id of one agent from team.list",
-} satisfies Partial<Record<ArrivalKind, string>>;
-
 const draftFields = draftSchema.shape;
 
-const sendSchema = draftSchema.extend({
-  ...actingAgent,
-  replyTo: draftFields.replyTo.describe(
-    "The id of the message to answer; the answer goes back the way it came. Answer another agent only if its message asks for an answer.",
-  ),
-  forward: draftFields.forward.describe("Not on this server: forwarding is only in Artil Cloud"),
-  channel: z
-    .enum(arrivalKinds)
-    .optional()
-    .describe("The channel to start a conversation on: telegram or url"),
-  to: draftFields.to.describe(
-    `Who to send to: ${Object.entries(recipientsByChannel)
-      .map(([channel, recipients]) => `${channel} takes ${recipients}`)
-      .join("; ")}`,
-  ),
-  cc: draftFields.cc.describe("Not on this server's channels, which copy no one"),
-  subject: draftFields.subject.describe("Not on this server's channels, which have no subjects"),
-  text: draftFields.text.describe("The message, in plain text"),
-  attachments: draftFields.attachments.describe(
-    "Files to send: a file from a message the agent received or sent, by the id in its attachments, or a small text file by name, type and text",
-  ),
-});
+type DescribedChannel = Pick<Channel, "kind" | "recipients" | "canCopy">;
 
-type SendInput = z.infer<typeof sendSchema>;
+// The send tool's input, which tells agents the server's channels and whom each sends to.
+function sendSchemaFor(channels: readonly DescribedChannel[]) {
+  const copying = channels.flatMap(({ kind, canCopy }) => (canCopy ? [kind] : []));
+
+  return draftSchema.extend({
+    ...actingAgent,
+    replyTo: draftFields.replyTo.describe(
+      "The id of the message to answer; the answer goes back the way it came. Answer another agent only if its message asks for an answer.",
+    ),
+    forward: draftFields.forward.describe("Not on this server: forwarding is only in Artil Cloud"),
+    channel: z
+      .enum(arrivalKinds)
+      .optional()
+      .describe(
+        `The channel to start a conversation on: ${channels.map(({ kind }) => kind).join(" or ")}`,
+      ),
+    to: draftFields.to.describe(
+      `Who to send to: ${channels.map(({ kind, recipients }) => `${kind} takes ${recipients}`).join("; ")}`,
+    ),
+    cc: draftFields.cc.describe(
+      copying.length > 0
+        ? `Whom to copy, on ${copying.join(" or ")}`
+        : "Not on this server's channels, which copy no one",
+    ),
+    subject: draftFields.subject.describe("Not on this server's channels, which have no subjects"),
+    text: draftFields.text.describe("The message, in plain text"),
+    attachments: draftFields.attachments.describe(
+      "Files to send: a file from a message the agent received or sent, by the id in its attachments, or a small text file by name, type and text",
+    ),
+  });
+}
+
+type SendInput = z.infer<ReturnType<typeof sendSchemaFor>>;
 
 type CreateMcpServerOptions = {
   agents: AgentsRepository;
@@ -117,6 +123,7 @@ type CreateMcpServerOptions = {
   fileLinks: FileLinks;
   send: Send;
   relay: RelayToUrl;
+  channels: ReadonlyMap<ArrivalKind, Channel<ArrivalKind>>;
   log: (line: string) => void;
 };
 
@@ -159,11 +166,13 @@ export function createMcpServer(
     fileLinks,
     send,
     relay,
+    channels,
     log,
   }: CreateMcpServerOptions,
   actor: Actor,
 ) {
   const server = new McpServer({ name: "artil-server", version: "1.0.0" }, { instructions });
+  const sendSchema = sendSchemaFor([...channels.values()]);
 
   // A tool answers with its result as JSON, or with what went wrong.
   async function runTool<Result>(work: () => Promise<Result> | Result): Promise<CallToolResult> {

@@ -16,7 +16,6 @@ function setup(inbound: TelegramEvent[] = []) {
   const tokens: (string | null)[] = [];
 
   const provider: TelegramProvider = {
-    name: "fake",
     connect: async () => "AcmeSupportBot",
     disconnect: async (token) => {
       disconnected.push(token);

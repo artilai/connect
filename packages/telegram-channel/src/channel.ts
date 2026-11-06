@@ -15,7 +15,8 @@ const maxFileSize = 50_000_000;
 export function createTelegramChannel(provider: TelegramProvider) {
   return {
     kind: "telegram",
-    provider: provider.name,
+    name: "Telegram",
+    recipients: "the id of someone who wrote to the agent's bot first, or a bot's @username",
 
     connect: async (token) => ({
       value: atUsername(await provider.connect(token)),

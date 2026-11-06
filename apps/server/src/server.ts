@@ -1,14 +1,12 @@
 import { hostname } from "node:os";
 
-import type { Channel } from "@artil/channels/contract";
 import { messageOf } from "@artil/errors";
-import { createBotApi } from "@artil/telegram-channel/bot-api";
-import { createTelegramChannel } from "@artil/telegram-channel/channel";
+import { channel as telegramChannel } from "@artil/telegram-channel";
 import type { Fetch } from "@artil/utils/fetch";
 import { hour, second } from "@artil/utils/time";
 
 import { createApp } from "./app";
-import type { ChannelKind } from "./channels/kinds";
+import { createChannels } from "./channels/create";
 import { createReceivers } from "./channels/receivers";
 import type { Config } from "./config";
 import { openDatabase } from "./db/connection";
@@ -75,16 +73,13 @@ export async function startServer({
 
   const baseUrl = publicUrl ?? `http://localhost:${port}`;
 
-  const telegram = createTelegramChannel(
-    createBotApi({
-      webhook: publicUrl
-        ? { url: `${publicUrl}/api/channels/telegram`, secret: config.secret }
-        : undefined,
-      ...(fetch && { fetch }),
-    }),
-  );
-
-  const channels = new Map<ChannelKind, Channel<ChannelKind>>([["telegram", telegram]]);
+  const channels = createChannels({
+    definitions: [telegramChannel],
+    publicUrl,
+    secret: config.secret,
+    log,
+    ...(fetch && { fetch }),
+  });
 
   const services = createServices({
     db: database.db,

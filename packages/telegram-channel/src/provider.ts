@@ -31,7 +31,6 @@ export type TelegramUpdates = {
 };
 
 export type TelegramProvider = {
-  name: string;
   // Checks the bot's token and returns the bot's username.
   connect: (token: string) => Promise<string>;
   disconnect: (token: string) => Promise<void>;

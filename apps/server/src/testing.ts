@@ -3,8 +3,7 @@ import { fileURLToPath } from "node:url";
 import { z } from "zod";
 
 import type { Channel } from "@artil/channels/contract";
-import { createBotApi } from "@artil/telegram-channel/bot-api";
-import { createTelegramChannel } from "@artil/telegram-channel/channel";
+import { channel as telegramChannel } from "@artil/telegram-channel";
 
 import { createApp } from "./app";
 import type { ChannelKind } from "./channels/kinds";
@@ -151,14 +150,12 @@ export async function createTestServer({
   const baseUrl = publicUrl ?? origin;
   const hashed = password === undefined ? null : await hashPassword(password);
 
-  const telegram = createTelegramChannel(
-    createBotApi({
-      fetch: telegramApi.fetch,
-      webhook: publicUrl
-        ? { url: `${publicUrl}/api/channels/telegram`, secret: "webhook-secret" }
-        : undefined,
-    }),
-  );
+  const telegram = telegramChannel.create({
+    webhookUrl: publicUrl && `${publicUrl}/api/channels/telegram`,
+    secret: "webhook-secret",
+    fetch: telegramApi.fetch,
+    log: () => {},
+  });
 
   const channels = new Map<ChannelKind, Channel<ChannelKind>>([["telegram", telegram]]);
 

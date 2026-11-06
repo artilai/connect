@@ -395,8 +395,6 @@ export function createBotApi({
   }
 
   return {
-    name: "telegram",
-
     connect: async (token) => (await findBot(token)).username,
 
     disconnect: async (token) => {

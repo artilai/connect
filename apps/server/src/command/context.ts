@@ -1,8 +1,6 @@
-import type { Channel } from "@artil/channels/contract";
-import { createBotApi } from "@artil/telegram-channel/bot-api";
-import { createTelegramChannel } from "@artil/telegram-channel/channel";
+import { channel as telegramChannel } from "@artil/telegram-channel";
 
-import type { ChannelKind } from "../channels/kinds";
+import { createChannels } from "../channels/create";
 import type { Config, Paths } from "../config";
 import { openDatabase } from "../db/connection";
 import { createS3Store } from "../files/store";
@@ -27,8 +25,15 @@ export function openCommandContext({
   out,
 }: OpenCommandContextOptions) {
   const database = openDatabase({ path: paths.database, migrationsFolder });
-  const telegram = createTelegramChannel(createBotApi());
-  const channels = new Map<ChannelKind, Channel<ChannelKind>>([["telegram", telegram]]);
+
+  // A command connects addresses; the running server starts them.
+  const channels = createChannels({
+    definitions: [telegramChannel],
+    publicUrl: undefined,
+    secret: config.secret,
+    log: out,
+  });
+
   const localUrl = `http://localhost:${config.port}`;
 
   const services = createServices({
@@ -43,7 +48,6 @@ export function openCommandContext({
 
   return {
     ...services,
-    telegram,
     config,
     paths,
     out,

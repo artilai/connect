@@ -39,7 +39,8 @@ function invalid(message: string) {
 export function createUrlChannel(host: UrlChannelHost) {
   return {
     kind: "url",
-    provider: "artil",
+    name: "Message URL",
+    recipients: "the id of one agent from team.list",
 
     send: async ({ from, to, cc, text, files, channelData = noThreads }) => {
       const [recipient, ...others] = to;

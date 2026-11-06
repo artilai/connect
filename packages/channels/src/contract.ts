@@ -76,8 +76,10 @@ type HandleWebhookOptions = { credentialsOf: CredentialsOf; receive: ReceiveEven
 // message it sends.
 export type Channel<Kind extends string = string, Data = never> = {
   kind: Kind;
-  // Who carries the messages.
-  provider: string;
+  // What people and agents call the channel, like Telegram.
+  name: string;
+  // Whom a message on the channel can go to, as an agent names them in to before it sends.
+  recipients: string;
   // Checks the credentials of an address the workspace already holds with the provider, and finds
   // the address.
   connect?: (credentials: string) => Promise<ConnectedAddress>;
@@ -94,4 +96,20 @@ export type Channel<Kind extends string = string, Data = never> = {
   handleWebhook?: (request: Request, options: HandleWebhookOptions) => Promise<Response>;
   prepare?: (message: OutboundMessage<Data>) => OutboundMessage<Data>;
   send: (message: OutboundMessage<Data>) => Promise<{ externalId: string }>;
+};
+
+// What the server hands a channel it creates.
+export type ChannelContext = {
+  // Where the channel's provider posts to the server; none on a computer nothing can reach.
+  webhookUrl: string | undefined;
+  // The server's secret for this channel, to sign what only the server should accept.
+  secret: string;
+  fetch: (url: string, init: RequestInit) => Promise<Response>;
+  log: (line: string) => void;
+};
+
+// What a channel's package exports, from which the server creates the channel.
+export type ChannelDefinition<Kind extends string = string> = {
+  kind: Kind;
+  create: (context: ChannelContext) => Channel<Kind>;
 };

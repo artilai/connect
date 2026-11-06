@@ -6,7 +6,7 @@ import { shellQuoted } from "@artil/utils/shell";
 
 import type { AddressesRepository } from "../addresses/repository";
 import { type ArrivalKind, type ChannelKind, channelKinds } from "../channels/kinds";
-import { onlyInCloud } from "../cloud";
+import { missingChannel, onlyInCloud } from "../cloud";
 import type { FileLinks } from "../files/links";
 import { attachmentsSchema, readAttachments } from "../files/outgoing";
 import type { FilesService, Upload } from "../files/service";
@@ -34,11 +34,6 @@ export const draftSchema = z.object({
 export type Draft = z.infer<typeof draftSchema>;
 
 const recipientSeparator = ", ";
-
-export const channelNames = { email: "Email", sms: "SMS", telegram: "Telegram" } satisfies Record<
-  ChannelKind,
-  string
->;
 
 type CreateSenderOptions = {
   addresses: AddressesRepository;
@@ -102,14 +97,14 @@ export function createSender({
     const { channel: kind, to, cc } = resolveRecipients(agentId, draft);
     const channel = channels.get(kind);
 
-    if (!channel) throw onlyInCloud(channelNames[kind]);
+    if (!channel) throw missingChannel(kind);
 
     const address = addresses.findByAgent({ agentId, channel: kind });
 
     if (!address) {
       throw new AppError({
         code: "invalid_input",
-        message: `${agentName} has no ${channelNames[kind]} bot; connect one with: artil-server telegram connect ${shellQuoted(agentName)} <bot token>`,
+        message: `${agentName} has no ${channel.name} address; connect one with: artil-server ${kind} connect ${shellQuoted(agentName)}`,
       });
     }
 
@@ -189,7 +184,7 @@ export function createSender({
         ? cause
         : new AppError({
             code: "unavailable",
-            message: `${channelNames[kind]} did not take the message: ${reason}`,
+            message: `${channel.name} did not take the message: ${reason}`,
             cause,
           });
     }

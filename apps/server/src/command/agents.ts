@@ -1,6 +1,7 @@
 import { AppError } from "@artil/errors";
 import { shellQuoted } from "@artil/utils/shell";
 
+import type { ChannelKind } from "../channels/kinds";
 import type { CommandContext } from "./context";
 
 export function agentNamed(context: CommandContext, name: string) {
@@ -90,11 +91,26 @@ export function revokeTokens(context: CommandContext, name: string) {
   context.out(`Signed ${agent.name} out of ${revoked} ${revoked === 1 ? "client" : "clients"}.`);
 }
 
+type ConnectableChannelOptions = { context: CommandContext; kind: ChannelKind };
+
+// The channel a command connects an address of, which has to take credentials.
+function connectableChannel({ context, kind }: ConnectableChannelOptions) {
+  const channel = context.channels.get(kind);
+  const connect = channel?.connect;
+
+  if (!channel || !connect) {
+    throw new AppError({ code: "unavailable", message: `This server has no ${kind} channel` });
+  }
+
+  return { ...channel, connect };
+}
+
 type ConnectTelegramOptions = { context: CommandContext; name: string; token: string };
 
 export async function connectTelegram({ context, name, token }: ConnectTelegramOptions) {
   const agent = agentNamed(context, name);
-  const { value, credentials } = await context.telegram.connect(token);
+  const telegram = connectableChannel({ context, kind: "telegram" });
+  const { value, credentials } = await telegram.connect(token);
 
   const { replaced } = context.addresses.connect({
     agentId: agent.id,
@@ -104,7 +120,7 @@ export async function connectTelegram({ context, name, token }: ConnectTelegramO
   });
 
   for (const old of replaced) {
-    await context.telegram.disconnect(old);
+    await telegram.disconnect?.(old);
     context.out(`${old.value} no longer reaches ${agent.name}.`);
   }
 
@@ -127,6 +143,9 @@ export async function disconnectTelegram(context: CommandContext, name: string) 
     return;
   }
 
-  await context.telegram.disconnect({ value: address.value, credentials: address.credentials });
+  await connectableChannel({ context, kind: "telegram" }).disconnect?.({
+    value: address.value,
+    credentials: address.credentials,
+  });
   context.out(`${address.value} no longer reaches ${agent.name}.`);
 }

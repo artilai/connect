@@ -6,9 +6,14 @@ takes with a message, and the server decides who a message wakes.
 
 ## Usage
 
-| Import                     | What it gives                                              |
-| -------------------------- | ---------------------------------------------------------- |
-| `@artil/channels/contract` | The `Channel` type and inbound and outbound message shapes |
+| Import                     | What it gives                                         |
+| -------------------------- | ----------------------------------------------------- |
+| `@artil/channels/contract` | `Channel`, `ChannelDefinition` and the message shapes |
+
+A channel's package exports a `ChannelDefinition` named `channel`: its kind, and
+`create`, which the server calls with a `ChannelContext` (where the provider
+posts, a secret of the channel's own, `fetch` and `log`). The channel it creates
+names itself and whom a message can go to, so agents read how to send on it.
 
 A channel sends an `OutboundMessage`, whatever carries it under the hood. One
 with a provider hands the server what reaches its addresses as `ChannelEvent`s,
