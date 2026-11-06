@@ -41,7 +41,8 @@ const published = {
   bin: { "artil-server": "bin/main.js" },
   files: ["bin", "migrations"],
   engines: { bun: ">=1.3.14" },
-  publishConfig: { access: "public", provenance: true },
+  // Provenance comes back once the repository is public; npm signs only public sources.
+  publishConfig: { access: "public" },
 };
 
 await Bun.write(`${dist}/package.json`, `${JSON.stringify(published, null, 2)}\n`);
