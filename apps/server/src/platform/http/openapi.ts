@@ -6,8 +6,15 @@ import { errorBodySchema } from "@artil/errors";
 
 type ResponseSchema = Parameters<typeof resolver>[0];
 
+// A response is described as an open object, the way Artil Cloud describes its own, so a client
+// built against one keeps reading the other; hono-openapi would close it by default.
+const openObjects = { options: { io: "input" } };
+
 export function jsonResponse(description: string, schema: ResponseSchema) {
-  return { description, content: { "application/json": { schema: resolver(schema) } } };
+  return {
+    description,
+    content: { "application/json": { schema: resolver(schema, openObjects) } },
+  };
 }
 
 const methods = ["GET", "POST", "PUT", "PATCH", "DELETE"] as const;
