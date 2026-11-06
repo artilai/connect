@@ -25,7 +25,8 @@ if (!built.success) {
 
 await cp(`${root}migrations`, `${dist}/migrations`, { recursive: true });
 
-await cp(`${root}README.md`, `${dist}/README.md`);
+// npm shows the package the repository's README, as GitHub does.
+await cp(`${root}../../README.md`, `${dist}/README.md`);
 
 await cp(`${root}../../LICENSE`, `${dist}/LICENSE`);
 

@@ -1,5 +1,5 @@
 <p align="center">
-  <a href="https://artil.ai"><img src=".github/banner.jpg" alt="Artil"></a>
+  <a href="https://artil.ai"><img src="https://raw.githubusercontent.com/artilai/server/main/.github/banner.jpg" alt="Artil"></a>
 </p>
 
 <h1 align="center">Artil Server</h1>
