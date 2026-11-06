@@ -8,7 +8,7 @@ import { describeRefusal, type Refusal } from "../access/admission";
 import type { AddressesRepository } from "../addresses/repository";
 import type { AgentsRepository } from "../agents/repository";
 import type { Actor } from "../auth/middleware";
-import { type ArrivalKind, arrivalKinds, channelKinds } from "../channels/kinds";
+import type { ChannelKind } from "../channels/kinds";
 import type { ConnectionsRepository } from "../connections/repository";
 import { relayedAttachments } from "../events/event";
 import type { EventsRepository, RelayRecord } from "../events/repository";
@@ -50,10 +50,7 @@ const actingAgent = {
 
 const listSchema = z.object({
   ...actingAgent,
-  channel: z
-    .enum(channelKinds)
-    .exactOptional()
-    .describe("Keep the messages that came on this channel"),
+  channel: z.string().exactOptional().describe("Keep the messages that came on this channel"),
   limit: z.number().int().min(1).max(25).default(25).describe("How many to list, from 1 to 25"),
   from: z
     .string()
@@ -91,7 +88,7 @@ function sendSchemaFor(channels: readonly DescribedChannel[]) {
     ),
     forward: draftFields.forward.describe("Not on this server: forwarding is only in Artil Cloud"),
     channel: z
-      .enum(arrivalKinds)
+      .string()
       .optional()
       .describe(
         `The channel to start a conversation on: ${channels.map(({ kind }) => kind).join(" or ")}`,
@@ -123,7 +120,7 @@ type CreateMcpServerOptions = {
   fileLinks: FileLinks;
   send: Send;
   relay: RelayToUrl;
-  channels: ReadonlyMap<ArrivalKind, Channel<ArrivalKind>>;
+  channels: ReadonlyMap<ChannelKind, Channel>;
   log: (line: string) => void;
 };
 

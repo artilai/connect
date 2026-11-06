@@ -134,6 +134,8 @@ type CreateTestServerOptions = {
   password?: string;
   publicUrl?: string;
   files?: boolean;
+  // More channels beside Telegram and the Message URL, as a config would load them.
+  channels?: readonly Channel[];
 };
 
 type CallOptions = RequestInit & { token?: string };
@@ -143,6 +145,7 @@ export async function createTestServer({
   password,
   publicUrl,
   files = true,
+  channels: moreChannels = [],
 }: CreateTestServerOptions = {}) {
   const database = openDatabase({ path: ":memory:", migrationsFolder });
   const telegramApi = createFakeTelegram();
@@ -157,7 +160,10 @@ export async function createTestServer({
     log: () => {},
   });
 
-  const channels = new Map<ChannelKind, Channel<ChannelKind>>([["telegram", telegram]]);
+  const channels = new Map<ChannelKind, Channel>([
+    ["telegram", telegram],
+    ...moreChannels.map((channel) => [channel.kind, channel] as const),
+  ]);
 
   const services = createServices({
     db: database.db,

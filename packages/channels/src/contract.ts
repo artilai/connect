@@ -56,6 +56,14 @@ type CredentialsOf = (address: string) => Promise<string | null>;
 // An address the workspace holds with the provider, and what Artil needs to use it.
 type ConnectedAddress = { value: string; credentials: string };
 
+// How a list of who wakes the agent names a sender on the channel.
+type Senders = {
+  // What a person writes, like a person's @username or user id.
+  description: string;
+  // Reads what a person wrote as the channel writes the sender in from; null for none it can have.
+  read: (input: string) => string | null;
+};
+
 // Hands the server what reached a channel's addresses. A channel confirms events to its provider
 // only once this resolves, so the provider hands them over again after a failure.
 type ReceiveEvents = (events: ChannelEvent[]) => Promise<void>;
@@ -84,6 +92,10 @@ export type Channel<Kind extends string = string, Data = never> = {
   // the address.
   connect?: (credentials: string) => Promise<ConnectedAddress>;
   disconnect?: (address: ConnectedAddress) => Promise<void>;
+  // What a person gives to connect an address, like the bot's token.
+  credentials?: string;
+  // Without it, a sender is named as the channel writes from.
+  senders?: Senders;
   // Whether a message can copy others beside its recipients.
   canCopy?: true;
   // Whether a recipient has to write to the address before the agent can write to them.

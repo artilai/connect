@@ -13,6 +13,7 @@ import {
   text,
 } from "@clack/prompts";
 
+import type { Channel } from "@artil/channels/contract";
 import { messageOf } from "@artil/errors";
 
 import { type Config, newConfig, type Paths, type S3Settings, writeConfig } from "../config";
@@ -20,7 +21,7 @@ import { checkStore, createS3Store } from "../files/store";
 import { hashPassword, validatePassword } from "../sign-in/password";
 import type { Tailscale } from "../tailscale";
 import { addSender } from "./access";
-import { connectTelegram, signInGuide } from "./agents";
+import { connectAddress, signInGuide } from "./agents";
 import { type CommandContext, openCommandContext } from "./context";
 
 export class SetupStopped extends Error {
@@ -73,20 +74,27 @@ async function createAgents(context: CommandContext) {
   }
 }
 
-async function setUpTelegram(context: CommandContext) {
+type SetUpChannelOptions = { context: CommandContext; channel: Channel };
+
+// Offers to connect an address of a channel that takes credentials, like a Telegram bot, and to
+// let someone wake its agent there.
+async function setUpChannel({ context, channel }: SetUpChannelOptions) {
   const agents = context.agents.list();
 
   if (agents.length === 0) return;
 
-  const connectBot = requireAnswer(
-    await confirm({ message: "Connect a Telegram bot to an agent?", initialValue: false }),
+  const connectNow = requireAnswer(
+    await confirm({
+      message: `Connect a ${channel.name} address to an agent?`,
+      initialValue: false,
+    }),
   );
 
-  if (!connectBot) return;
+  if (!connectNow) return;
 
   const agentId = requireAnswer(
     await select({
-      message: "Which agent gets the bot?",
+      message: `Which agent gets the ${channel.name} address?`,
       options: agents.map(({ id, name }) => ({ value: id, label: name })),
     }),
   );
@@ -95,30 +103,31 @@ async function setUpTelegram(context: CommandContext) {
 
   if (!agent) return;
 
-  const token = requireAnswer(
-    await password({ message: "The bot's token, from @BotFather", validate: validateNotEmpty }),
+  const credentials = requireAnswer(
+    await password({ message: channel.credentials ?? "Credentials", validate: validateNotEmpty }),
   );
 
   const progressSpinner = spinner();
 
-  progressSpinner.start("Connecting the bot");
+  progressSpinner.start(`Connecting the ${channel.name} address`);
 
   try {
-    await connectTelegram({
+    await connectAddress({
       context: { ...context, out: () => {} },
+      kind: channel.kind,
       name: agent.name,
-      token: token.trim(),
+      credentials: credentials.trim(),
     });
-    progressSpinner.stop(`The bot reaches ${agent.name}`);
+    progressSpinner.stop(`The address reaches ${agent.name}`);
   } catch (cause) {
-    progressSpinner.error(messageOf(cause, "Could not connect the bot"));
+    progressSpinner.error(messageOf(cause, `Could not connect the ${channel.name} address`));
 
     return;
   }
 
   const sender = requireAnswer(
     await text({
-      message: `Who may wake ${agent.name} on Telegram? Your @username or user id; leave it empty for only the server's agents`,
+      message: `Who may wake ${agent.name} on ${channel.name}? ${channel.senders?.description ?? "A sender"}; leave it empty for only the server's agents`,
       defaultValue: "",
     }),
   ).trim();
@@ -128,6 +137,7 @@ async function setUpTelegram(context: CommandContext) {
       addSender({
         context: { ...context, out: (line) => log.success(line) },
         name: agent.name,
+        kind: channel.kind,
         sender,
       });
     } catch (cause) {
@@ -277,8 +287,8 @@ type RunSetupOptions = {
   out: (line: string) => void;
 };
 
-// Asks for the agents, Telegram, files and mode, and saves the config. The agents and the bot
-// go to the database as soon as they are made.
+// Asks for the agents, their channels' addresses, files and mode, and saves the config. The
+// agents and their addresses go to the database as soon as they are made.
 export async function runSetup({
   paths,
   config: savedConfig,
@@ -296,7 +306,10 @@ export async function runSetup({
 
   try {
     await createAgents(context);
-    await setUpTelegram(context);
+
+    for (const channel of context.channels.values()) {
+      if (channel.connect) await setUpChannel({ context, channel });
+    }
 
     const s3 = await setUpFiles(config);
     const mode = await setUpMode({ config, tailscale });

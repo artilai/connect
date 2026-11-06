@@ -5,7 +5,7 @@ import { AppError, messageOf } from "@artil/errors";
 import { shellQuoted } from "@artil/utils/shell";
 
 import type { AddressesRepository } from "../addresses/repository";
-import { type ArrivalKind, type ChannelKind, channelKinds } from "../channels/kinds";
+import { apiChannelKinds, type ChannelKind } from "../channels/kinds";
 import { missingChannel, onlyInCloud } from "../cloud";
 import type { FileLinks } from "../files/links";
 import { attachmentsSchema, readAttachments } from "../files/outgoing";
@@ -19,7 +19,7 @@ const maxText = 32_000;
 export const draftSchema = z.object({
   replyTo: z.uuid("replyTo must be a message id").optional(),
   forward: z.uuid("forward must be a message id").optional(),
-  channel: z.enum(channelKinds).optional(),
+  channel: z.enum(apiChannelKinds).optional(),
   to: z
     .array(z.string().trim().min(1).max(320))
     .min(1, "Give at least one recipient")
@@ -31,7 +31,10 @@ export const draftSchema = z.object({
   attachments: attachmentsSchema.optional(),
 });
 
-export type Draft = z.infer<typeof draftSchema>;
+// What the API's requests take; MCP sends on any channel of the server.
+export type Draft = Omit<z.infer<typeof draftSchema>, "channel"> & {
+  channel?: ChannelKind | undefined;
+};
 
 const recipientSeparator = ", ";
 
@@ -40,7 +43,7 @@ type CreateSenderOptions = {
   messages: MessagesRepository;
   files: FilesService;
   fileLinks: FileLinks;
-  channels: ReadonlyMap<ArrivalKind, Channel<ArrivalKind>>;
+  channels: ReadonlyMap<ChannelKind, Channel>;
 };
 
 type SendOptions = { agentId: string; agentName: string; draft: Draft; uploads: Upload[] };
@@ -104,7 +107,7 @@ export function createSender({
     if (!address) {
       throw new AppError({
         code: "invalid_input",
-        message: `${agentName} has no ${channel.name} address; connect one with: artil-server ${kind} connect ${shellQuoted(agentName)}`,
+        message: `${agentName} has no ${channel.name} address; connect one with: artil-server ${kind} connect ${shellQuoted(agentName)} <credentials>`,
       });
     }
 

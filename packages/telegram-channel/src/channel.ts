@@ -2,7 +2,7 @@ import type { Channel, ChannelEvent, OutboundMessage } from "@artil/channels/con
 import { AppError } from "@artil/errors";
 import { formatBytes } from "@artil/utils/text";
 
-import { atUsername, readChat } from "./chats";
+import { atUsername, readChat, readSender } from "./chats";
 import type { InboundTelegram, TelegramProvider, TelegramQuote } from "./provider";
 
 const maxLength = 4096;
@@ -24,6 +24,13 @@ export function createTelegramChannel(provider: TelegramProvider) {
     }),
 
     disconnect: ({ credentials }) => provider.disconnect(credentials),
+
+    credentials: "The bot's token, from @BotFather",
+
+    senders: {
+      description: "a person's @username or Telegram user id, or a bot's @username",
+      read: (input) => readSender(input) ?? null,
+    },
 
     // A bot cannot start a chat with a person, but it can write first to another bot that takes
     // messages from bots.

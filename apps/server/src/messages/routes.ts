@@ -7,7 +7,7 @@ import { AppError } from "@artil/errors";
 
 import { admissions, refusals } from "../access/admission";
 import type { AgentEnv } from "../agents/env";
-import { type ArrivalKind, channelKinds } from "../channels/kinds";
+import { apiChannelKinds, type ChannelKind, channelKindSchema } from "../channels/kinds";
 import { missingChannel } from "../cloud";
 import type { FileLinks } from "../files/links";
 import { jsonResponse } from "../http/openapi";
@@ -20,7 +20,7 @@ import { draftSchema, type Send } from "./send";
 const direction = z.enum(["inbound", "outbound"]);
 
 const listSchema = z.object({
-  channel: z.enum(channelKinds).exactOptional(),
+  channel: z.enum(apiChannelKinds).exactOptional(),
   direction: direction.exactOptional(),
   limit: z.coerce
     .number()
@@ -46,7 +46,7 @@ const messageSchema = z
   .object({
     id: z.uuid(),
     addressId: z.uuid().describe("The agent's address the message came to or went from"),
-    channel: z.enum(channelKinds),
+    channel: channelKindSchema,
     direction,
     counterpart: z
       .string()
@@ -113,7 +113,7 @@ type CreateMessageRoutesOptions = {
   messages: MessagesRepository;
   send: Send;
   fileLinks: FileLinks;
-  channels: ReadonlyMap<ArrivalKind, Channel<ArrivalKind>>;
+  channels: ReadonlyMap<ChannelKind, Channel>;
 };
 
 export function createMessageRoutes({

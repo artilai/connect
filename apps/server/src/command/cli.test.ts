@@ -56,18 +56,28 @@ test("keeps its config and data where only its owner reads them", async () => {
   });
 });
 
-test("adds a Telegram sender to an agent's list", async () => {
+test("adds a sender to an agent's list on a channel", async () => {
   const dataDir = await mkdtemp(join(tmpdir(), "artil-server-"));
 
   await cli(dataDir, "agent", "create", "Codex");
 
-  expect(await cli(dataDir, "access", "add", "Codex", "@AdaLovelace")).toBe(
+  expect(await cli(dataDir, "access", "add", "Codex", "telegram", "@AdaLovelace")).toBe(
     "@adalovelace now wakes Codex on Telegram.",
   );
 
-  expect(await cli(dataDir, "agent", "list")).toContain("woken by @adalovelace");
-  await expect(cli(dataDir, "access", "add", "Codex", "not a sender!")).rejects.toThrow(
-    "is not a Telegram",
+  expect(await cli(dataDir, "agent", "list")).toContain("woken on Telegram by @adalovelace");
+  await expect(cli(dataDir, "access", "add", "Codex", "telegram", "not a sender!")).rejects.toThrow(
+    "is not a person's @username or Telegram user id",
+  );
+});
+
+test("names the channels it has when a command names one it does not", async () => {
+  const dataDir = await mkdtemp(join(tmpdir(), "artil-server-"));
+
+  await cli(dataDir, "agent", "create", "Codex");
+
+  await expect(cli(dataDir, "discord", "connect", "Codex", "token")).rejects.toThrow(
+    "This server has no discord channel; it has telegram, url",
   );
 });
 

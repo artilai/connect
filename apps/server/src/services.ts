@@ -4,7 +4,7 @@ import { createUrlChannel } from "@artil/url-channel/channel";
 import { createAccessRepository } from "./access/repository";
 import { createAddressesRepository } from "./addresses/repository";
 import { createAgentsRepository } from "./agents/repository";
-import type { ArrivalKind, ChannelKind } from "./channels/kinds";
+import type { ChannelKind } from "./channels/kinds";
 import { createConnectionsRepository } from "./connections/repository";
 import type { Database } from "./db/connection";
 import { createEventBus } from "./events/bus";
@@ -29,7 +29,7 @@ type CreateServicesOptions = {
   baseUrl: string;
   store: FileStore | undefined;
   // The channels with a provider, like Telegram; the server carries the Message URL itself.
-  channels: ReadonlyMap<ChannelKind, Channel<ChannelKind>>;
+  channels: ReadonlyMap<ChannelKind, Channel>;
   log: (line: string) => void;
 };
 
@@ -59,10 +59,7 @@ export function createServices({
   );
 
   // Every channel behind the one interface, whatever carries its messages.
-  const channels = new Map<ArrivalKind, Channel<ArrivalKind>>([
-    ...providerChannels,
-    ["url", urlChannel],
-  ]);
+  const channels = new Map<ChannelKind, Channel>([...providerChannels, ["url", urlChannel]]);
 
   return {
     agents,

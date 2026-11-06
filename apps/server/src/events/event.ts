@@ -2,7 +2,7 @@ import { z } from "zod";
 
 import { day } from "@artil/utils/time";
 
-import { arrivalKinds } from "../channels/kinds";
+import { channelKindSchema } from "../channels/kinds";
 import type { FileLinks } from "../files/links";
 import { attachmentSchema, toAttachment } from "../messages/attachments";
 import { teammateSchema } from "../team/teammate";
@@ -29,7 +29,7 @@ export const eventSchema = z
   .object({
     id: z.int(),
     type: z.literal("message.received"),
-    channel: z.enum(arrivalKinds),
+    channel: channelKindSchema,
     messageId: z.uuid().describe("The message's id, to read it with"),
     text: z
       .string()

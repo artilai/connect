@@ -15,7 +15,7 @@ export async function receiveEvents({ receive, channel, events }: ReceiveEventsO
 }
 
 type CreateReceiversOptions = {
-  channel: Channel<ChannelKind>;
+  channel: Channel;
   addresses: AddressesRepository;
   receive: Receive;
   log: (line: string) => void;

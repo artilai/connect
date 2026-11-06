@@ -48,18 +48,19 @@ export function listAgents(context: CommandContext) {
   }
 
   for (const agent of agents) {
-    const bot = context.addresses.findByAgent({ agentId: agent.id, channel: "telegram" });
-    const senders = context.access.read({ agentId: agent.id, channel: "telegram" }).senders;
     const listening = context.connections.isListening(agent.id) ? "listening" : "not listening";
 
-    const details = [
-      agent.id,
-      listening,
-      bot && `Telegram ${bot.value}`,
-      senders.length > 0 && `woken by ${senders.join(", ")}`,
-    ].filter(Boolean);
+    const addresses = context.addresses
+      .listByAgent(agent.id)
+      .map(({ channel, value }) => `${channelOf({ context, kind: channel }).name} ${value}`);
 
-    context.out(`${agent.name}  ${details.join(" · ")}`);
+    const senders = [...context.channels.values()].flatMap(({ kind, name }) => {
+      const listed = context.access.read({ agentId: agent.id, channel: kind }).senders;
+
+      return listed.length > 0 ? [`woken on ${name} by ${listed.join(", ")}`] : [];
+    });
+
+    context.out(`${agent.name}  ${[agent.id, listening, ...addresses, ...senders].join(" · ")}`);
   }
 }
 
@@ -91,61 +92,84 @@ export function revokeTokens(context: CommandContext, name: string) {
   context.out(`Signed ${agent.name} out of ${revoked} ${revoked === 1 ? "client" : "clients"}.`);
 }
 
-type ConnectableChannelOptions = { context: CommandContext; kind: ChannelKind };
+type ChannelOfOptions = { context: CommandContext; kind: ChannelKind };
 
-// The channel a command connects an address of, which has to take credentials.
-function connectableChannel({ context, kind }: ConnectableChannelOptions) {
+// One of the server's channels, which a command names by its kind.
+export function channelOf({ context, kind }: ChannelOfOptions) {
   const channel = context.channels.get(kind);
-  const connect = channel?.connect;
 
-  if (!channel || !connect) {
-    throw new AppError({ code: "unavailable", message: `This server has no ${kind} channel` });
+  if (!channel) {
+    const kinds = [...context.channels.keys()].join(", ");
+
+    throw new AppError({
+      code: "invalid_input",
+      message: `This server has no ${kind} channel; it has ${kinds}`,
+    });
   }
 
-  return { ...channel, connect };
+  return channel;
 }
 
-type ConnectTelegramOptions = { context: CommandContext; name: string; token: string };
+type ConnectAddressOptions = {
+  context: CommandContext;
+  kind: ChannelKind;
+  name: string;
+  credentials: string;
+};
 
-export async function connectTelegram({ context, name, token }: ConnectTelegramOptions) {
+// Connects an address of the channel to the agent, like a Telegram bot by its token.
+export async function connectAddress({
+  context,
+  kind,
+  name,
+  credentials: given,
+}: ConnectAddressOptions) {
   const agent = agentNamed(context, name);
-  const telegram = connectableChannel({ context, kind: "telegram" });
-  const { value, credentials } = await telegram.connect(token);
+  const channel = channelOf({ context, kind });
+
+  if (!channel.connect) {
+    throw new AppError({
+      code: "invalid_input",
+      message: `Every agent has its ${channel.name} already; there is nothing to connect`,
+    });
+  }
+
+  const { value, credentials } = await channel.connect(given);
 
   const { replaced } = context.addresses.connect({
     agentId: agent.id,
-    channel: "telegram",
+    channel: kind,
     value,
     credentials,
   });
 
   for (const old of replaced) {
-    await telegram.disconnect?.(old);
+    await channel.disconnect?.(old);
     context.out(`${old.value} no longer reaches ${agent.name}.`);
   }
 
   context.out(
     [
-      `${value} now reaches ${agent.name}.`,
-      `Only the server's agents wake ${agent.name} there; let a person in with:`,
-      `  artil-server access add ${shellQuoted(agent.name)} <their @username or Telegram user id>`,
+      `${value} now reaches ${agent.name} on ${channel.name}.`,
+      `Only the server's agents wake ${agent.name} there; let someone in with:`,
+      `  artil-server access add ${shellQuoted(agent.name)} ${kind} <${channel.senders?.description ?? "sender"}>`,
     ].join("\n"),
   );
 }
 
-export async function disconnectTelegram(context: CommandContext, name: string) {
+type DisconnectAddressOptions = { context: CommandContext; kind: ChannelKind; name: string };
+
+export async function disconnectAddress({ context, kind, name }: DisconnectAddressOptions) {
   const agent = agentNamed(context, name);
-  const address = context.addresses.disconnect({ agentId: agent.id, channel: "telegram" });
+  const channel = channelOf({ context, kind });
+  const address = context.addresses.disconnect({ agentId: agent.id, channel: kind });
 
   if (!address) {
-    context.out(`${agent.name} has no Telegram bot.`);
+    context.out(`${agent.name} has no ${channel.name} address.`);
 
     return;
   }
 
-  await connectableChannel({ context, kind: "telegram" }).disconnect?.({
-    value: address.value,
-    credentials: address.credentials,
-  });
+  await channel.disconnect?.({ value: address.value, credentials: address.credentials });
   context.out(`${address.value} no longer reaches ${agent.name}.`);
 }

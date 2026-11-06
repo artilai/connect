@@ -11,7 +11,6 @@ import {
 import { type Thread } from "@artil/channels/contract";
 
 import { admissions, admits, refusals } from "../access/admission";
-import { arrivalKinds, channelKinds } from "../channels/kinds";
 import type { Teammate } from "../team/teammate";
 
 function id() {
@@ -82,7 +81,7 @@ export const addresses = sqliteTable(
     agentId: text("agent_id")
       .notNull()
       .references(() => agents.id, { onDelete: "cascade" }),
-    channel: text("channel", { enum: channelKinds }).notNull(),
+    channel: text("channel").notNull(),
     value: text("value").notNull(),
     credentials: text("credentials"),
     createdAt: createdAt(),
@@ -101,7 +100,7 @@ export const access = sqliteTable(
     agentId: text("agent_id")
       .notNull()
       .references(() => agents.id, { onDelete: "cascade" }),
-    channel: text("channel", { enum: arrivalKinds }).notNull(),
+    channel: text("channel").notNull(),
     admit: text("admit", { enum: admits }).notNull(),
     senders: text("senders", { mode: "json" }).$type<string[]>().notNull(),
   },
@@ -118,7 +117,7 @@ export const messages = sqliteTable(
     addressId: text("address_id")
       .notNull()
       .references(() => addresses.id, { onDelete: "cascade" }),
-    channel: text("channel", { enum: channelKinds }).notNull(),
+    channel: text("channel").notNull(),
     direction: text("direction", { enum: ["inbound", "outbound"] }).notNull(),
     // The provider's id for the message, which a provider that delivers twice repeats. Bots number
     // their messages each on their own, so it tells messages apart only at one address.
@@ -175,7 +174,7 @@ export const events = sqliteTable(
       .notNull()
       .references(() => agents.id, { onDelete: "cascade" }),
     type: text("type", { enum: ["message.received"] }).notNull(),
-    channel: text("channel", { enum: arrivalKinds }).notNull(),
+    channel: text("channel").notNull(),
     messageId: text("message_id").notNull(),
     // A message the Message URL relays comes whole in its event.
     text: text("text"),

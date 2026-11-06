@@ -64,12 +64,7 @@
           },
           "channel": {
             "type": "string",
-            "enum": [
-              "email",
-              "sms",
-              "telegram",
-              "url"
-            ]
+            "description": "The channel's kind, like telegram or url"
           },
           "messageId": {
             "type": "string",
@@ -220,15 +215,11 @@
           },
           "channel": {
             "type": "string",
-            "enum": [
-              "email",
-              "sms",
-              "telegram"
-            ]
+            "description": "The channel's kind, like telegram or url"
           },
           "value": {
             "type": "string",
-            "description": "The Telegram bot's @username"
+            "description": "The address on the channel, like a Telegram bot's @username"
           },
           "domainId": {
             "anyOf": [
@@ -308,11 +299,7 @@
           },
           "channel": {
             "type": "string",
-            "enum": [
-              "email",
-              "sms",
-              "telegram"
-            ]
+            "description": "The channel's kind, like telegram or url"
           },
           "direction": {
             "type": "string",
@@ -544,15 +531,11 @@
               "properties": {
                 "channel": {
                   "type": "string",
-                  "enum": [
-                    "email",
-                    "sms",
-                    "telegram"
-                  ]
+                  "description": "The channel's kind, like telegram or url"
                 },
                 "value": {
                   "type": "string",
-                  "description": "The Telegram bot's @username"
+                  "description": "The address on the channel, like a Telegram bot's @username"
                 }
               },
               "required": [

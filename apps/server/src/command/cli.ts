@@ -10,9 +10,9 @@ import { hashPassword, validatePassword } from "../sign-in/password";
 import type { Tailscale } from "../tailscale";
 import { addSender, removeSender } from "./access";
 import {
-  connectTelegram,
+  connectAddress,
   createAgent,
-  disconnectTelegram,
+  disconnectAddress,
   issueToken,
   listAgents,
   removeAgent,
@@ -24,18 +24,18 @@ import { runSetup } from "./setup";
 const usage = `artil-server: a self-hosted Artil server
 
 Usage:
-  artil-server                                    Start the server, setting it up first if it is new
-  artil-server setup                              Set up the agents, Telegram, files and who reaches the server
-  artil-server agent create <name>                Create an agent
-  artil-server agent list                         List the agents
-  artil-server agent remove <name>                Remove an agent with its messages
-  artil-server agent token <name>                 Make a token, for a computer without a browser
-  artil-server agent revoke <name>                Sign the agent out of every client
-  artil-server telegram connect <agent> <token>   Connect a Telegram bot from @BotFather to an agent
-  artil-server telegram disconnect <agent>        Disconnect the agent's Telegram bot
-  artil-server access add <agent> <sender>        Let a Telegram @username or user id wake the agent
-  artil-server access remove <agent> <sender>     Take them off the list
-  artil-server password                           Set the password the sign-in page asks for
+  artil-server                                           Start the server, setting it up first if it is new
+  artil-server setup                                     Set up the agents, channels, files and who reaches the server
+  artil-server agent create <name>                       Create an agent
+  artil-server agent list                                List the agents
+  artil-server agent remove <name>                       Remove an agent with its messages
+  artil-server agent token <name>                        Make a token, for a computer without a browser
+  artil-server agent revoke <name>                       Sign the agent out of every client
+  artil-server <channel> connect <agent> <credentials>   Connect an address of a channel to an agent, like a Telegram bot by its token
+  artil-server <channel> disconnect <agent>              Disconnect the agent's address of the channel
+  artil-server access add <agent> <channel> <sender>     Let someone wake the agent on the channel
+  artil-server access remove <agent> <channel> <sender>  Take them off the list
+  artil-server password                                  Set the password the sign-in page asks for
 
 Options:
   --data <folder>   Where the server keeps its data (default: ~/.artil-server, or ARTIL_DATA)
@@ -90,26 +90,34 @@ const commands = new Map<string, Command>([
   ["agent token", defineCommand(["name"], (context, { name }) => issueToken(context, name))],
   ["agent revoke", defineCommand(["name"], (context, { name }) => revokeTokens(context, name))],
   [
-    "telegram connect",
-    defineCommand(["agent", "token"], (context, { agent, token }) =>
-      connectTelegram({ context, name: agent, token }),
-    ),
-  ],
-  [
-    "telegram disconnect",
-    defineCommand(["agent"], (context, { agent }) => disconnectTelegram(context, agent)),
-  ],
-  [
     "access add",
-    defineCommand(["agent", "sender"], (context, { agent, sender }) =>
-      addSender({ context, name: agent, sender }),
+    defineCommand(["agent", "channel", "sender"], (context, { agent, channel, sender }) =>
+      addSender({ context, name: agent, kind: channel, sender }),
     ),
   ],
   [
     "access remove",
-    defineCommand(["agent", "sender"], (context, { agent, sender }) =>
-      removeSender({ context, name: agent, sender }),
+    defineCommand(["agent", "channel", "sender"], (context, { agent, channel, sender }) =>
+      removeSender({ context, name: agent, kind: channel, sender }),
     ),
+  ],
+]);
+
+// A channel's commands go by its kind, like artil-server telegram connect.
+const channelCommands = new Map<string, (kind: string) => Command>([
+  [
+    "connect",
+    (kind) =>
+      defineCommand(["agent", "credentials"], (context, { agent, credentials }) =>
+        connectAddress({ context, kind, name: agent, credentials }),
+      ),
+  ],
+  [
+    "disconnect",
+    (kind) =>
+      defineCommand(["agent"], (context, { agent }) =>
+        disconnectAddress({ context, kind, name: agent }),
+      ),
   ],
 ]);
 
@@ -241,7 +249,8 @@ export async function runCli(environment: Environment) {
 
   if (command === "password") return setPassword({ paths, config, out });
 
-  const run = commands.get(`${command} ${subcommand}`);
+  const run =
+    commands.get(`${command} ${subcommand}`) ?? channelCommands.get(subcommand)?.(command);
 
   if (!run)
     throw usageError(`There is no command ${[command, subcommand].filter(Boolean).join(" ")}`);

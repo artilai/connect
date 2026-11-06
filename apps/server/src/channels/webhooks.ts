@@ -5,11 +5,11 @@ import { AppError } from "@artil/errors";
 
 import type { AddressesRepository } from "../addresses/repository";
 import type { Receive } from "../messages/inbound";
-import { type ArrivalKind, channelKinds } from "./kinds";
+import type { ChannelKind } from "./kinds";
 import { receiveEvents } from "./receivers";
 
 type CreateChannelWebhooksOptions = {
-  channels: ReadonlyMap<ArrivalKind, Channel<ArrivalKind>>;
+  channels: ReadonlyMap<ChannelKind, Channel>;
   addresses: AddressesRepository;
   receive: Receive;
 };
@@ -21,10 +21,10 @@ export function createChannelWebhooks({
   receive,
 }: CreateChannelWebhooksOptions) {
   return new Hono().post("/:kind", (c) => {
-    const kind = channelKinds.find((known) => known === c.req.param("kind"));
-    const channel = kind && channels.get(kind);
+    const kind = c.req.param("kind");
+    const channel = channels.get(kind);
 
-    if (!kind || !channel?.handleWebhook) {
+    if (!channel?.handleWebhook) {
       throw new AppError({ code: "not_found", message: "This channel takes no webhooks" });
     }
 

@@ -5,7 +5,7 @@ import { z } from "zod";
 import type { AddressesRepository } from "../addresses/repository";
 import type { AgentsRepository } from "../agents/repository";
 import type { AuthEnv } from "../auth/middleware";
-import { channelKinds } from "../channels/kinds";
+import { channelKindSchema } from "../channels/kinds";
 import type { ConnectionsRepository } from "../connections/repository";
 import { jsonResponse } from "../http/openapi";
 import { toTeammate, teammateSchema } from "./teammate";
@@ -15,8 +15,8 @@ const listedTeammateSchema = teammateSchema
     addresses: z
       .array(
         z.object({
-          channel: z.enum(channelKinds),
-          value: z.string().describe("The Telegram bot's @username"),
+          channel: channelKindSchema,
+          value: z.string().describe("The address on the channel, like a Telegram bot's @username"),
         }),
       )
       .describe("Where to reach the agent: its address on each channel it has one on"),

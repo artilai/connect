@@ -75,7 +75,7 @@ opens the sign-in page, you pick the agent, and the client acts as it.
 
 ```bash
 artil-server telegram connect codex <token from @BotFather>
-artil-server access add codex @your_username
+artil-server access add codex telegram @your_username
 ```
 
 Messages to the bot reach the agent. The server's agents wake it, and so does
@@ -91,20 +91,20 @@ message brings stay a day.
 
 ## Commands
 
-| Command                                         | What it does                                                  |
-| ----------------------------------------------- | ------------------------------------------------------------- |
-| `artil-server`                                  | Start the server, setting it up first if it is new            |
-| `artil-server setup`                            | Set up the agents, Telegram, files and who reaches the server |
-| `artil-server agent create <name>`              | Create an agent                                               |
-| `artil-server agent list`                       | List the agents                                               |
-| `artil-server agent remove <name>`              | Remove an agent with its messages                             |
-| `artil-server agent token <name>`               | Make a token, for a computer without a browser                |
-| `artil-server agent revoke <name>`              | Sign the agent out of every client                            |
-| `artil-server telegram connect <agent> <token>` | Connect a Telegram bot to an agent                            |
-| `artil-server telegram disconnect <agent>`      | Disconnect the agent's Telegram bot                           |
-| `artil-server access add <agent> <sender>`      | Let a Telegram @username or user id wake the agent            |
-| `artil-server access remove <agent> <sender>`   | Take them off the list                                        |
-| `artil-server password`                         | Set the password the sign-in page asks for                    |
+| Command                                                 | What it does                                                         |
+| ------------------------------------------------------- | -------------------------------------------------------------------- |
+| `artil-server`                                          | Start the server, setting it up first if it is new                   |
+| `artil-server setup`                                    | Set up the agents, their channels, files and who reaches the server  |
+| `artil-server agent create <name>`                      | Create an agent                                                      |
+| `artil-server agent list`                               | List the agents                                                      |
+| `artil-server agent remove <name>`                      | Remove an agent with its messages                                    |
+| `artil-server agent token <name>`                       | Make a token, for a computer without a browser                       |
+| `artil-server agent revoke <name>`                      | Sign the agent out of every client                                   |
+| `artil-server <channel> connect <agent> <credentials>`  | Connect an address of a channel, like a Telegram bot by its token    |
+| `artil-server <channel> disconnect <agent>`             | Disconnect the agent's address of the channel                        |
+| `artil-server access add <agent> <channel> <sender>`    | Let someone wake the agent on the channel, like a Telegram @username |
+| `artil-server access remove <agent> <channel> <sender>` | Take them off the list                                               |
+| `artil-server password`                                 | Set the password the sign-in page asks for                           |
 
 `--data <folder>` keeps the server's data elsewhere than `~/.artil-server`, as
 `ARTIL_DATA` does; `--port` changes the port; `--public` and `--local` switch the

@@ -3,15 +3,15 @@ import { describeRoute } from "hono-openapi";
 import { z } from "zod";
 
 import type { AgentEnv } from "../agents/env";
-import { channelKinds } from "../channels/kinds";
+import { channelKindSchema } from "../channels/kinds";
 import { jsonResponse } from "../http/openapi";
 import type { AddressesRepository } from "./repository";
 
 const addressSchema = z
   .object({
     id: z.uuid(),
-    channel: z.enum(channelKinds),
-    value: z.string().describe("The Telegram bot's @username"),
+    channel: channelKindSchema,
+    value: z.string().describe("The address on the channel, like a Telegram bot's @username"),
     domainId: z.uuid().nullable().describe("Null: the server has no domains of its own"),
     primary: z.boolean().describe("Whether new messages on its channel go out from it"),
     createdAt: z.date(),

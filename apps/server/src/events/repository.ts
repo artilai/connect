@@ -2,7 +2,7 @@ import { and, asc, count, desc, eq, gt } from "drizzle-orm";
 
 import { hour } from "@artil/utils/time";
 
-import type { ChannelKind, RelayKind } from "../channels/kinds";
+import type { ChannelKind } from "../channels/kinds";
 import type { Database } from "../db/connection";
 import { events } from "../db/schema";
 import {
@@ -23,7 +23,7 @@ type Arrival = { type: "message.received"; channel: ChannelKind; messageId: stri
 // thread it is for, and the client the sender wrote it in.
 type Relay = {
   type: "message.received";
-  channel: RelayKind;
+  channel: "url";
   messageId: string;
   text: string | null;
   sender: Teammate;

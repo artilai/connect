@@ -6,7 +6,7 @@ import type { Fetch } from "@artil/utils/fetch";
 import type { ChannelKind } from "./kinds";
 
 type CreateChannelsOptions = {
-  definitions: readonly ChannelDefinition<ChannelKind>[];
+  definitions: readonly ChannelDefinition[];
   // The server's address on the internet, where providers post; none in local mode.
   publicUrl: string | undefined;
   secret: string;
@@ -31,7 +31,7 @@ export function createChannels({
   log,
   fetch = (url, init) => globalThis.fetch(url, init),
 }: CreateChannelsOptions) {
-  return new Map<ChannelKind, Channel<ChannelKind>>(
+  return new Map<ChannelKind, Channel>(
     definitions.map(({ kind, create }) => [
       kind,
       create({

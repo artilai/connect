@@ -82,7 +82,7 @@ export function createMessagesRepository({ db, files }: CreateMessagesRepository
         .where(
           and(
             eq(messages.agentId, agentId),
-            channel && eq(messages.channel, channel),
+            channel === undefined ? undefined : eq(messages.channel, channel),
             direction && eq(messages.direction, direction),
             counterpart === undefined ? undefined : eq(messages.counterpart, counterpart),
             anchor && olderThan(anchor),

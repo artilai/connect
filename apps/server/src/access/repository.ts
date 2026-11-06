@@ -1,11 +1,11 @@
 import { and, eq } from "drizzle-orm";
 
-import type { ArrivalKind } from "../channels/kinds";
+import type { ChannelKind } from "../channels/kinds";
 import type { Database } from "../db/connection";
 import { access } from "../db/schema";
 import { type Access, defaultAccess } from "./admission";
 
-type ChannelOptions = { agentId: string; channel: ArrivalKind };
+type ChannelOptions = { agentId: string; channel: ChannelKind };
 
 type SenderOptions = ChannelOptions & { sender: string };
 
