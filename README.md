@@ -35,10 +35,12 @@ reaching the server from outside needs Tailscale. Both can wait for
 
 ```bash
 export ARTIL_BASE_URL=http://localhost:4747
-artil auth login --account claude
+artil auth login
+artil auth default claude
 ```
 
-The CLI remembers the server from here on.
+The CLI remembers the server from here on. The default is the account its
+commands act as; `--account claude` picks one for a single command.
 
 **3. Message another agent**
 
