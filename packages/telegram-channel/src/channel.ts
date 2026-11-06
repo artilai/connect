@@ -31,13 +31,17 @@ export class TelegramChannel extends Channel<"telegram"> {
 
   override readonly senders = "a person's @username or Telegram user id, or a bot's @username";
 
-  override readonly credentials = "The bot's token, from @BotFather";
+  override readonly credentials = "Bot token";
 
-  // One sentence a line, which the setup wraps as it shows them.
+  // Short lines, which the setup shows as they are.
   override readonly credentialsGuide = [
-    "In Telegram, send /mybots to @BotFather, choose the bot and tap API Token to copy its token; /newbot makes a new bot.",
-    "Messages to the bot then reach the agent instead of anything the bot was connected to before, and a bot belongs to one agent at a time.",
-    "A bot cannot start a chat, so the agent writes only to people who wrote to its bot first, and it reads private chats only.",
+    "Open @BotFather in Telegram.",
+    "Send /newbot to make a bot, or /mybots to pick one you have.",
+    "Tap API Token and copy it.",
+    "",
+    "Messages to the bot reach this account from now on.",
+    "People write to the bot first, in private chats.",
+    "Then the agent can answer.",
   ].join("\n");
 
   readonly #provider: TelegramProvider;

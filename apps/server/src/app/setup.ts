@@ -83,17 +83,22 @@ async function createAgents(context: CommandContext) {
 
 type SetUpChannelOptions = { context: CommandContext; channel: Channel };
 
-// Offers to connect an address of a channel that takes credentials to one account after another,
-// as each account holds one of its own, and to let someone wake the agent there.
+// Offers an address of a channel that takes credentials to each account without one, in turn, and
+// lets someone wake the agent there.
 async function setUpChannel({ context, channel }: SetUpChannelOptions) {
-  const agents = context.agents.list();
+  function accountsWithout() {
+    return context.agents
+      .list()
+      .filter(({ id }) => !context.addresses.findByAgent({ agentId: id, channel: channel.kind }));
+  }
 
-  if (agents.length === 0) return;
+  let connected = false;
+  let agents = accountsWithout();
 
-  for (;;) {
+  while (agents.length > 0) {
     const connectNow = requireAnswer(
       await confirm({
-        message: `Connect a ${channel.name} address to an account?`,
+        message: `Connect a ${channel.name} address to ${connected ? "another" : "an"} account?`,
         initialValue: false,
       }),
     );
@@ -129,11 +134,14 @@ async function setUpChannel({ context, channel }: SetUpChannelOptions) {
       });
 
       progressSpinner.stop(`${address.value} now reaches ${agent.name} on ${channel.name}`);
+      connected = true;
     } catch (cause) {
       progressSpinner.error(messageOf(cause, `Could not connect the ${channel.name} address`));
 
       continue;
     }
+
+    agents = accountsWithout();
 
     const sender = requireAnswer(
       await text({
