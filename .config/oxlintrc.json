@@ -1,0 +1,209 @@
+{
+  "$schema": "../node_modules/oxlint/configuration_schema.json",
+  "plugins": ["typescript", "unicorn", "oxc", "jsx-a11y", "import"],
+  "jsPlugins": [
+    {
+      "name": "anti-slop",
+      "specifier": "./anti-slop/index.ts"
+    },
+    {
+      "name": "artil",
+      "specifier": "./lint/index.ts"
+    }
+  ],
+  "ignorePatterns": ["anti-slop/**"],
+  "categories": {
+    "correctness": "error",
+    "suspicious": "error"
+  },
+  "options": {
+    "typeAware": true
+  },
+  "rules": {
+    "no-restricted-properties": [
+      "error",
+      {
+        "object": "process",
+        "property": "env",
+        "message": "Read the environment in an entry point and pass values in as arguments."
+      },
+      {
+        "object": "Bun",
+        "property": "env",
+        "message": "Read the environment in an entry point and pass values in as arguments."
+      }
+    ],
+    "func-style": [
+      "error",
+      "declaration",
+      {
+        "allowTypeAnnotation": true
+      }
+    ],
+    "no-var": "error",
+    "prefer-const": "error",
+    "object-shorthand": "error",
+    "prefer-template": "error",
+    "prefer-rest-params": "error",
+    "prefer-spread": "error",
+    "prefer-object-spread": "error",
+    "prefer-exponentiation-operator": "error",
+    "prefer-object-has-own": "error",
+    "logical-assignment-operators": "error",
+    "preserve-caught-error": "error",
+    "require-unicode-regexp": [
+      "error",
+      {
+        "requireFlag": "v"
+      }
+    ],
+    "typescript/no-non-null-assertion": "error",
+    "typescript/consistent-return": "off",
+    "typescript/no-unsafe-type-assertion": "off",
+    "typescript/no-unnecessary-type-parameters": "off",
+    "typescript/no-misused-promises": [
+      "error",
+      {
+        "checksVoidReturn": {
+          "attributes": false
+        }
+      }
+    ],
+    "typescript/switch-exhaustiveness-check": [
+      "error",
+      {
+        "considerDefaultExhaustiveForUnions": true
+      }
+    ],
+    "typescript/no-deprecated": "error",
+    "typescript/no-explicit-any": "error",
+    "typescript/no-unsafe-argument": "error",
+    "typescript/no-unsafe-assignment": "error",
+    "typescript/no-unsafe-call": "error",
+    "typescript/no-unsafe-member-access": "error",
+    "typescript/no-unsafe-return": "error",
+    "typescript/no-unsafe-function-type": "error",
+    "typescript/use-unknown-in-catch-callback-variable": "error",
+    "typescript/no-misused-spread": "error",
+    "typescript/prefer-nullish-coalescing": [
+      "error",
+      {
+        "ignorePrimitives": {
+          "string": true,
+          "boolean": true
+        }
+      }
+    ],
+    "typescript/prefer-optional-chain": "error",
+    "typescript/prefer-includes": "error",
+    "typescript/prefer-string-starts-ends-with": "error",
+    "typescript/prefer-for-of": "error",
+    "typescript/consistent-type-assertions": [
+      "error",
+      {
+        "assertionStyle": "as",
+        "objectLiteralTypeAssertions": "never"
+      }
+    ],
+    "unicorn/consistent-function-scoping": "off",
+    "unicorn/prefer-add-event-listener": "off",
+    "unicorn/require-post-message-target-origin": "off",
+    "oxc/no-async-endpoint-handlers": "off",
+    "import/no-unassigned-import": [
+      "error",
+      {
+        "allow": ["**/*.css"]
+      }
+    ],
+    "unicorn/no-array-sort": "error",
+    "unicorn/no-array-reverse": "error",
+    "unicorn/no-instanceof-array": "error",
+    "unicorn/no-new-buffer": "error",
+    "unicorn/prefer-at": "error",
+    "unicorn/prefer-array-flat": "error",
+    "unicorn/prefer-array-flat-map": "error",
+    "unicorn/prefer-object-from-entries": "error",
+    "unicorn/prefer-optional-catch-binding": "error",
+    "unicorn/prefer-string-trim-start-end": "error",
+    "unicorn/prefer-string-replace-all": "error",
+    "unicorn/prefer-string-slice": "error",
+    "unicorn/prefer-negative-index": "error",
+    "unicorn/prefer-includes": "error",
+    "unicorn/prefer-number-properties": "error",
+    "unicorn/prefer-math-trunc": "error",
+    "unicorn/prefer-modern-math-apis": "error",
+    "unicorn/prefer-code-point": "error",
+    "unicorn/prefer-global-this": "error",
+    "unicorn/prefer-class-fields": "error",
+    "unicorn/prefer-structured-clone": "error",
+    "unicorn/prefer-node-protocol": "error",
+    "unicorn/prefer-import-meta-properties": "error",
+    "unicorn/prefer-response-static-json": "error",
+    "unicorn/prefer-blob-reading-methods": "error",
+    "import/namespace": "off",
+    "import/no-default-export": "error",
+    "import/no-namespace": "error",
+    "import/no-cycle": [
+      "error",
+      {
+        "ignoreTypes": false
+      }
+    ],
+    "artil/no-import-meta-env": "error",
+    "artil/layered-imports": "error",
+    "artil/server-architecture": "error",
+    "artil/no-inline-param-types": "error",
+    "artil/no-re-exports": "error",
+    "artil/prefer-object-params": "error",
+    "oxc/no-accumulating-spread": "error",
+    "anti-slop/no-array-filter-map": "error",
+    "anti-slop/no-reduce-accumulator-copy": "error",
+    "anti-slop/no-chained-type-assertions": "error",
+    "anti-slop/no-conditional-empty-object-spread": "error",
+    "anti-slop/no-known-value-widening": "error",
+    "anti-slop/no-module-mocking": "error",
+    "anti-slop/no-object-parameters": "error",
+    "anti-slop/no-reflect-apply": "error",
+    "anti-slop/no-reflect-get": "error",
+    "anti-slop/no-runtime-typeof": "error",
+    "anti-slop/no-shape-in-symbol-names": "error",
+    "anti-slop/no-unknown-parameters": "error",
+    "anti-slop/no-unknown-returns": "error",
+    "anti-slop/no-unknown-type-aliases": "error",
+    "anti-slop/no-unsafe-dictionary-type": "error",
+    "anti-slop/no-widen-then-assert": "error",
+    "anti-slop/require-readable-spacing": "error",
+    "anti-slop/require-safety-comment-for-type-assertion": "error"
+  },
+  "overrides": [
+    {
+      "files": ["**/*.test.ts", "**/*.test.tsx", "**/src/testing.ts"],
+      "rules": {
+        "typescript/await-thenable": "off",
+        "typescript/unbound-method": "off",
+        "typescript/no-unsafe-argument": "off",
+        "typescript/no-unsafe-assignment": "off",
+        "typescript/no-unsafe-call": "off",
+        "typescript/no-unsafe-member-access": "off",
+        "typescript/no-unsafe-return": "off"
+      }
+    },
+    {
+      "files": ["**/*.config.ts", "**/lint/index.ts", "**/*.d.ts"],
+      "rules": {
+        "import/no-default-export": "off"
+      }
+    },
+    {
+      "files": [
+        "**/apps/server/src/main.ts",
+        "**/apps/server/drizzle.config.ts",
+        "**/apps/server/scripts/*.ts"
+      ],
+      "rules": {
+        "no-restricted-properties": "off",
+        "artil/no-import-meta-env": "off"
+      }
+    }
+  ]
+}

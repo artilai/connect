@@ -1,0 +1,19 @@
+{
+  "$schema": "../node_modules/knip/schema.json",
+  "ignoreIssues": {
+    ".config/anti-slop/**": ["exports", "types"]
+  },
+  "workspaces": {
+    "apps/server": {
+      "entry": ["src/main.ts", "scripts/*.ts"]
+    },
+    "packages/channels": {},
+    "packages/errors": {},
+    "packages/telegram-channel": {},
+    "packages/url-channel": {},
+    "packages/utils": {
+      "includeEntryExports": true
+    }
+  },
+  "ignoreBinaries": ["oasdiff"]
+}

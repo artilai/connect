@@ -1,0 +1,114 @@
+import { shellQuoted } from "@artil/utils/shell";
+
+import { type Command, defineCommand } from "../../platform/commands";
+import type { AccessService } from "../access/service";
+import type { AddressesService } from "../addresses/service";
+import type { ChannelsService } from "../channels/service";
+import type { ConnectionsService } from "../connections/service";
+import type { TokensService } from "../tokens/service";
+import type { AgentsService } from "./service";
+
+type AgentCommandsOptions = {
+  agents: AgentsService;
+  tokens: TokensService;
+  addresses: AddressesService;
+  access: AccessService;
+  connections: ConnectionsService;
+  channels: ChannelsService;
+  out: (line: string) => void;
+  // Where agents reach the server, to tell them how to sign in.
+  baseUrl: () => Promise<string>;
+};
+
+type SignInGuideOptions = { baseUrl: string; names: readonly string[] };
+
+// How each kind of client signs the agents in to this server.
+export function signInGuide({ baseUrl, names }: SignInGuideOptions) {
+  return [
+    `Sign ${names.length === 1 ? "the agent" : "each agent"} in from its client:`,
+    ...names.map(
+      (name) => `  ARTIL_BASE_URL=${baseUrl} artil auth login --account ${shellQuoted(name)}`,
+    ),
+    `MCP clients connect to ${baseUrl}/mcp and sign in on the page it opens.`,
+    "On a computer without a browser, make a token with: artil-server agent token <name>",
+  ].join("\n");
+}
+
+export function createAgentCommands({
+  agents,
+  tokens,
+  addresses,
+  access,
+  connections,
+  channels,
+  out,
+  baseUrl,
+}: AgentCommandsOptions) {
+  async function createAgent(name: string) {
+    const agent = agents.create(name);
+
+    out(`Created ${agent.name} (${agent.id}).`);
+    out(signInGuide({ baseUrl: await baseUrl(), names: [agent.name] }));
+  }
+
+  function listAgents() {
+    const list = agents.list();
+
+    if (list.length === 0) {
+      out("No agents yet. Create one with: artil-server agent create <name>");
+
+      return;
+    }
+
+    for (const agent of list) {
+      const listening = connections.isListening(agent.id) ? "listening" : "not listening";
+
+      const agentAddresses = addresses
+        .listByAgent(agent.id)
+        .map(({ channel, value }) => `${channels.get(channel).name} ${value}`);
+
+      const senders = channels.list().flatMap(({ kind, name }) => {
+        const listed = access.read({ agentId: agent.id, channel: kind }).senders;
+
+        return listed.length > 0 ? [`woken on ${name} by ${listed.join(", ")}`] : [];
+      });
+
+      out(`${agent.name}  ${[agent.id, listening, ...agentAddresses, ...senders].join(" · ")}`);
+    }
+  }
+
+  async function removeAgent(name: string) {
+    const agent = agents.getByIdOrName(name);
+
+    await agents.remove(agent.id);
+    out(`Removed ${agent.name}, with its messages and sign-ins.`);
+  }
+
+  // A token for a computer without a browser, where the sign-in page cannot send its code back.
+  async function issueToken(name: string) {
+    const agent = agents.getByIdOrName(name);
+    const token = tokens.issue({ agentId: agent.id, name: "artil-server agent token" });
+
+    out(
+      [
+        `A token for ${agent.name}. Keep it secret; it signs in as the agent until you revoke it.`,
+        `  ARTIL_BASE_URL=${await baseUrl()} artil auth login --token ${token}`,
+      ].join("\n"),
+    );
+  }
+
+  function revokeTokens(name: string) {
+    const agent = agents.getByIdOrName(name);
+    const revoked = tokens.revokeByAgent(agent.id);
+
+    out(`Signed ${agent.name} out of ${revoked} ${revoked === 1 ? "client" : "clients"}.`);
+  }
+
+  return new Map<string, Command>([
+    ["agent create", defineCommand(["name"], ({ name }) => createAgent(name))],
+    ["agent list", defineCommand([], () => listAgents())],
+    ["agent remove", defineCommand(["name"], ({ name }) => removeAgent(name))],
+    ["agent token", defineCommand(["name"], ({ name }) => issueToken(name))],
+    ["agent revoke", defineCommand(["name"], ({ name }) => revokeTokens(name))],
+  ]);
+}

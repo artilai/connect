@@ -1,0 +1,103 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-26.04
+    timeout-minutes: 10
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v7
+      - name: Install dependencies
+        uses: ./.github/actions/install
+      - name: Run linter
+        run: bun run lint --format=github
+      - name: Check formatting
+        run: bun run fmt --check
+      - name: Find unused code
+        run: bun run knip --reporter github-actions
+      - name: Check migrations
+        run: bun run db:check
+
+  typecheck:
+    name: Typecheck
+    runs-on: ubuntu-26.04
+    timeout-minutes: 10
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v7
+      - name: Install dependencies
+        uses: ./.github/actions/install
+      - name: Check types
+        run: bun run typecheck
+
+  test:
+    name: Tests
+    runs-on: ubuntu-26.04
+    timeout-minutes: 10
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v7
+      - name: Install dependencies
+        uses: ./.github/actions/install
+      - name: Run tests
+        run: bun test
+
+  e2e:
+    name: The published CLI
+    runs-on: ubuntu-26.04
+    timeout-minutes: 10
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v7
+      - name: Install dependencies
+        uses: ./.github/actions/install
+      - name: Set up Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - name: Install the artil CLI
+        run: npm install --global artil-ai@latest
+      - name: Run the CLI against the server
+        run: bun run --filter @artil-ai/server e2e "$(command -v artil)"
+
+  api:
+    name: API compatibility
+    runs-on: ubuntu-26.04
+    timeout-minutes: 5
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v7
+      - name: Install dependencies
+        uses: ./.github/actions/install
+      - name: Install oasdiff
+        run: |
+          curl -fsSLo oasdiff.tar.gz https://github.com/oasdiff/oasdiff/releases/download/v1.33.0/oasdiff_1.33.0_linux_amd64.tar.gz
+          echo "43a4e328e2d13ba1552d760aa68d2485c75c5621f309f6ff64ae895188345247  oasdiff.tar.gz" | sha256sum -c
+          sudo tar -xzf oasdiff.tar.gz -C /usr/local/bin oasdiff
+      - name: Compare with Artil Cloud's API
+        run: bun run api:check
+
+  # .github/rulesets/main-checks.json requires only this check, so list every job above in needs.
+  checks:
+    name: Checks
+    needs: [lint, typecheck, test, e2e, api]
+    if: always()
+    runs-on: ubuntu-26.04
+    timeout-minutes: 1
+    steps:
+      - name: Fail when a check did not pass
+        if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
+        run: exit 1
