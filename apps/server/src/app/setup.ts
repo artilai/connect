@@ -86,15 +86,16 @@ type SetUpChannelOptions = { context: CommandContext; channel: Channel };
 // Offers an address of a channel that takes credentials to each account without one, in turn, and
 // lets someone wake the agent there.
 async function setUpChannel({ context, channel }: SetUpChannelOptions) {
-  let connected = false;
-
-  for (;;) {
-    const agents = context.agents
+  function accountsWithout() {
+    return context.agents
       .list()
       .filter(({ id }) => !context.addresses.findByAgent({ agentId: id, channel: channel.kind }));
+  }
 
-    if (agents.length === 0) return;
+  let connected = false;
+  let agents = accountsWithout();
 
+  while (agents.length > 0) {
     const connectNow = requireAnswer(
       await confirm({
         message: `Connect a ${channel.name} address to ${connected ? "another" : "an"} account?`,
@@ -139,6 +140,8 @@ async function setUpChannel({ context, channel }: SetUpChannelOptions) {
 
       continue;
     }
+
+    agents = accountsWithout();
 
     const sender = requireAnswer(
       await text({
