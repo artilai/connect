@@ -1,0 +1,123 @@
+import { Hono } from "hono";
+import { describeRoute } from "hono-openapi";
+import { z } from "zod";
+
+import { AppError } from "@artil/errors";
+
+import { jsonResponse } from "../../platform/http/openapi";
+import { validateQuery } from "../../platform/http/validate";
+import type { AgentEnv } from "../agents/schema";
+import type { ConnectionsService } from "../connections/service";
+import type { FileLinks } from "../files/schema";
+import type { TokensService } from "../tokens/service";
+import { type EventRecord, eventSchema, toEvent } from "./schema";
+import type { EventsService } from "./service";
+import { streamEvents } from "./stream";
+
+const cursorSchema = z.coerce.number().int("Cursor must be an event id").nonnegative();
+
+const listSchema = z.object({ after: cursorSchema.optional() });
+
+const streamSchema = listSchema.extend({
+  connection: z.uuid("Connection must be the id of the agent's connection").optional(),
+});
+
+const tags = ["Events"];
+
+const docs = {
+  list: describeRoute({
+    tags,
+    operationId: "listEvents",
+    summary: "List events",
+    description:
+      "Without after, the latest events come newest first. With after, the events that followed it come oldest first.",
+    responses: { 200: jsonResponse("The events", z.array(eventSchema)) },
+  }),
+  stream: describeRoute({
+    tags,
+    operationId: "streamEvents",
+    summary: "Stream events",
+    description:
+      "Server-sent events, named by type, with each Event as JSON data. A reconnect resumes after Last-Event-ID. With connection, the stream ends once another client connects, and reopening it then fails with conflict.",
+    parameters: [{ in: "header", name: "Last-Event-ID", schema: { type: "integer" } }],
+    responses: {
+      200: {
+        description: "The event stream",
+        content: { "text/event-stream": { schema: { type: "string" } } },
+      },
+    },
+  }),
+};
+
+type CreateEventRoutesOptions = {
+  events: EventsService;
+  connections: ConnectionsService;
+  tokens: TokensService;
+  fileLinks: FileLinks;
+};
+
+export function createEventRoutes({
+  events,
+  connections,
+  tokens,
+  fileLinks,
+}: CreateEventRoutesOptions) {
+  function toClientEvent(event: EventRecord) {
+    return toEvent(event, fileLinks);
+  }
+
+  return new Hono<AgentEnv>()
+    .get("/", docs.list, validateQuery(listSchema), (c) => {
+      const { after } = c.req.valid("query");
+      const agentId = c.var.agent.id;
+
+      const listedEvents =
+        after === undefined
+          ? events.listLatest(agentId)
+          : events.listAfter({ agentId, cursor: after });
+
+      return c.json(listedEvents.map(toClientEvent));
+    })
+    .get("/stream", docs.stream, validateQuery(streamSchema), (c) => {
+      const lastEventId = cursorSchema.optional().safeParse(c.req.header("last-event-id"));
+      const { after, connection } = c.req.valid("query");
+      const agentId = c.var.agent.id;
+
+      if (!lastEventId.success) {
+        throw new AppError({ code: "invalid_input", message: "Last-Event-ID is not an event id" });
+      }
+
+      const resumeAfter = lastEventId.data ?? after;
+
+      if (connection === undefined) {
+        const { tokenHash } = c.var.actor;
+
+        return streamEvents({
+          c,
+          events,
+          toClientEvent,
+          resumeAfter: resumeAfter ?? events.findLastId(agentId),
+          // A stream ends once its token is revoked.
+          checkIn: () => tokens.isValid(tokenHash),
+        });
+      }
+
+      const currentConnection = connections.findByAgent(agentId);
+
+      if (currentConnection?.id !== connection) {
+        throw new AppError({
+          code: "conflict",
+          message: "Another client now hears this agent's new messages",
+        });
+      }
+
+      // A connection hears what came since it connected, or since the last event it was sent.
+      return streamEvents({
+        c,
+        events,
+        toClientEvent,
+        resumeAfter: Math.max(resumeAfter ?? 0, currentConnection.startsAfter),
+        checkIn: (cursor) => connections.checkIn({ agentId, id: connection, cursor }),
+      });
+    });
+}

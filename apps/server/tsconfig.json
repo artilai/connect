@@ -1,0 +1,9 @@
+{
+  "extends": "../../.config/tsconfig.base.json",
+  "compilerOptions": {
+    "types": ["bun"],
+    "jsx": "react-jsx",
+    "jsxImportSource": "hono/jsx"
+  },
+  "include": ["src", "scripts", "drizzle.config.ts"]
+}

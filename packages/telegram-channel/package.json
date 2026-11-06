@@ -1,0 +1,17 @@
+{
+  "name": "@artil/telegram-channel",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/definition.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@artil/channels": "workspace:*",
+    "@artil/errors": "workspace:*",
+    "@artil/utils": "workspace:*",
+    "zod": "^4.6.7"
+  }
+}
