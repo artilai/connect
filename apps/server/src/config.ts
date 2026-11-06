@@ -29,6 +29,10 @@ const configSchema = z.object({
   workspaceId: z.uuid(),
   ownerId: z.uuid(),
   s3: s3Schema.nullable(),
+  // The channels the server loads beside the Message URL: a built-in one by its kind, like
+  // telegram, or a module that exports a channel definition, by its path or its package name,
+  // which the server finds from the data folder.
+  channels: z.array(z.string().min(1)).default(["telegram"]),
 });
 
 export type Config = z.infer<typeof configSchema>;
@@ -43,6 +47,7 @@ export function newConfig(): Config {
     workspaceId: crypto.randomUUID(),
     ownerId: crypto.randomUUID(),
     s3: null,
+    channels: ["telegram"],
   };
 }
 

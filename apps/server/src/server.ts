@@ -1,7 +1,7 @@
 import { hostname } from "node:os";
 
+import type { ChannelDefinition } from "@artil/channels/contract";
 import { messageOf } from "@artil/errors";
-import { channel as telegramChannel } from "@artil/telegram-channel";
 import type { Fetch } from "@artil/utils/fetch";
 import { hour, second } from "@artil/utils/time";
 
@@ -26,6 +26,8 @@ type StartServerOptions = {
   migrationsFolder: string;
   // Opens the server to the internet in public mode.
   tailscale: Tailscale | undefined;
+  // The channels the config loads, beside the Message URL.
+  channels: readonly ChannelDefinition[];
   // Reads the hash of the sign-in page's password for each sign-in, so a new one counts at once.
   password: () => Promise<string | null>;
   log: (line: string) => void;
@@ -41,6 +43,7 @@ export async function startServer({
   databasePath,
   migrationsFolder,
   tailscale,
+  channels: definitions,
   password,
   log,
   store = config.s3 ? createS3Store(config.s3) : undefined,
@@ -74,7 +77,7 @@ export async function startServer({
   const baseUrl = publicUrl ?? `http://localhost:${port}`;
 
   const channels = createChannels({
-    definitions: [telegramChannel],
+    definitions,
     publicUrl,
     secret: config.secret,
     log,

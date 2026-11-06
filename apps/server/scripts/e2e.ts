@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { loadChannels } from "../src/channels/load";
 import { newConfig } from "../src/config";
 import { startServer } from "../src/server";
 
@@ -16,11 +17,14 @@ const migrationsFolder = fileURLToPath(new URL("../migrations", import.meta.url)
 
 const folder = await mkdtemp(join(tmpdir(), "artil-server-e2e-"));
 
+const config = { ...newConfig(), port: 0 };
+
 const server = await startServer({
-  config: { ...newConfig(), port: 0 },
+  config,
   databasePath: join(folder, "artil.db"),
   migrationsFolder,
   tailscale: undefined,
+  channels: await loadChannels({ specifiers: config.channels, dataDir: folder }),
   password: async () => null,
   log: (line) => console.log(`server: ${line}`),
 });

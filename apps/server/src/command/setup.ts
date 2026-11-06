@@ -302,7 +302,7 @@ export async function runSetup({
 
   await writeConfig(paths, config);
 
-  const context = openCommandContext({ paths, config, migrationsFolder, tailscale, out });
+  const context = await openCommandContext({ paths, config, migrationsFolder, tailscale, out });
 
   try {
     await createAgents(context);

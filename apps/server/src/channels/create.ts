@@ -32,14 +32,19 @@ export function createChannels({
   fetch = (url, init) => globalThis.fetch(url, init),
 }: CreateChannelsOptions) {
   return new Map<ChannelKind, Channel>(
-    definitions.map(({ kind, create }) => [
-      kind,
-      create({
+    definitions.map(({ kind, create }) => {
+      const channel = create({
         webhookUrl: publicUrl && `${publicUrl}/api/channels/${kind}`,
         secret: channelSecret({ secret, kind }),
         fetch,
         log,
-      }),
-    ]),
+      });
+
+      if (channel.kind !== kind) {
+        throw new Error(`The definition of ${kind} created a ${channel.kind} channel`);
+      }
+
+      return [kind, channel];
+    }),
   );
 }

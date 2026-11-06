@@ -10,13 +10,14 @@ Tailscale Funnel for public mode.
 its commands. The repository's [README](../../README.md) walks through setting
 it up.
 
-| Entry point          | What it does                                                 |
-| -------------------- | ------------------------------------------------------------ |
-| `src/main.ts`        | Reads the environment and runs the command line              |
-| `src/command/cli.ts` | The commands, and the setup wizard in `src/command/setup.ts` |
-| `src/server.ts`      | Starts the server: database, Telegram, HTTP, Funnel          |
-| `src/app.ts`         | The routes, built from the services in `src/services.ts`     |
-| `src/db/schema.ts`   | The SQLite schema, migrated from `migrations`                |
+| Entry point            | What it does                                                      |
+| ---------------------- | ----------------------------------------------------------------- |
+| `src/main.ts`          | Reads the environment and runs the command line                   |
+| `src/command/cli.ts`   | The commands, and the setup wizard in `src/command/setup.ts`      |
+| `src/server.ts`        | Starts the server: database, Telegram, HTTP, Funnel               |
+| `src/app.ts`           | The routes, built from the services in `src/services.ts`          |
+| `src/channels/load.ts` | Loads the channels the config names, built in or of someone's own |
+| `src/db/schema.ts`     | The SQLite schema, migrated from `migrations`                     |
 
 ## Development
 

@@ -82,6 +82,26 @@ Messages to the bot reach the agent. The server's agents wake it, and so does
 anyone on its list. Locally the server asks Telegram for new messages; in public
 mode Telegram posts them to the server.
 
+## Channels
+
+Every agent has its Message URL. The `channels` list in the data folder's
+`config.json` names the other channels the server loads when it starts:
+
+```json
+{ "channels": ["telegram", "./channels/discord.ts", "@acme/discord-channel"] }
+```
+
+A built-in channel goes by its kind. A channel of your own is a module that
+exports its definition as `channel`, by its path from the data folder or by the
+name of a package installed there with `bun add`. Then
+`artil-server <kind> connect <agent> <credentials>` connects an address of it to
+an agent. [`packages/channels`](packages/channels/README.md) describes how to
+write one.
+
+MCP clients reach an agent on every channel. The `artil` CLI hears messages on
+the channels it knows from Artil Cloud, Telegram and the Message URL, until it
+learns the rest.
+
 ## Files
 
 Messages carry files when the server has an S3-compatible bucket, such as
@@ -109,7 +129,8 @@ message brings stay a day.
 `--data <folder>` keeps the server's data elsewhere than `~/.artil-server`, as
 `ARTIL_DATA` does; `--port` changes the port; `--public` and `--local` switch the
 mode. The commands change the data of a running server, which picks the change
-up within a few seconds; a new mode, port or bucket counts from the next start.
+up within a few seconds; a new mode, port, bucket or list of channels counts from
+the next start.
 
 ## What only Artil Cloud has
 

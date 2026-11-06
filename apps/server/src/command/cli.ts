@@ -4,6 +4,7 @@ import { password as askPassword, isCancel } from "@clack/prompts";
 
 import { AppError } from "@artil/errors";
 
+import { loadChannels } from "../channels/load";
 import { type Config, newConfig, type Paths, pathsIn, readConfig, writeConfig } from "../config";
 import { startServer } from "../server";
 import { hashPassword, validatePassword } from "../sign-in/password";
@@ -147,6 +148,7 @@ async function serve({ paths, config, environment }: ServeOptions) {
     databasePath: paths.database,
     migrationsFolder,
     tailscale,
+    channels: await loadChannels({ specifiers: config.channels, dataDir: paths.dataDir }),
     password: async () => (await readConfig(paths))?.password ?? null,
     log: out,
   });
@@ -255,7 +257,7 @@ export async function runCli(environment: Environment) {
   if (!run)
     throw usageError(`There is no command ${[command, subcommand].filter(Boolean).join(" ")}`);
 
-  const context = openCommandContext({
+  const context = await openCommandContext({
     paths,
     config,
     migrationsFolder,

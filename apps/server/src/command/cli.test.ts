@@ -1,10 +1,10 @@
 import { expect, test } from "bun:test";
-import { mkdtemp, stat } from "node:fs/promises";
+import { mkdtemp, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { pathsIn, readConfig } from "../config";
+import { pathsIn, readConfig, writeConfig } from "../config";
 import { runCli } from "./cli";
 
 const migrationsFolder = fileURLToPath(new URL("../../migrations", import.meta.url));
@@ -87,4 +87,37 @@ test("says how to use a command it does not know", async () => {
   await expect(cli(dataDir, "agent", "fly")).rejects.toThrow("There is no command agent fly");
   await expect(cli(dataDir, "agent", "create")).rejects.toThrow("This command takes <name>");
   expect(await cli(dataDir, "--help")).toContain("artil-server agent create <name>");
+});
+
+test("connects an address of a channel the config loads", async () => {
+  const dataDir = await mkdtemp(join(tmpdir(), "artil-server-"));
+
+  await writeFile(
+    join(dataDir, "echo-channel.ts"),
+    `export const channel = {
+  kind: "echo",
+  create: () => ({
+    kind: "echo",
+    name: "Echo",
+    recipients: "any name",
+    connect: async (credentials) => ({ value: "echo:" + credentials, credentials }),
+    send: async () => ({ externalId: "1" }),
+  }),
+};
+`,
+  );
+
+  await cli(dataDir, "agent", "create", "Codex");
+
+  const paths = pathsIn(dataDir);
+  const config = await readConfig(paths);
+
+  if (!config) throw new Error("The first command did not write a config");
+
+  await writeConfig(paths, { ...config, channels: ["telegram", "./echo-channel.ts"] });
+
+  expect(await cli(dataDir, "echo", "connect", "Codex", "hi")).toContain(
+    "echo:hi now reaches Codex on Echo.",
+  );
+  expect(await cli(dataDir, "agent", "list")).toContain("Echo echo:hi");
 });
