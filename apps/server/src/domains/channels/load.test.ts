@@ -1,0 +1,79 @@
+import { expect, test } from "bun:test";
+import { mkdtemp, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
+import { channelModule, testChannelDefinition } from "../../app/testing";
+import { createChannels } from "./create";
+import { loadChannels } from "./load";
+
+const builtInChannels = [testChannelDefinition];
+
+async function dataFolder(files: Record<string, string> = {}) {
+  const dataDir = await mkdtemp(join(tmpdir(), "artil-server-channels-"));
+
+  for (const [name, text] of Object.entries(files)) await writeFile(join(dataDir, name), text);
+
+  return dataDir;
+}
+
+test("loads a built-in channel by its kind, and one of someone's own by its path", async () => {
+  const dataDir = await dataFolder({ "echo-channel.ts": channelModule("echo") });
+
+  const definitions = await loadChannels({
+    specifiers: ["test", "./echo-channel.ts"],
+    dataDir,
+    builtInChannels,
+  });
+
+  expect(definitions.map(({ kind }) => kind)).toEqual(["test", "echo"]);
+});
+
+test("says where it looked for a channel it cannot find", async () => {
+  const dataDir = await dataFolder();
+
+  await expect(
+    loadChannels({ specifiers: ["@acme/discord-channel"], dataDir, builtInChannels }),
+  ).rejects.toThrow(`There is no channel @acme/discord-channel from ${dataDir}`);
+});
+
+test("refuses a module that defines no channel", async () => {
+  const dataDir = await dataFolder({ "notes.ts": "export const notes = [];\n" });
+
+  await expect(
+    loadChannels({ specifiers: ["./notes.ts"], dataDir, builtInChannels }),
+  ).rejects.toThrow("./notes.ts does not export a channel definition named channel");
+});
+
+test("takes one channel of each kind, and leaves url to the Message URL", async () => {
+  const dataDir = await dataFolder({
+    "url-channel.ts": channelModule("url"),
+  });
+
+  await expect(
+    loadChannels({ specifiers: ["test", "test"], dataDir, builtInChannels }),
+  ).rejects.toThrow("The server has a test channel already");
+  await expect(
+    loadChannels({ specifiers: ["./url-channel.ts"], dataDir, builtInChannels }),
+  ).rejects.toThrow("The server has a url channel already");
+});
+
+test("refuses a channel that does not extend Channel", async () => {
+  const dataDir = await dataFolder({
+    "plain-channel.ts": `export const channel = {
+  kind: "plain",
+  create: () => ({ kind: "plain", send: async () => ({ externalId: "1" }) }),
+};
+`,
+  });
+
+  const definitions = await loadChannels({
+    specifiers: ["./plain-channel.ts"],
+    dataDir,
+    builtInChannels,
+  });
+
+  expect(() =>
+    createChannels({ definitions, publicUrl: undefined, secret: "s".repeat(32), log: () => {} }),
+  ).toThrow("The plain channel does not extend Channel from @artil/channels");
+});

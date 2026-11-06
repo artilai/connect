@@ -1,0 +1,122 @@
+import { Hono } from "hono";
+import { HTTPException } from "hono/http-exception";
+import { secureHeaders } from "hono/secure-headers";
+
+import { AppError } from "@artil/errors";
+
+import { createAddressRoutes } from "../domains/addresses/routes";
+import { loadAgent } from "../domains/agents/middleware";
+import { createAgentRoutes } from "../domains/agents/routes";
+import { createChannelRoutes } from "../domains/channels/routes";
+import { createConnectionRoutes } from "../domains/connections/routes";
+import { createEventRoutes } from "../domains/events/routes";
+import { createFileRoutes } from "../domains/files/routes";
+import { createMeRoutes } from "../domains/me/routes";
+import { createMessageRoutes } from "../domains/messages/routes";
+import { createCliSignInRoutes } from "../domains/sign-in/cli.routes";
+import { createOAuthMetadataRoutes, createOAuthRoutes } from "../domains/sign-in/oauth.routes";
+import { createSignInPageRoutes } from "../domains/sign-in/page.routes";
+import type { PasswordCheck } from "../domains/sign-in/password";
+import { createTeamRoutes } from "../domains/team/routes";
+import { requireAuth } from "../domains/tokens/middleware";
+import type { AuthEnv } from "../domains/tokens/schema";
+import { createUrlRoutes } from "../domains/url/routes";
+import { createWebhookRoutes } from "../domains/webhooks/routes";
+import type { Hosts } from "../platform/http/hosts";
+import { describeApi } from "../platform/http/openapi";
+import { createMcpRoutes } from "./mcp";
+import type { Services } from "./services";
+
+type CreateAppOptions = {
+  services: Services;
+  hosts: Hosts;
+  password: PasswordCheck;
+  workspace: { id: string; name: string; ownerId: string };
+  log: (line: string) => void;
+};
+
+function notFound(method: string, path: string): never {
+  throw new AppError({ code: "not_found", message: `There is no endpoint for ${method} ${path}` });
+}
+
+// The API the CLI calls, documented as the part of the Artil API this server answers.
+function createApi({ services, workspace }: Pick<CreateAppOptions, "services" | "workspace">) {
+  // An agent's own routes take only its own token.
+  const ownRoutes = new Hono<AuthEnv>()
+    .use(loadAgent(services.agents))
+    .route("/addresses", createAddressRoutes(services))
+    .route("/connection", createConnectionRoutes(services))
+    .route("/events", createEventRoutes(services))
+    .route("/messages", createMessageRoutes(services))
+    .route("/", createWebhookRoutes());
+
+  const agentRoutes = new Hono<AuthEnv>()
+    .route("/", createAgentRoutes(services))
+    // Any agent of the server writes to another's Message URL.
+    .route("/:id/url", createUrlRoutes(services))
+    .route("/:id", ownRoutes);
+
+  return new Hono<AuthEnv>()
+    .use(requireAuth(services.tokens))
+    .route("/agents", agentRoutes)
+    .route("/team", createTeamRoutes(services))
+    .route("/me", createMeRoutes({ tokens: services.tokens, workspace }));
+}
+
+export function createApp({ services, hosts, password, workspace, log }: CreateAppOptions) {
+  const api = createApi({ services, workspace });
+  let specs: ReturnType<typeof describeApi> | undefined;
+
+  function errorResponse(cause: Error) {
+    if (cause instanceof HTTPException) return cause.getResponse();
+
+    if (!(cause instanceof AppError)) log(`Request failed: ${cause.stack ?? String(cause)}`);
+
+    return AppError.from(cause).getResponse();
+  }
+
+  const apiRoot = new Hono()
+    .onError(errorResponse)
+    .get("/health", (c) => c.json({ status: "ok" }))
+    .get("/openapi.json", async (c) => c.json(await (specs ??= describeApi(api))))
+    .route("/cli", createCliSignInRoutes(services))
+    .route("/files", createFileRoutes(services))
+    .route("/channels", createChannelRoutes({ ...services, receive: services.messages.receive }))
+    .route("/", api)
+    .all("*", (c) => notFound(c.req.method, c.req.path));
+
+  return (
+    new Hono()
+      .onError(errorResponse)
+      .use(hosts.check, secureHeaders())
+      .route("/api", apiRoot)
+      // An agent's Message URL takes the same request as the route it stands for.
+      .post("/a/:id", (c) => {
+        const url = new URL(`/agents/${encodeURIComponent(c.req.param("id"))}/url`, c.req.url);
+
+        return apiRoot.fetch(new Request(url.href, c.req.raw));
+      })
+      .route("/mcp", createMcpRoutes({ services, auth: requireAuth(services.tokens), hosts, log }))
+      .route("/.well-known", createOAuthMetadataRoutes({ hosts }))
+      .route("/oauth", createOAuthRoutes({ signIns: services.signIns, hosts }))
+      .route("/sign-in", createSignInPageRoutes({ ...services, password, hosts }))
+      // The CLI opens the sign-in page here, as it does on Artil Cloud.
+      .get("/cli/authorize/:id", (c) => {
+        const query = new URL(c.req.url).search;
+
+        return c.redirect(`/sign-in/${encodeURIComponent(c.req.param("id"))}${query}`);
+      })
+      // The CLI links an agent's page, which this server has no app for.
+      .get("/accounts/*", (c) =>
+        c.text(
+          "This server has no web app. Manage its agents with artil-server; see artil-server --help.\n",
+        ),
+      )
+      .get("/", (c) =>
+        c.text(
+          `Artil Server is running. Sign an agent in with:\n\n  ARTIL_BASE_URL=${hosts.requestOrigin(c.req.raw)} artil auth login\n`,
+        ),
+      )
+      .all("*", (c) => notFound(c.req.method, c.req.path))
+  );
+}
