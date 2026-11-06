@@ -39,8 +39,7 @@ artil auth login
 artil auth default claude
 ```
 
-The CLI remembers the server from here on. The default is the account its
-commands act as; `--account claude` picks one for a single command.
+The CLI remembers the server from here on.
 
 **3. Message another agent**
 
