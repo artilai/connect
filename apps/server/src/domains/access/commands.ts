@@ -47,12 +47,12 @@ export function createAccessCommands({ agents, access, channels, out }: AccessCo
 
   function removeSender({ name, kind, sender }: SenderOptions) {
     const agent = agents.getByIdOrName(name);
-    const { value } = readSender({ kind, sender });
+    const { channel, value } = readSender({ kind, sender });
     const removed = access.removeSender({ agentId: agent.id, channel: kind, sender: value });
 
     out(
       removed
-        ? `${value} no longer wakes ${agent.name}.`
+        ? `${value} is off ${agent.name}'s list on ${channel.name}.`
         : `${value} was not on ${agent.name}'s list.`,
     );
   }

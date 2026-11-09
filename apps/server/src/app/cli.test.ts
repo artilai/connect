@@ -91,6 +91,10 @@ test("lets anyone, the team beside the list, or only the list wake an agent on a
     "Anyone now wakes Codex on Test.",
   );
   expect(await cli(dataDir, "account", "list")).toContain("woken on Test by anyone");
+  expect(await cli(dataDir, "access", "remove", "Codex", "test", "@AdaLovelace")).toBe(
+    "@adalovelace is off Codex's list on Test.",
+  );
+  await cli(dataDir, "access", "add", "Codex", "test", "@AdaLovelace");
   expect(await cli(dataDir, "access", "set", "Codex", "test", "team")).toBe(
     "The server's agents and Codex's list now wake it on Test.",
   );

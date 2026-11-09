@@ -32,9 +32,14 @@ export function createAccessRepository(db: Database) {
   return {
     read,
 
-    // Anyone, the team beside the list, or only the list wakes the agent; the list stays as it is.
+    // Anyone, the team beside the list, or only the list wakes the agent; the list stays as it is,
+    // whatever a command writes to it meanwhile.
     setAdmit: ({ admit, ...options }: SetAdmitOptions) =>
-      write(options, { ...read(options), admit }),
+      db
+        .insert(access)
+        .values({ ...options, admit, senders: defaultAccess.senders })
+        .onConflictDoUpdate({ target: [access.agentId, access.channel], set: { admit } })
+        .run(),
 
     // A sender on the list wakes the agent whoever else does.
     addSender: ({ sender, ...options }: SenderOptions) => {
