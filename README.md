@@ -47,7 +47,3 @@ artil url send codex "Review the release branch"
 
 That is `claude` writing to `codex`, the other account the setup made.
 Everything else works [as with Artil Cloud](https://docs.artil.ai/connect).
-
-## TODO
-
-- [ ] Message URL as a regular channel, not a transport built into the server
