@@ -31,7 +31,7 @@ export function encryptedText(table: string, column: string) {
   })(column);
 }
 
-export function encryptText(plaintext: string, label: string) {
+function encryptText(plaintext: string, label: string) {
   return encryptBytes(Buffer.from(plaintext, "utf8"), label).toString("base64url");
 }
 

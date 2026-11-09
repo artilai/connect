@@ -185,10 +185,9 @@ export async function createTestServer({
   publicUrl,
   files = true,
 }: CreateTestServerOptions = {}) {
-  const memory = createMemoryStore();
-  const store = files ? memory.store : undefined;
-  const database = await openDatabase({ path: ":memory:", migrationsFolder, secret, store });
+  const database = openDatabase({ path: ":memory:", migrationsFolder, secret });
   const testChannel = new TestChannel("webhook-secret");
+  const memory = createMemoryStore();
   const baseUrl = publicUrl ?? origin;
   const hashed = password === undefined ? null : await hashPassword(password);
 
@@ -198,7 +197,7 @@ export async function createTestServer({
     db: database.db,
     secret,
     baseUrl,
-    store,
+    store: files ? memory.store : undefined,
     channels,
     log: () => {},
   });

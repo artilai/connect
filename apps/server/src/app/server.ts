@@ -48,12 +48,7 @@ export async function startServer({
   store = config.s3 ? createS3Store(config.s3) : undefined,
   fetch,
 }: StartServerOptions) {
-  const database = await openDatabase({
-    path: databasePath,
-    migrationsFolder,
-    secret: config.secret,
-    store,
-  });
+  const database = openDatabase({ path: databasePath, migrationsFolder, secret: config.secret });
 
   // The server takes its port first, so a test can ask for any free one; it answers once ready.
   let handleRequest: (request: Request) => Response | Promise<Response> = startingResponse;
