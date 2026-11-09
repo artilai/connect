@@ -68,6 +68,23 @@ test("keeps a stranger's message without waking the agent", async () => {
   expect(server.services.events.listLatest(codex.id)).toEqual([]);
 });
 
+test("wakes the agent with a stranger's message once anyone may", async () => {
+  const server = await createTestServer();
+  const codex = server.agent("Codex");
+  const address = await server.connectAddress({ agent: codex, word: "codex" });
+
+  server.services.access.setAdmit({ agentId: codex.id, channel: "test", admit: "anyone" });
+  server.testChannel.queue("codex", { id: "1", to: address, from: "stranger", text: "Hello?" });
+  await server.deliverQueued();
+
+  const [message] = listedSchema.parse(
+    await (await codex.call(`/api/agents/${codex.id}/messages`)).json(),
+  );
+
+  expect(message).toMatchObject({ status: "received", admission: "anyone" });
+  expect(server.services.events.listLatest(codex.id)).toHaveLength(1);
+});
+
 test("takes a message its channel hands over twice once", async () => {
   const server = await createTestServer();
   const codex = server.agent("Codex");

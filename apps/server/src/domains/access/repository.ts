@@ -3,9 +3,11 @@ import { and, eq } from "drizzle-orm";
 import type { Database } from "../../platform/db/connection";
 import { access } from "../../platform/db/schema";
 import type { ChannelKind } from "../channels/schema";
-import { type Access, defaultAccess } from "./schema";
+import { type Access, type Admit, defaultAccess } from "./schema";
 
 type ChannelOptions = { agentId: string; channel: ChannelKind };
+
+type SetAdmitOptions = ChannelOptions & { admit: Admit };
 
 type SenderOptions = ChannelOptions & { sender: string };
 
@@ -29,6 +31,10 @@ export function createAccessRepository(db: Database) {
 
   return {
     read,
+
+    // Anyone, the team beside the list, or only the list wakes the agent; the list stays as it is.
+    setAdmit: ({ admit, ...options }: SetAdmitOptions) =>
+      write(options, { ...read(options), admit }),
 
     // A sender on the list wakes the agent whoever else does.
     addSender: ({ sender, ...options }: SenderOptions) => {

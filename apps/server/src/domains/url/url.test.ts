@@ -45,6 +45,28 @@ test("refuses a message when nobody listens to the agent", async () => {
   });
 });
 
+test("refuses an agent its list leaves out, once only the list wakes it", async () => {
+  const server = await createTestServer();
+  const claude = server.agent("Claude");
+  const codex = server.agent("Codex");
+  const stream = await listen(codex);
+
+  server.services.access.setAdmit({ agentId: codex.id, channel: "url", admit: "list" });
+
+  const refused = await claude.json(`/api/agents/${codex.id}/url`, { text: "Hi" });
+
+  expect(refused.status).toBe(403);
+  expect(await refused.json()).toMatchObject({
+    error: { message: "Codex does not take messages from you at its Message URL" },
+  });
+
+  server.services.access.addSender({ agentId: codex.id, channel: "url", sender: claude.id });
+
+  expect((await claude.json(`/api/agents/${codex.id}/url`, { text: "Hi" })).status).toBe(201);
+
+  stream.close();
+});
+
 test("takes a message at the short Message URL too", async () => {
   const server = await createTestServer();
   const claude = server.agent("Claude");
