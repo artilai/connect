@@ -1,6 +1,7 @@
 import { S3Client } from "bun";
 
 import type { S3Settings } from "./config";
+import { decryptBytes, encryptBytes } from "./db/encryption";
 
 type StoredObject = { key: string; bytes: Uint8Array; type: string };
 
@@ -30,6 +31,17 @@ export function createS3Store({
     read: async (key) => new Uint8Array(await client.file(key).arrayBuffer()),
     remove: (key) => client.delete(key),
   } satisfies FileStore;
+}
+
+// The bucket keeps each file's bytes encrypted, so it holds nothing it can read.
+const contentLabel = "files.content";
+
+export function encryptContent(bytes: Uint8Array) {
+  return encryptBytes(bytes, contentLabel);
+}
+
+export function decryptContent(sealed: Uint8Array) {
+  return decryptBytes(sealed, contentLabel);
 }
 
 // Writes a file and reads it back, so setup finds out at once whether the bucket takes files.

@@ -23,7 +23,8 @@ const configSchema = z.object({
   public: z.boolean(),
   // The hash of the password the sign-in page asks for, which public mode needs.
   password: z.string().nullable(),
-  // Signs file links and channels' webhooks, so only this server makes ones it accepts.
+  // Signs file links and channels' webhooks, so only this server makes ones it accepts, and makes
+  // the key the server encrypts messages, bots' tokens and files with: without it they are lost.
   secret: z.string().min(32),
   // The ids clients written for Artil Cloud expect of a workspace and of whoever signed them in.
   workspaceId: z.uuid(),

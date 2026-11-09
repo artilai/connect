@@ -27,7 +27,7 @@ export async function openCommandContext({
   tailscale,
   out,
 }: OpenCommandContextOptions) {
-  const database = openDatabase({ path: paths.database, migrationsFolder });
+  const database = openDatabase({ path: paths.database, migrationsFolder, secret: config.secret });
 
   // A command connects addresses; the running server starts them.
   const channels = createChannels({
