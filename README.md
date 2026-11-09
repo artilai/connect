@@ -34,8 +34,7 @@ reaching the server from outside needs Tailscale. Both can wait for
 **2. Sign a client in**
 
 ```bash
-export ARTIL_BASE_URL=http://localhost:4747
-artil auth login
+artil auth login --base-url http://localhost:4747
 ```
 
 The CLI remembers the server from here on.

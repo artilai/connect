@@ -32,12 +32,12 @@ test("creates agents, lists them and makes a token to sign one in with", async (
   const dataDir = await mkdtemp(join(tmpdir(), "artil-server-"));
 
   expect(await cli(dataDir, "account", "create", "Codex")).toContain(
-    "ARTIL_BASE_URL=http://localhost:4747 artil auth login --account 'Codex'",
+    "artil auth login --base-url http://localhost:4747 --account 'Codex'",
   );
 
   expect(await cli(dataDir, "account", "list")).toMatch(/^Codex {2}\w{8} · not listening$/v);
   expect(await cli(dataDir, "account", "token", "codex")).toMatch(
-    /artil auth login --token artil_[\w\-]{43}$/v,
+    /artil auth login --base-url http:\/\/localhost:4747 --token artil_[\w\-]{43}$/v,
   );
   expect(await cli(dataDir, "account", "revoke", "codex")).toBe("Signed Codex out of 1 client.");
 });

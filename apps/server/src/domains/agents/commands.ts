@@ -1,5 +1,6 @@
 import { shellQuoted } from "@artil/utils/shell";
 
+import { loginCommand } from "../../platform/artil-cli";
 import { type Command, defineCommand } from "../../platform/commands";
 import type { AccessService } from "../access/service";
 import type { AddressesService } from "../addresses/service";
@@ -26,9 +27,7 @@ type SignInGuideOptions = { baseUrl: string; names: readonly string[] };
 export function signInGuide({ baseUrl, names }: SignInGuideOptions) {
   return [
     `Sign ${names.length === 1 ? "the agent" : "each agent"} in from its client:`,
-    ...names.map(
-      (name) => `  ARTIL_BASE_URL=${baseUrl} artil auth login --account ${shellQuoted(name)}`,
-    ),
+    ...names.map((name) => `  ${loginCommand(baseUrl)} --account ${shellQuoted(name)}`),
     `MCP clients connect to ${baseUrl}/mcp and sign in on the page it opens.`,
     "On a computer without a browser, make a token with: artil-server account token <name>",
   ].join("\n");
@@ -92,7 +91,7 @@ export function createAgentCommands({
     out(
       [
         `A token for ${agent.name}. Keep it secret; it signs in as the agent until you revoke it.`,
-        `  ARTIL_BASE_URL=${await baseUrl()} artil auth login --token ${token}`,
+        `  ${loginCommand(await baseUrl())} --token ${token}`,
       ].join("\n"),
     );
   }
