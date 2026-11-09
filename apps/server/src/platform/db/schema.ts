@@ -8,6 +8,8 @@ import {
   uniqueIndex,
 } from "drizzle-orm/sqlite-core";
 
+import { encryptedText } from "./encryption";
+
 // What the database keeps of who wakes an agent: a list's setting, why a message did not wake the
 // agent, and how one that did got in.
 export const admits = ["anyone", "team", "list"] as const;
@@ -85,7 +87,7 @@ export const addresses = sqliteTable(
       .references(() => agents.id, { onDelete: "cascade" }),
     channel: text("channel").notNull(),
     value: text("value").notNull(),
-    credentials: text("credentials"),
+    credentials: encryptedText("addresses", "credentials"),
     createdAt: createdAt(),
   },
   (table) => [
@@ -125,9 +127,9 @@ export const messages = sqliteTable(
     // their messages each on their own, so it tells messages apart only at one address.
     externalId: text("external_id"),
     counterpart: text("counterpart").notNull(),
-    counterpartName: text("counterpart_name"),
+    counterpartName: encryptedText("messages", "counterpart_name"),
     to: text("to", { mode: "json" }).$type<string[]>().notNull(),
-    text: text("text").notNull(),
+    text: encryptedText("messages", "text").notNull(),
     status: text("status", {
       enum: ["received", "refused", "sending", "sent", "failed"],
     }).notNull(),
@@ -153,7 +155,7 @@ export const files = sqliteTable(
       .references(() => agents.id, { onDelete: "cascade" }),
     // A message's id, or the id of a relayed message, which keeps no other row.
     messageId: text("message_id").notNull(),
-    name: text("name").notNull(),
+    name: encryptedText("files", "name").notNull(),
     type: text("type").notNull(),
     size: integer("size").notNull(),
     // Where the bytes are in the bucket; null when the server kept only the file's description.
@@ -176,7 +178,7 @@ export const events = sqliteTable(
     channel: text("channel").notNull(),
     messageId: text("message_id").notNull(),
     // A message on a channel without an inbox comes whole in its event, which names its sender.
-    text: text("text"),
+    text: encryptedText("events", "text"),
     sender: text("sender", { mode: "json" }).$type<{ id: string; name: string }>(),
     thread: text("thread"),
     toThread: text("to_thread"),

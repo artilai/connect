@@ -27,7 +27,15 @@ export async function openCommandContext({
   tailscale,
   out,
 }: OpenCommandContextOptions) {
-  const database = openDatabase({ path: paths.database, migrationsFolder });
+  // Removing an agent removes its files from the bucket.
+  const store = config.s3 ? createS3Store(config.s3) : undefined;
+
+  const database = await openDatabase({
+    path: paths.database,
+    migrationsFolder,
+    secret: config.secret,
+    store,
+  });
 
   // A command connects addresses; the running server starts them.
   const channels = createChannels({
@@ -47,8 +55,7 @@ export async function openCommandContext({
     db: database.db,
     secret: config.secret,
     baseUrl: localUrl,
-    // Removing an agent removes its files from the bucket.
-    store: config.s3 ? createS3Store(config.s3) : undefined,
+    store,
     channels,
     log: out,
   });

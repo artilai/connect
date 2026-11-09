@@ -178,6 +178,42 @@ test("keeps the files a message brings, behind a link", async () => {
   expect(await (await server.call(link.pathname + link.search)).text()).toBe("report");
 });
 
+test("keeps a message, its files and the address's credentials encrypted at rest", async () => {
+  const server = await createTestServer();
+  const codex = server.agent("Codex");
+  const address = await server.connectAddress({ agent: codex, word: "codex" });
+  const content = new TextEncoder().encode("report");
+
+  server.testChannel.queue("codex", {
+    id: "1",
+    to: address,
+    from: "ada",
+    text: "Deploy it",
+    files: [{ name: "report.txt", type: "text/plain", size: content.byteLength, content }],
+  });
+  await server.deliverQueued();
+
+  const sqlite = server.database.db.$client;
+
+  const stored = sqlite
+    .query<{ value: string }, []>(
+      "select text as value from messages union all select name from files union all select credentials from addresses",
+    )
+    .all()
+    .map(({ value }) => value);
+
+  const [object] = server.memory.objects.values();
+
+  expect(stored).toHaveLength(3);
+  expect(stored.filter((value) => ["Deploy it", "report.txt", "codex"].includes(value))).toEqual(
+    [],
+  );
+  expect(new TextDecoder().decode(object)).not.toContain("report");
+  expect(server.services.messages.list({ agentId: codex.id, filter: {} })).toMatchObject([
+    { text: "Deploy it", attachments: [{ name: "report.txt" }] },
+  ]);
+});
+
 test("keeps a file by its description when the bucket fails, so the message still arrives", async () => {
   const server = await createTestServer();
   const codex = server.agent("Codex");

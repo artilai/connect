@@ -176,15 +176,19 @@ type CreateTestServerOptions = {
 
 type CallOptions = RequestInit & { token?: string };
 
+// Signs file links and makes the key the database and the bucket encrypt with.
+const secret = "secret-of-the-test-server-of-at-least-32-chars";
+
 // The whole server on an in-memory database, answering requests without a port.
 export async function createTestServer({
   password,
   publicUrl,
   files = true,
 }: CreateTestServerOptions = {}) {
-  const database = openDatabase({ path: ":memory:", migrationsFolder });
-  const testChannel = new TestChannel("webhook-secret");
   const memory = createMemoryStore();
+  const store = files ? memory.store : undefined;
+  const database = await openDatabase({ path: ":memory:", migrationsFolder, secret, store });
+  const testChannel = new TestChannel("webhook-secret");
   const baseUrl = publicUrl ?? origin;
   const hashed = password === undefined ? null : await hashPassword(password);
 
@@ -192,9 +196,9 @@ export async function createTestServer({
 
   const services = createServices({
     db: database.db,
-    secret: "file-link-secret-of-at-least-32-chars",
+    secret,
     baseUrl,
-    store: files ? memory.store : undefined,
+    store,
     channels,
     log: () => {},
   });

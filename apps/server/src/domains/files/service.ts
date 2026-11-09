@@ -1,7 +1,12 @@
 import type { InboundFile } from "@artil/channels/contract";
 import { AppError, messageOf } from "@artil/errors";
 
-import type { FileStore, Upload } from "../../platform/storage";
+import {
+  decryptContent,
+  encryptContent,
+  type FileStore,
+  type Upload,
+} from "../../platform/storage";
 import type { FilesRepository } from "./repository";
 import { type AttachmentInput, type FileRecord, toMessageAttachment } from "./schema";
 
@@ -41,16 +46,16 @@ export function createFilesService({ filesRepository, store, log }: CreateFilesS
       return undefined;
     }
 
-    return store.read(file.key);
+    return decryptContent(await store.read(file.key));
   }
 
   // Puts a file in the bucket and says whether it went in. A file that did not is saved by its
   // description, so the message it came with still arrives.
-  async function putInStore(options: PutInStoreOptions) {
+  async function putInStore({ bytes, ...object }: PutInStoreOptions) {
     if (!store) return false;
 
     try {
-      await store.put(options);
+      await store.put({ ...object, bytes: encryptContent(bytes) });
 
       return true;
     } catch (cause) {

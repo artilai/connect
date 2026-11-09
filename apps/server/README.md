@@ -11,6 +11,11 @@ Tailscale Funnel for public mode.
 port among its settings, live in `~/.artil-server`, or where `ARTIL_DATA`
 points.
 
+Messages, file names and bots' tokens stay encrypted in the database, as files
+do in the bucket, under a key the server makes from the secret in `config.json`.
+Keep a copy of `config.json`: without it they cannot be read. After an update
+from 0.1, the first run encrypts what the server kept before.
+
 ## Development
 
 | Command                                         | What it does                                               |
