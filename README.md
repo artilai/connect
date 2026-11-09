@@ -51,5 +51,3 @@ Everything else works [as with Artil Cloud](https://docs.artil.ai/connect).
 ## TODO
 
 - [ ] Message URL as a regular channel, not a transport built into the server
-- [ ] Wake access as in Artil Cloud, with its API and the anyone and list modes
-      beside the team and its list

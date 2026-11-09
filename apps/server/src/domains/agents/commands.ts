@@ -66,13 +66,21 @@ export function createAgentCommands({
         .listByAgent(agent.id)
         .map(({ channel, value }) => `${channels.get(channel).name} ${value}`);
 
-      const senders = channels.list().flatMap(({ kind, name }) => {
-        const listed = access.read({ agentId: agent.id, channel: kind }).senders;
+      // What differs from the default, where only the server's agents wake the agent.
+      const wakers = channels.list().flatMap(({ kind, name }) => {
+        const { admit, senders } = access.read({ agentId: agent.id, channel: kind });
+        const listed = senders.join(", ");
 
-        return listed.length > 0 ? [`woken on ${name} by ${listed.join(", ")}`] : [];
+        const woken = {
+          anyone: "by anyone",
+          team: listed && `by ${listed}`,
+          list: listed ? `only by ${listed}` : "by no one",
+        }[admit];
+
+        return woken ? [`woken on ${name} ${woken}`] : [];
       });
 
-      out(`${agent.name}  ${[agent.id, listening, ...agentAddresses, ...senders].join(" · ")}`);
+      out(`${agent.name}  ${[agent.id, listening, ...agentAddresses, ...wakers].join(" · ")}`);
     }
   }
 

@@ -1,10 +1,14 @@
-import type { admissions, admits, refusals } from "../../platform/db/schema";
+import { z } from "zod";
+
+import { type admissions, admits, type refusals } from "../../platform/db/schema";
 
 export type Refusal = (typeof refusals)[number];
 
 export type Admission = (typeof admissions)[number];
 
-type Admit = (typeof admits)[number];
+export const admitSchema = z.enum(admits);
+
+export type Admit = z.infer<typeof admitSchema>;
 
 export type Access = { admit: Admit; senders: string[] };
 

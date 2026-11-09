@@ -38,6 +38,7 @@ Usage:
   artil-server <channel> disconnect <account>              Disconnect the account's address of the channel
   artil-server access add <account> <channel> <sender>     Let someone wake the agent on the channel
   artil-server access remove <account> <channel> <sender>  Take them off the list
+  artil-server access set <account> <channel> <who>        Choose who wakes the agent on the channel: anyone, team or list
   artil-server password                                    Set the password the sign-in page asks for
 
 Options:

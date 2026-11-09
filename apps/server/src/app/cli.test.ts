@@ -74,6 +74,39 @@ test("adds a sender to an agent's list on a channel", async () => {
   );
 });
 
+test("lets anyone, the team beside the list, or only the list wake an agent on a channel", async () => {
+  const dataDir = await mkdtemp(join(tmpdir(), "artil-server-"));
+
+  await cli(dataDir, "account", "create", "Codex");
+
+  expect(await cli(dataDir, "access", "set", "Codex", "test", "list")).toBe(
+    "Only Codex's list now wakes it on Test.\nNo one is on it yet; add someone with: artil-server access add 'Codex' test <sender>",
+  );
+  expect(await cli(dataDir, "account", "list")).toContain("woken on Test by no one");
+
+  await cli(dataDir, "access", "add", "Codex", "test", "@AdaLovelace");
+
+  expect(await cli(dataDir, "account", "list")).toContain("woken on Test only by @adalovelace");
+  expect(await cli(dataDir, "access", "set", "Codex", "test", "Anyone")).toBe(
+    "Anyone now wakes Codex on Test.",
+  );
+  expect(await cli(dataDir, "account", "list")).toContain("woken on Test by anyone");
+  expect(await cli(dataDir, "access", "remove", "Codex", "test", "@AdaLovelace")).toBe(
+    "@adalovelace is off Codex's list on Test.",
+  );
+  await cli(dataDir, "access", "add", "Codex", "test", "@AdaLovelace");
+  expect(await cli(dataDir, "access", "set", "Codex", "test", "team")).toBe(
+    "The server's agents and Codex's list now wake it on Test.",
+  );
+  expect(await cli(dataDir, "account", "list")).toContain("woken on Test by @adalovelace");
+  await expect(cli(dataDir, "access", "set", "Codex", "url", "anyone")).rejects.toThrow(
+    "Only the team or the senders you list can wake an agent at its Message URL",
+  );
+  await expect(cli(dataDir, "access", "set", "Codex", "test", "everyone")).rejects.toThrow(
+    "everyone is not anyone, team or list",
+  );
+});
+
 test("names the channels it has when a command names one it does not", async () => {
   const dataDir = await mkdtemp(join(tmpdir(), "artil-server-"));
 
