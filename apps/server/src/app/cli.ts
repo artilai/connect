@@ -10,7 +10,7 @@ import { createAddressCommands } from "../domains/addresses/commands";
 import { createAgentCommands } from "../domains/agents/commands";
 import { loadChannels } from "../domains/channels/load";
 import { hashPassword, validatePassword } from "../domains/sign-in/password";
-import type { ArtilCli } from "../platform/artil-cli";
+import { type ArtilCli, loginCommand } from "../platform/artil-cli";
 import {
   type Config,
   newConfig,
@@ -102,7 +102,7 @@ async function serve({ paths, config, environment }: ServeOptions) {
   out(
     `Artil Server is at ${server.baseUrl}${config.public ? " (public, through Tailscale Funnel)" : ""}.`,
   );
-  out(`Sign an agent in with: ARTIL_BASE_URL=${server.baseUrl} artil auth login`);
+  out(`Sign an agent in with: ${loginCommand(server.baseUrl)}`);
   out(`MCP clients connect to ${server.baseUrl}/mcp`);
 
   const { promise, resolve } = Promise.withResolvers<void>();

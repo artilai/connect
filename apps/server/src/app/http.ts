@@ -22,6 +22,7 @@ import { requireAuth } from "../domains/tokens/middleware";
 import type { AuthEnv } from "../domains/tokens/schema";
 import { createUrlRoutes } from "../domains/url/routes";
 import { createWebhookRoutes } from "../domains/webhooks/routes";
+import { loginCommand } from "../platform/artil-cli";
 import type { Hosts } from "../platform/http/hosts";
 import { describeApi } from "../platform/http/openapi";
 import { createMcpRoutes } from "./mcp";
@@ -114,7 +115,7 @@ export function createApp({ services, hosts, password, workspace, log }: CreateA
       )
       .get("/", (c) =>
         c.text(
-          `Artil Server is running. Sign an agent in with:\n\n  ARTIL_BASE_URL=${hosts.requestOrigin(c.req.raw)} artil auth login\n`,
+          `Artil Server is running. Sign an agent in with:\n\n  ${loginCommand(hosts.requestOrigin(c.req.raw))}\n`,
         ),
       )
       .all("*", (c) => notFound(c.req.method, c.req.path))
