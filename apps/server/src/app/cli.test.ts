@@ -247,6 +247,29 @@ test("says a running server keeps its port until it restarts", async () => {
   }
 });
 
+test("says what holds the port it would take", async () => {
+  const dataDir = await mkdtemp(join(tmpdir(), "artil-server-"));
+  const port = await findFreePort();
+  const holder = Bun.serve({ hostname: "127.0.0.1", port, fetch: () => new Response() });
+
+  try {
+    await cli(dataDir, "set", "--port", String(port));
+
+    await expect(cli(dataDir)).rejects.toThrow(
+      `Port ${port} is taken, maybe by another Artil Server: stop it, or move this one with artil-server set --port <port>`,
+    );
+
+    // The server of this data folder holds it.
+    await writeFile(pathsIn(dataDir).running, JSON.stringify({ pid: process.pid, port }));
+
+    await expect(cli(dataDir)).rejects.toThrow(
+      `Artil Server already runs from this data folder, on port ${port}; see artil-server status`,
+    );
+  } finally {
+    await holder.stop(true);
+  }
+});
+
 test("says where the server is, whether it runs, and what keeps it from starting", async () => {
   const dataDir = await mkdtemp(join(tmpdir(), "artil-server-"));
   const port = await findFreePort();

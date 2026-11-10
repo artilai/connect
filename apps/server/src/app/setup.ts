@@ -15,6 +15,7 @@ import {
 
 import type { Channel, ChannelDefinition } from "@artil/channels/contract";
 import { messageOf } from "@artil/errors";
+import { shellQuoted } from "@artil/utils/shell";
 
 import { createAccessCommands } from "../domains/access/commands";
 import { signInGuide } from "../domains/accounts/commands";
@@ -100,7 +101,7 @@ async function setUpChannel({ context, channel }: SetUpChannelOptions) {
   while (accounts.length > 0) {
     const connectNow = requireAnswer(
       await confirm({
-        message: `Connect a ${channel.name} address to ${connected ? "another" : "an"} account?`,
+        message: `Connect ${channel.name} to ${connected ? "another" : "an"} account?`,
         initialValue: false,
       }),
     );
@@ -109,7 +110,7 @@ async function setUpChannel({ context, channel }: SetUpChannelOptions) {
 
     const accountId = requireAnswer(
       await select({
-        message: `Which account gets the ${channel.name} address?`,
+        message: `Which account connects to ${channel.name}?`,
         options: accounts.map(({ id, name }) => ({ value: id, label: name })),
       }),
     );
@@ -126,7 +127,7 @@ async function setUpChannel({ context, channel }: SetUpChannelOptions) {
 
     const progressSpinner = spinner();
 
-    progressSpinner.start(`Connecting the ${channel.name} address`);
+    progressSpinner.start(`Connecting ${channel.name}`);
 
     try {
       const { address } = await context.addresses.connect({
@@ -138,7 +139,7 @@ async function setUpChannel({ context, channel }: SetUpChannelOptions) {
       progressSpinner.stop(`${address.value} now reaches ${account.name} on ${channel.name}`);
       connected = true;
     } catch (cause) {
-      progressSpinner.error(messageOf(cause, `Could not connect the ${channel.name} address`));
+      progressSpinner.error(messageOf(cause, `Could not connect ${channel.name}`));
 
       continue;
     }
@@ -147,7 +148,7 @@ async function setUpChannel({ context, channel }: SetUpChannelOptions) {
 
     const sender = requireAnswer(
       await text({
-        message: `Who may wake ${account.name} on ${channel.name}? Give ${channel.senders}, or leave it empty for only the server's accounts`,
+        message: `Who may wake ${account.name} on ${channel.name}? Give ${channel.senders}; leave it empty to let them in once they write`,
         defaultValue: "",
       }),
     ).trim();
@@ -165,6 +166,11 @@ async function setUpChannel({ context, channel }: SetUpChannelOptions) {
       } catch (cause) {
         log.warn(messageOf(cause, `Could not add ${sender}`));
       }
+    } else {
+      // The list keeps out whoever writes, and in a terminal account allow offers them to let in.
+      log.info(
+        `Write to ${account.name} on ${channel.name}, then let yourself in with: artil-server account allow ${shellQuoted(account.name)} --channel ${channel.kind}`,
+      );
     }
   }
 }

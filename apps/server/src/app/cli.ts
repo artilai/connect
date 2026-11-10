@@ -17,7 +17,7 @@ import {
   readConfig,
   writeConfig,
 } from "../platform/config";
-import { markRunning, unmarkRunning } from "../platform/running";
+import { findRunningPort, markRunning, unmarkRunning } from "../platform/running";
 import type { Tailscale } from "../platform/tailscale";
 import { createArgumentChoosers } from "./arguments";
 import { type CommandContext, openCommandContext } from "./context";
@@ -82,6 +82,26 @@ function usageError(message: string) {
 
 type ServeOptions = { paths: Paths; config: Config; environment: Environment };
 
+type TakenPortErrorOptions = { paths: Paths; port: number };
+
+// Says what holds the port: this data folder's server, which already runs, or something else,
+// like another Artil Server.
+async function takenPortError({ paths, port }: TakenPortErrorOptions) {
+  const runsHere = (await findRunningPort(paths)) === port;
+
+  if (runsHere) {
+    return new AppError({
+      code: "unavailable",
+      message: `Artil Server already runs from this data folder, on port ${port}; see artil-server status`,
+    });
+  }
+
+  return new AppError({
+    code: "unavailable",
+    message: `Port ${port} is taken, maybe by another Artil Server: stop it, or move this one with artil-server set --port <port>`,
+  });
+}
+
 async function serve({ paths, config, environment }: ServeOptions) {
   const { migrationsFolder, tailscale, out } = environment;
   const [problem] = findStartProblems({ config, tailscale });
@@ -100,6 +120,12 @@ async function serve({ paths, config, environment }: ServeOptions) {
     }),
     password: async () => (await readConfig(paths))?.password ?? null,
     log: out,
+  }).catch(async (cause: unknown) => {
+    if (cause instanceof Error && "code" in cause && cause.code === "EADDRINUSE") {
+      throw await takenPortError({ paths, port: config.port });
+    }
+
+    throw cause;
   });
 
   out(
@@ -107,6 +133,9 @@ async function serve({ paths, config, environment }: ServeOptions) {
   );
   out(`Sign in as an account with: ${loginCommand(server.baseUrl)}`);
   out(`MCP clients connect to ${server.baseUrl}/mcp`);
+
+  if (environment.interactive) out("Keep this terminal open: the server stops with it.");
+
   await markRunning({ paths, port: server.port });
 
   await environment.waitForStop();

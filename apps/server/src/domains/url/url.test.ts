@@ -41,7 +41,10 @@ test("refuses a message when nobody listens to the account", async () => {
 
   expect(sent.status).toBe(409);
   expect(await sent.json()).toMatchObject({
-    error: { message: "No one is listening to Codex; write to it at another of its addresses" },
+    error: {
+      message:
+        "No one is listening to Codex: start its client, and turn on new messages there with: artil listen on",
+    },
   });
 });
 
