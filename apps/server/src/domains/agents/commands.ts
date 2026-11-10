@@ -3,11 +3,14 @@ import { shellQuoted } from "@artil/utils/shell";
 
 import { loginCommand } from "../../platform/artil-cli";
 import { type Command, defineCommand } from "../../platform/commands";
+import { type Access, defaultAccess } from "../access/schema";
 import type { AccessService } from "../access/service";
 import type { AddressesService } from "../addresses/service";
+import type { ChannelKind } from "../channels/schema";
 import type { ChannelsService } from "../channels/service";
 import type { ConnectionsService } from "../connections/service";
 import type { TokensService } from "../tokens/service";
+import { toMessageUrl, urlKind } from "../url/schema";
 import type { AgentsService } from "./service";
 
 type AgentCommandsOptions = {
@@ -34,6 +37,18 @@ type RevokeOptions = { name: string; client: string };
 
 // The word revoke takes for every client an account is signed in to.
 const everyClient = "all";
+
+type DescribeWakersOptions = Access & { kind: ChannelKind };
+
+// How a date shows to a person, like Nov 10, 2026.
+const dateFormat = new Intl.DateTimeFormat("en", { dateStyle: "medium" });
+
+// Lines of a label and a value each, with the values lined up.
+function toRows(pairs: readonly (readonly [string, string])[]) {
+  const width = Math.max(...pairs.map(([label]) => label.length)) + 2;
+
+  return pairs.map(([label, value]) => `  ${label.padEnd(width)}${value}`);
+}
 
 // How each kind of client signs the agents in to this server.
 export function signInGuide({ baseUrl, names }: SignInGuideOptions) {
@@ -94,6 +109,83 @@ export function createAgentCommands({
 
       out(`${agent.name}  ${[agent.id, listening, ...agentAddresses, ...wakers].join(" · ")}`);
     }
+  }
+
+  // Who wakes the agent on the channel, said in full.
+  function describeWakers({ kind, admit, senders }: DescribeWakersOptions) {
+    const listed = senders.map((sender) => channels.showSender(kind, sender)).join(", ");
+
+    return {
+      anyone: "anyone",
+      team: listed ? `the server's agents and ${listed}` : "the server's agents",
+      list: listed ? `only ${listed}` : "no one",
+    }[admit];
+  }
+
+  // Everything about the account: where it is reached, the clients it is signed in to, and who
+  // wakes it on each channel it has.
+  async function showAgent(name: string) {
+    const agent = agents.getByIdOrName(name);
+    const listening = connections.isListening(agent.id);
+    const connection = connections.findByAgent(agent.id);
+    const agentAddresses = addresses.listByAgent(agent.id);
+    const signIns = tokens.listByAgent(agent.id);
+    const serverUrl = await baseUrl();
+
+    // The client that listens through one of the sign-ins, like Claude Code on MacBook.
+    const listener = connection && {
+      tokenId: connection.tokenId,
+      note: `${connection.machine ? `${connection.client} on ${connection.machine}` : connection.client}, ${listening ? "listening" : "not listening now"}`,
+    };
+
+    const clientRows = signIns.map(({ id, name: clientName, createdAt }) => {
+      const since = `signed in ${dateFormat.format(createdAt)}`;
+
+      return [
+        clientName,
+        listener?.tokenId === id ? `${since} · ${listener.note}` : since,
+      ] as const;
+    });
+
+    const connectedKinds = new Set(agentAddresses.map(({ channel }) => channel));
+
+    // The Message URL first, then each channel the account has an address on, or a list of its own
+    // for, which it can have before it connects one.
+    const wakerRows = [
+      channels.get(urlKind),
+      ...channels.list().filter(({ kind }) => kind !== urlKind),
+    ].flatMap(({ kind, name: channelName }) => {
+      const wakers = access.read({ agentId: agent.id, channel: kind });
+
+      const shown =
+        kind === urlKind ||
+        connectedKinds.has(kind) ||
+        wakers.admit !== defaultAccess.admit ||
+        wakers.senders.length > 0;
+
+      return shown ? [[channelName, describeWakers({ kind, ...wakers })] as const] : [];
+    });
+
+    out(
+      [
+        `${agent.name}  ${agent.id} · ${listening ? "listening" : "not listening"}`,
+        "Addresses:",
+        ...toRows([
+          ["Message URL", toMessageUrl({ baseUrl: serverUrl, agentId: agent.id })],
+          ...agentAddresses.map(
+            ({ channel, value }) => [channels.get(channel).name, value] as const,
+          ),
+        ]),
+        "Clients:",
+        ...(clientRows.length > 0
+          ? toRows(clientRows)
+          : [
+              `  none yet; sign one in with: ${loginCommand(serverUrl)} --account ${shellQuoted(agent.name)}`,
+            ]),
+        "Who wakes it:",
+        ...toRows(wakerRows),
+      ].join("\n"),
+    );
   }
 
   function renameAgent({ name, newName }: RenameAgentOptions) {
@@ -165,6 +257,10 @@ export function createAgentCommands({
   return new Map<string, Command>([
     ["account create", defineCommand({ takes: ["name"], run: ({ name }) => createAgent(name) })],
     ["account list", defineCommand({ takes: [], run: () => listAgents() })],
+    [
+      "account show",
+      defineCommand({ takes: ["account"], run: ({ account }) => showAgent(account) }),
+    ],
     [
       "account rename",
       defineCommand({

@@ -314,19 +314,24 @@ test("says how to use a command it does not know", async () => {
   expect(await cli(dataDir, "--help")).toContain("artil-server account create <name>");
 });
 
-test("connects an account to a channel the config loads, and disconnects it", async () => {
-  const dataDir = await mkdtemp(join(tmpdir(), "artil-server-"));
-
+// Has the server load a channel of someone's own, Echo, beside the test channel, once a command
+// wrote the config.
+async function loadEchoChannel(dataDir: string) {
   await writeFile(join(dataDir, "echo-channel.ts"), channelModule("echo"));
-
-  await cli(dataDir, "account", "create", "Codex");
 
   const paths = pathsIn(dataDir);
   const config = await readConfig(paths);
 
-  if (!config) throw new Error("The first command did not write a config");
+  if (!config) throw new Error("No command wrote a config yet");
 
   await writeConfig(paths, { ...config, channels: ["test", "./echo-channel.ts"] });
+}
+
+test("connects an account to a channel the config loads, and disconnects it", async () => {
+  const dataDir = await mkdtemp(join(tmpdir(), "artil-server-"));
+
+  await cli(dataDir, "account", "create", "Codex");
+  await loadEchoChannel(dataDir);
 
   await expect(cli(dataDir, "account", "connect", "Codex", "echo")).rejects.toThrow(
     "Not a terminal, so pipe it in: The address's credentials",
@@ -343,5 +348,25 @@ test("connects an account to a channel the config loads, and disconnects it", as
   );
   expect(await cli(dataDir, "account", "disconnect", "Codex", "echo")).toBe(
     "echo:hi no longer reaches Codex.",
+  );
+});
+
+test("shows an account's addresses, clients and who wakes it", async () => {
+  const dataDir = await mkdtemp(join(tmpdir(), "artil-server-"));
+
+  await cli(dataDir, "account", "create", "Codex");
+  await loadEchoChannel(dataDir);
+  await pipeInto({ dataDir, stdin: "hi" }, "account", "connect", "Codex", "echo");
+
+  expect(await cli(dataDir, "account", "show", "Codex")).toContain(
+    "Clients:\n  none yet; sign one in with: artil auth login --base-url http://localhost:4747 --account 'Codex'",
+  );
+
+  await cli(dataDir, "account", "token", "Codex", "macbook");
+  await cli(dataDir, "account", "allow", "Codex", "ada");
+  await cli(dataDir, "account", "allow", "Codex", "@AdaLovelace", "--channel", "test");
+
+  expect(await cli(dataDir, "account", "show", "codex")).toMatch(
+    /^Codex {2}(\w{8}) · not listening\nAddresses:\n {2}Message URL {2}http:\/\/localhost:4747\/a\/\1\n {2}Echo {9}echo:hi\nClients:\n {2}macbook {2}signed in \w{3} \d{1,2}, \d{4}\nWho wakes it:\n {2}Message URL {2}the server's agents\n {2}Test {9}the server's agents and @adalovelace\n {2}Echo {9}the server's agents and ada$/v,
   );
 });
