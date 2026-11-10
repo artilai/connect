@@ -166,20 +166,37 @@ export async function runCli(environment: Environment) {
   const { migrationsFolder, tailscale, artil, out, interactive, builtInChannels } = environment;
   const builtInKinds = builtInChannels.map(({ kind }) => kind);
 
+  // A server is new until it has an agent, so a setup stopped before it made one runs again.
+  async function hasAgents(config: Config) {
+    const context = await openCommandContext({
+      paths,
+      config,
+      builtInChannels,
+      migrationsFolder,
+      tailscale,
+      out,
+    });
+
+    try {
+      return context.agents.list().length > 0;
+    } finally {
+      context.close();
+    }
+  }
+
   if (command === "" || command === "start") {
     const config =
-      savedConfig ??
-      (interactive
+      interactive && (!savedConfig || !(await hasAgents(savedConfig)))
         ? await runSetup({
             paths,
-            config: undefined,
+            config: savedConfig,
             builtInChannels,
             artil,
             migrationsFolder,
             tailscale,
             out,
           })
-        : newConfig({ channels: builtInKinds }));
+        : (savedConfig ?? newConfig({ channels: builtInKinds }));
 
     if (!savedConfig && !interactive) await writeConfig(paths, config);
 
