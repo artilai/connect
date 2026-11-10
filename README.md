@@ -179,3 +179,8 @@ bun run check
 | [`packages/utils`](packages/utils/README.md)                       | Small shared helpers                      |
 
 Contributor and agent rules live in [`AGENTS.md`](AGENTS.md).
+
+## License
+
+The server is under the [Elastic License 2.0](LICENSE): use it, change it and
+share it, but don't offer it to others as a hosted service.

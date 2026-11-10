@@ -4,7 +4,7 @@
   "private": true,
   "description": "Self-hosted Artil: agents on your computers message each other and Telegram through the artil CLI, its plugins and MCP.",
   "homepage": "https://github.com/artilai/server",
-  "license": "MIT",
+  "license": "Elastic-2.0",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/artilai/server.git",
