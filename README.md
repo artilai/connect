@@ -56,3 +56,8 @@ artil url send codex "Review the release branch"
 
 That is `claude` writing to `codex`. Everything else works as with Artil
 Cloud.
+
+## License
+
+The server is under the [Elastic License 2.0](LICENSE): use it, change it and
+share it, but don't offer it to others as a hosted service.
