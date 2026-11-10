@@ -87,15 +87,14 @@ export function createAccessCommands({
       list: `Only ${account.name}'s list${now} wakes it on ${channel.name}.`,
     } satisfies Record<Admit, string>;
 
-    out(woken[admit]);
-
     const { senders } = access.read({ accountId: account.id, channel: channel.kind });
 
-    if (admit === "list" && senders.length === 0) {
-      out(
-        `No one is on it yet; add someone with: artil-server account allow ${shellQuoted(account.name)} <sender> --channel ${channel.kind}`,
-      );
-    }
+    const hint =
+      admit === "list" && senders.length === 0
+        ? `\nNo one is on it yet; add someone with:\n  artil-server account allow ${shellQuoted(account.name)} <sender> --channel ${channel.kind}`
+        : "";
+
+    out(`${woken[admit]}${hint}`);
   }
 
   // A sender, the team or anyone wakes the agent on the channel from now on.

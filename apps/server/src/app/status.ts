@@ -105,7 +105,9 @@ export async function showStatus({ config, tailscale, context, out }: ShowStatus
             : "none yet; create one with: artil-server account create <name>",
         ],
       ]),
-      ...(problems.length > 0 ? ["Problems:", ...problems.map((problem) => `  ${problem}`)] : []),
+      ...(problems.length > 0
+        ? ["", "Problems:", ...problems.map((problem) => `  ${problem}`)]
+        : []),
     ].join("\n"),
   );
 }

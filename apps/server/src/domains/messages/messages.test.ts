@@ -79,7 +79,7 @@ test("says in the log how to let a stranger in, the first time they write", asyn
   await server.deliverQueued();
 
   expect(server.logs).toEqual([
-    "@ada wrote to Codex on Test but is not on its list; let them in with: artil-server account allow 'Codex' '42' --channel test",
+    "@ada wrote to Codex on Test but is not on its list; let them in with: artil-server account allow Codex 42 --channel test",
   ]);
   expect(server.services.messages.listKeptOut({ accountId: codex.id, channel: "test" })).toEqual([
     { sender: "42", name: null },
