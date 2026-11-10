@@ -1,4 +1,4 @@
-import { isCancel, note, password } from "@clack/prompts";
+import { confirm, isCancel, note, password } from "@clack/prompts";
 
 import { AppError } from "@artil/errors";
 
@@ -80,5 +80,28 @@ export function createSecretReader({
     if (problem) throw new AppError({ code: "invalid_input", message: `${message}: ${problem}` });
 
     return secret;
+  };
+}
+
+// Asks whether to go ahead with what cannot be undone, like removing an account.
+export type Confirm = (question: string) => Promise<boolean>;
+
+type CreateConfirmOptions = { interactive: boolean; yes: boolean };
+
+// --yes answers every question, and outside a terminal only it can.
+export function createConfirm({ interactive, yes }: CreateConfirmOptions): Confirm {
+  return async (question) => {
+    if (yes) return true;
+
+    if (!interactive) {
+      throw new AppError({
+        code: "invalid_input",
+        message: `${question} Give --yes to go ahead outside a terminal`,
+      });
+    }
+
+    const answer = await confirm({ message: question, initialValue: false });
+
+    return answer === true;
   };
 }

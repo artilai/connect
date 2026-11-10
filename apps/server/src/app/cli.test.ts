@@ -92,10 +92,13 @@ test("signs an account out of one client by name, or out of all", async () => {
   await cli(dataDir, "account", "token", "Codex", "macbook");
   await cli(dataDir, "account", "token", "Codex", "server");
 
-  expect(await cli(dataDir, "account", "revoke", "Codex", "MacBook")).toBe(
+  await expect(cli(dataDir, "account", "revoke", "Codex", "MacBook")).rejects.toThrow(
+    "Sign Codex out of MacBook? Give --yes to go ahead outside a terminal",
+  );
+  expect(await cli(dataDir, "account", "revoke", "Codex", "MacBook", "--yes")).toBe(
     "Signed Codex out of MacBook.",
   );
-  await expect(cli(dataDir, "account", "revoke", "Codex", "macbook")).rejects.toThrow(
+  await expect(cli(dataDir, "account", "revoke", "Codex", "macbook", "-y")).rejects.toThrow(
     "Codex has no client macbook; it has server",
   );
   await expect(cli(dataDir, "account", "token", "Codex", "All")).rejects.toThrow(
@@ -104,11 +107,30 @@ test("signs an account out of one client by name, or out of all", async () => {
 
   await cli(dataDir, "account", "token", "Codex", "laptop");
 
-  expect(await cli(dataDir, "account", "revoke", "Codex", "all")).toBe(
+  await expect(cli(dataDir, "account", "revoke", "Codex", "all")).rejects.toThrow(
+    "Sign Codex out of all 2 of its clients? Give --yes",
+  );
+  expect(await cli(dataDir, "account", "revoke", "Codex", "all", "--yes")).toBe(
     "Signed Codex out of 2 clients.",
   );
-  await expect(cli(dataDir, "account", "revoke", "Codex", "server")).rejects.toThrow(
-    "Codex is signed in to no client",
+  expect(await cli(dataDir, "account", "revoke", "Codex", "all")).toBe(
+    "Codex is signed in to no client.",
+  );
+});
+
+test("removes an account only once it is told yes", async () => {
+  const dataDir = await mkdtemp(join(tmpdir(), "artil-server-"));
+
+  await cli(dataDir, "account", "create", "Codex");
+
+  await expect(cli(dataDir, "account", "remove", "Codex")).rejects.toThrow(
+    "Remove Codex with its messages and sign-ins? Give --yes to go ahead outside a terminal",
+  );
+  expect(await cli(dataDir, "account", "remove", "Codex", "--yes")).toBe(
+    "Removed Codex, with its messages and sign-ins.",
+  );
+  expect(await cli(dataDir, "account", "list")).toBe(
+    "No accounts yet. Create one with: artil-server account create <name>",
   );
 });
 
@@ -373,8 +395,14 @@ test("connects an account to a channel the config loads, and disconnects it", as
   expect(await cli(dataDir, "account", "allow", "Codex", "ada")).toBe(
     "ada now wakes Codex on Echo.",
   );
-  expect(await cli(dataDir, "account", "disconnect", "Codex", "echo")).toBe(
+  await expect(cli(dataDir, "account", "disconnect", "Codex", "echo")).rejects.toThrow(
+    "Disconnect echo:hi from Codex? Give --yes to go ahead outside a terminal",
+  );
+  expect(await cli(dataDir, "account", "disconnect", "Codex", "echo", "--yes")).toBe(
     "echo:hi no longer reaches Codex.",
+  );
+  expect(await cli(dataDir, "account", "disconnect", "Codex", "echo")).toBe(
+    "Codex has no Echo address.",
   );
 });
 

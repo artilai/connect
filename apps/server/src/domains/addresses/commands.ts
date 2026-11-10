@@ -1,15 +1,23 @@
 import { shellQuoted } from "@artil/utils/shell";
 
-import { type Command, defineCommand, type ReadSecret } from "../../platform/commands";
+import {
+  type Command,
+  type Confirm,
+  defineCommand,
+  type ReadSecret,
+} from "../../platform/commands";
 import type { AgentsService } from "../agents/service";
 import type { ChannelKind } from "../channels/schema";
+import type { ChannelsService } from "../channels/service";
 import type { AddressesService } from "./service";
 
 type AddressCommandsOptions = {
   agents: AgentsService;
   addresses: AddressesService;
+  channels: ChannelsService;
   // Reads what a channel asks for to connect, like a bot's token.
   readSecret: ReadSecret;
+  confirm: Confirm;
   out: (line: string) => void;
 };
 
@@ -18,7 +26,9 @@ type AddressCommandsOptions = {
 export function createAddressCommands({
   agents,
   addresses,
+  channels,
   readSecret,
+  confirm,
   out,
 }: AddressCommandsOptions) {
   type ConnectOptions = { kind: ChannelKind; name: string };
@@ -55,13 +65,17 @@ export function createAddressCommands({
 
   async function disconnect({ kind, name }: DisconnectOptions) {
     const agent = agents.getByIdOrName(name);
-    const { address, channel } = await addresses.disconnect({ agentId: agent.id, kind });
+    const channel = channels.get(kind);
+    const address = addresses.findByAgent({ agentId: agent.id, channel: kind });
 
-    out(
-      address
-        ? `${address.value} no longer reaches ${agent.name}.`
-        : `${agent.name} has no ${channel.name} address.`,
-    );
+    if (!address) return out(`${agent.name} has no ${channel.name} address.`);
+
+    if (!(await confirm(`Disconnect ${address.value} from ${agent.name}?`))) {
+      return out("Nothing changed.");
+    }
+
+    await addresses.disconnect({ agentId: agent.id, kind });
+    out(`${address.value} no longer reaches ${agent.name}.`);
   }
 
   return new Map<string, Command>([

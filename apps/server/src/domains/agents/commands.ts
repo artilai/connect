@@ -2,7 +2,7 @@ import { AppError } from "@artil/errors";
 import { shellQuoted } from "@artil/utils/shell";
 
 import { loginCommand } from "../../platform/artil-cli";
-import { type Command, defineCommand, toRows } from "../../platform/commands";
+import { type Command, type Confirm, defineCommand, toRows } from "../../platform/commands";
 import { type Access, defaultAccess } from "../access/schema";
 import type { AccessService } from "../access/service";
 import type { AddressesService } from "../addresses/service";
@@ -20,6 +20,7 @@ type AgentCommandsOptions = {
   access: AccessService;
   connections: ConnectionsService;
   channels: ChannelsService;
+  confirm: Confirm;
   out: (line: string) => void;
   // Where agents reach the server, to tell them how to sign in.
   baseUrl: () => Promise<string>;
@@ -60,6 +61,7 @@ export function createAgentCommands({
   access,
   connections,
   channels,
+  confirm,
   out,
   baseUrl,
 }: AgentCommandsOptions) {
@@ -191,6 +193,10 @@ export function createAgentCommands({
   async function removeAgent(name: string) {
     const agent = agents.getByIdOrName(name);
 
+    if (!(await confirm(`Remove ${agent.name} with its messages and sign-ins?`))) {
+      return out("Nothing changed.");
+    }
+
     await agents.remove(agent.id);
     out(`Removed ${agent.name}, with its messages and sign-ins.`);
   }
@@ -223,18 +229,24 @@ export function createAgentCommands({
     );
   }
 
-  function revoke({ name, client }: RevokeOptions) {
+  async function revoke({ name, client }: RevokeOptions) {
     const agent = agents.getByIdOrName(name);
+    const clients = tokens.listByAgent(agent.id).map((token) => token.name);
+    const wanted = client.trim().toLowerCase();
 
-    if (client.trim().toLowerCase() === everyClient) {
+    if (wanted === everyClient) {
+      if (clients.length === 0) return out(`${agent.name} is signed in to no client.`);
+
+      const each = clients.length === 1 ? "its one client" : `all ${clients.length} of its clients`;
+
+      if (!(await confirm(`Sign ${agent.name} out of ${each}?`))) return out("Nothing changed.");
+
       const revoked = tokens.revokeByAgent(agent.id);
 
       return out(`Signed ${agent.name} out of ${revoked} ${revoked === 1 ? "client" : "clients"}.`);
     }
 
-    if (tokens.revokeByName({ agentId: agent.id, name: client }) === 0) {
-      const clients = tokens.listByAgent(agent.id).map((token) => token.name);
-
+    if (!clients.some((clientName) => clientName.toLowerCase() === wanted)) {
       throw new AppError({
         code: "not_found",
         message:
@@ -244,6 +256,11 @@ export function createAgentCommands({
       });
     }
 
+    if (!(await confirm(`Sign ${agent.name} out of ${client.trim()}?`))) {
+      return out("Nothing changed.");
+    }
+
+    tokens.revokeByName({ agentId: agent.id, name: client });
     out(`Signed ${agent.name} out of ${client.trim()}.`);
   }
 

@@ -8,7 +8,7 @@ import { createAddressCommands } from "../domains/addresses/commands";
 import { createAgentCommands } from "../domains/agents/commands";
 import { loadChannels } from "../domains/channels/load";
 import { type ArtilCli, loginCommand } from "../platform/artil-cli";
-import { createSecretReader } from "../platform/commands";
+import { createConfirm, createSecretReader } from "../platform/commands";
 import {
   type Config,
   newConfig,
@@ -48,6 +48,7 @@ Usage:
 
 Options:
   --channel <channel>  The channel allow and disallow mean, by default the one the account is connected to
+  -y, --yes            Answer yes to what remove, disconnect and revoke ask
   -h, --help           Show this help
   -v, --version        Show the version`;
 
@@ -118,6 +119,7 @@ export async function runCli(environment: Environment) {
       local: { type: "boolean" },
       port: { type: "string" },
       password: { type: "boolean" },
+      yes: { type: "boolean", short: "y" },
       help: { type: "boolean", short: "h" },
       version: { type: "boolean", short: "v" },
     },
@@ -131,8 +133,11 @@ export async function runCli(environment: Environment) {
   const savedConfig = await readConfig(paths);
 
   // Refuses a flag the command does not read, like --public beside account list.
+  // --yes answers whatever a command asks, so every command takes it.
   function checkFlags(accepted: readonly string[]) {
-    const unknownFlag = Object.keys(values).find((flag) => !accepted.includes(flag));
+    const unknownFlag = Object.keys(values).find(
+      (flag) => flag !== "yes" && !accepted.includes(flag),
+    );
 
     if (unknownFlag) throw usageError(`This command takes no --${unknownFlag}`);
   }
@@ -144,6 +149,7 @@ export async function runCli(environment: Environment) {
 
   const builtInKinds = builtInChannels.map(({ kind }) => kind);
   const readSecret = createSecretReader({ interactive, readStdin: environment.readStdin });
+  const confirm = createConfirm({ interactive, yes: values.yes === true });
 
   // A server is new until it has an agent, so a setup stopped before it made one runs again.
   async function hasAgents(config: Config) {
@@ -238,8 +244,8 @@ export async function runCli(environment: Environment) {
     }
 
     const run = new Map([
-      ...createAgentCommands(context),
-      ...createAddressCommands({ ...context, readSecret }),
+      ...createAgentCommands({ ...context, confirm }),
+      ...createAddressCommands({ ...context, readSecret, confirm }),
       ...createAccessCommands(context),
     ]).get(`${command} ${subcommand}`);
 
