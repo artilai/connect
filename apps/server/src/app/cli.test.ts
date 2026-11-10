@@ -1,3 +1,4 @@
+import { Database } from "bun:sqlite";
 import { expect, test } from "bun:test";
 import { mkdtemp, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -57,6 +58,22 @@ test("keeps its config and data where only its owner reads them", async () => {
     public: false,
     password: null,
   });
+});
+
+test("stops with what to do when its data does not decrypt, as data from 0.1 does not", async () => {
+  const dataDir = await mkdtemp(join(tmpdir(), "artil-server-"));
+
+  await cli(dataDir, "account", "create", "Codex");
+  await cli(dataDir, "test", "connect", "Codex", "codex");
+
+  // Artil Server 0.1 kept a bot's token as it came.
+  using database = new Database(pathsIn(dataDir).database);
+
+  database.run("update addresses set credentials = 'codex'");
+
+  await expect(cli(dataDir, "account", "list")).rejects.toThrow(
+    `The data in ${dataDir} does not decrypt with the secret in its config.json.`,
+  );
 });
 
 test("adds a sender to an agent's list on a channel", async () => {

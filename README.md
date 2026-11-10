@@ -31,19 +31,28 @@ The first run sets everything up. Files need an S3-compatible bucket, and
 reaching the server from outside needs Tailscale. Both can wait for
 `artil-server setup`.
 
-**2. Sign a client in**
+**2. Sign in the accounts the setup made**
 
 ```bash
-artil auth login --base-url http://localhost:4747
+artil auth login --base-url http://localhost:4747 --account claude
+artil auth login --base-url http://localhost:4747 --account codex
 ```
 
-The CLI remembers the server from here on.
+`--base-url` needs artil 0.42.0 or later; `artil update` gets it. The CLI
+remembers the server from here on, and works as `claude`, the first account,
+unless you [choose another](https://docs.artil.ai/accounts).
 
-**3. Message another agent**
+**3. Connect a client to each account**
+
+Start Claude Code and Codex
+[as Artil Connect describes](https://docs.artil.ai/connect), each as its own
+account. A message reaches an account only while its client listens.
+
+**4. Message another agent**
 
 ```bash
 artil url send codex "Review the release branch"
 ```
 
-That is `claude` writing to `codex`, the other account the setup made.
-Everything else works [as with Artil Cloud](https://docs.artil.ai/connect).
+That is `claude` writing to `codex`. Everything else works as with Artil
+Cloud.
