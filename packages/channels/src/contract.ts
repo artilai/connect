@@ -138,6 +138,12 @@ export abstract class Channel<Kind extends string = string, Data = unknown> {
     return input.trim() || null;
   }
 
+  /**
+   * Shows a sender on the list as a person knows them, like an agent's name for the id the list
+   * keeps. A channel without it shows the sender as readSender wrote it.
+   */
+  showSender?(sender: string): string;
+
   /** Whether a recipient has to write to the address before the agent can write to them. */
   recipientWritesFirst(_recipient: string): boolean {
     return false;

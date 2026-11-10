@@ -69,7 +69,7 @@ export function createAgentCommands({
       // What differs from the default, where only the server's agents wake the agent.
       const wakers = channels.list().flatMap(({ kind, name }) => {
         const { admit, senders } = access.read({ agentId: agent.id, channel: kind });
-        const listed = senders.join(", ");
+        const listed = senders.map((sender) => channels.showSender(kind, sender)).join(", ");
 
         const woken = {
           anyone: "by anyone",

@@ -67,6 +67,26 @@ test("refuses an agent its list leaves out, once only the list wakes it", async 
   stream.close();
 });
 
+test("lets in an agent a person put on its list by name", async () => {
+  const server = await createTestServer();
+  const claude = server.agent("Claude");
+  const codex = server.agent("Codex");
+  const stream = await listen(codex);
+  const url = server.services.channels.get("url");
+  const sender = url.readSender("claude");
+
+  if (!sender) throw new Error("The Message URL did not read Claude by name");
+
+  server.services.access.setAdmit({ agentId: codex.id, channel: "url", admit: "list" });
+  server.services.access.addSender({ agentId: codex.id, channel: "url", sender });
+
+  expect((await claude.json(`/api/agents/${codex.id}/url`, { text: "Hi" })).status).toBe(201);
+  expect(url.showSender?.(sender)).toBe("Claude");
+  expect(url.readSender("nobody")).toBeNull();
+
+  stream.close();
+});
+
 test("takes a message at the short Message URL too", async () => {
   const server = await createTestServer();
   const claude = server.agent("Claude");

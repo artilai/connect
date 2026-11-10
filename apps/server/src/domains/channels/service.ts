@@ -10,6 +10,10 @@ export function createChannelsService(channels: ReadonlyMap<ChannelKind, Channel
 
     find: (kind: ChannelKind) => channels.get(kind),
 
+    // A sender on a list of the channel as a person knows them.
+    showSender: (kind: ChannelKind, sender: string) =>
+      channels.get(kind)?.showSender?.(sender) ?? sender,
+
     // A channel a person names by its kind, as the commands take one.
     get(kind: ChannelKind) {
       const channel = channels.get(kind);

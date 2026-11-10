@@ -106,11 +106,12 @@ export function createAccessCommands({
 
     const sender = readSender({ channel, who });
     const added = access.addSender({ agentId: agent.id, channel: channel.kind, sender });
+    const shown = channels.showSender(channel.kind, sender);
 
     out(
       added
-        ? `${sender} now wakes ${agent.name} on ${channel.name}.`
-        : `${sender} already wakes ${agent.name}.`,
+        ? `${shown} now wakes ${agent.name} on ${channel.name}.`
+        : `${shown} already wakes ${agent.name}.`,
     );
   }
 
@@ -128,11 +129,12 @@ export function createAccessCommands({
 
     const sender = readSender({ channel, who });
     const removed = access.removeSender({ agentId: agent.id, channel: channel.kind, sender });
+    const shown = channels.showSender(channel.kind, sender);
 
     out(
       removed
-        ? `${sender} is off ${agent.name}'s list on ${channel.name}.`
-        : `${sender} was not on ${agent.name}'s list.`,
+        ? `${shown} is off ${agent.name}'s list on ${channel.name}.`
+        : `${shown} was not on ${agent.name}'s list.`,
     );
   }
 

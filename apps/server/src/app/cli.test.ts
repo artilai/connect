@@ -215,6 +215,23 @@ test("lets anyone, the team beside the list, or only the list wake an agent on a
   ).rejects.toThrow("Only the team or the senders you list can wake an agent at its Message URL");
 });
 
+test("lists the server's agents by name at the Message URL", async () => {
+  const dataDir = await mkdtemp(join(tmpdir(), "artil-server-"));
+  const onUrl = ["--channel", "url"];
+
+  await cli(dataDir, "account", "create", "Codex");
+  await cli(dataDir, "account", "create", "Claude");
+  await cli(dataDir, "account", "disallow", "Codex", "team", ...onUrl);
+
+  expect(await cli(dataDir, "account", "allow", "Codex", "claude", ...onUrl)).toBe(
+    "Claude now wakes Codex on Message URL.",
+  );
+  expect(await cli(dataDir, "account", "list")).toContain("woken on Message URL only by Claude");
+  await expect(cli(dataDir, "account", "allow", "Codex", "nobody", ...onUrl)).rejects.toThrow(
+    "nobody is not an agent of this server, by its name or id",
+  );
+});
+
 test("names the channels it has when a command names one it does not", async () => {
   const dataDir = await mkdtemp(join(tmpdir(), "artil-server-"));
 

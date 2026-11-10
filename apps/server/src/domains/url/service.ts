@@ -54,11 +54,22 @@ export class UrlChannel extends Channel<"url", UrlData> {
 
   readonly recipients = "the id of one agent from team.list";
 
+  override readonly senders = "an agent of this server, by its name or id";
+
   readonly #services: UrlChannelOptions;
 
   constructor(services: UrlChannelOptions) {
     super();
     this.#services = services;
+  }
+
+  // The list keeps an agent by its id, as the sender of a message comes, which a rename leaves be.
+  override readSender(input: string) {
+    return this.#services.agents.findByIdOrName(input)?.id ?? null;
+  }
+
+  override showSender(sender: string) {
+    return this.#services.agents.findById(sender)?.name ?? sender;
   }
 
   // Sends what an agent writes to another's Message URL, and returns the event the other got.
