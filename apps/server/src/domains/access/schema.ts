@@ -1,14 +1,16 @@
-import { z } from "zod";
-
-import { type admissions, admits, type refusals } from "../../platform/db/schema";
+import type { admissions, admits, refusals } from "../../platform/db/schema";
 
 export type Refusal = (typeof refusals)[number];
 
 export type Admission = (typeof admissions)[number];
 
-export const admitSchema = z.enum(admits);
+export type Admit = (typeof admits)[number];
 
-export type Admit = z.infer<typeof admitSchema>;
+// Who besides the list may wake the agent, named by a word of their own: anyone, or the team of the
+// server's agents.
+export const groups = ["anyone", "team"] as const;
+
+export type Group = (typeof groups)[number];
 
 export type Access = { admit: Admit; senders: string[] };
 

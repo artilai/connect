@@ -158,8 +158,8 @@ async function setUpChannel({ context, channel }: SetUpChannelOptions) {
         });
 
         await accessCommands
-          .get("access add")
-          ?.run({ account: agent.name, channel: channel.kind, sender });
+          .get("account allow")
+          ?.run({ account: agent.name, who: sender, channel: channel.kind });
       } catch (cause) {
         log.warn(messageOf(cause, `Could not add ${sender}`));
       }

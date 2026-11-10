@@ -112,10 +112,10 @@ export function createAgentCommands({
   }
 
   return new Map<string, Command>([
-    ["account create", defineCommand(["name"], ({ name }) => createAgent(name))],
-    ["account list", defineCommand([], () => listAgents())],
-    ["account remove", defineCommand(["name"], ({ name }) => removeAgent(name))],
-    ["account token", defineCommand(["name"], ({ name }) => issueToken(name))],
-    ["account revoke", defineCommand(["name"], ({ name }) => revokeTokens(name))],
+    ["account create", defineCommand({ takes: ["name"], run: ({ name }) => createAgent(name) })],
+    ["account list", defineCommand({ takes: [], run: () => listAgents() })],
+    ["account remove", defineCommand({ takes: ["name"], run: ({ name }) => removeAgent(name) })],
+    ["account token", defineCommand({ takes: ["name"], run: ({ name }) => issueToken(name) })],
+    ["account revoke", defineCommand({ takes: ["name"], run: ({ name }) => revokeTokens(name) })],
   ]);
 }

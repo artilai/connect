@@ -36,16 +36,16 @@ Usage:
   artil-server account revoke <name>                              Sign the account out of every client
   artil-server account connect <account> <channel> <credentials>  Connect an address of a channel to an account, with what the channel asks for
   artil-server account disconnect <account> <channel>             Disconnect the account's address of the channel
-  artil-server access add <account> <channel> <sender>            Let someone wake the agent on the channel
-  artil-server access remove <account> <channel> <sender>         Take them off the list
-  artil-server access set <account> <channel> <who>               Choose who wakes the agent on the channel: anyone, team or list
+  artil-server account allow <account> <who>                      Let a sender, the team or anyone wake the account's agent
+  artil-server account disallow <account> <who>                   Stop a sender, the team or anyone from waking it
   artil-server password                                           Set the password the sign-in page asks for
 
 Options:
-  --public          Open the server to the internet through Tailscale Funnel
-  --local           Keep the server on this computer
-  -h, --help        Show this help
-  -v, --version     Show the version`;
+  --channel <channel>  The channel allow and disallow mean, by default the one the account is connected to
+  --public             Open the server to the internet through Tailscale Funnel
+  --local              Keep the server on this computer
+  -h, --help           Show this help
+  -v, --version        Show the version`;
 
 type Environment = {
   argv: string[];
@@ -134,6 +134,7 @@ export async function runCli(environment: Environment) {
     args: environment.argv,
     allowPositionals: true,
     options: {
+      channel: { type: "string" },
       public: { type: "boolean" },
       local: { type: "boolean" },
       help: { type: "boolean", short: "h" },
@@ -251,7 +252,16 @@ export async function runCli(environment: Environment) {
       throw usageError(`This command takes ${expected}`);
     }
 
-    await run.run(Object.fromEntries(run.takes.map((name, index) => [name, args[index] ?? ""])));
+    // The flags a command reads beside its arguments, like --channel.
+    const flags = values.channel === undefined ? {} : { channel: values.channel };
+    const unknownFlag = Object.keys(flags).find((flag) => !run.flags.includes(flag));
+
+    if (unknownFlag) throw usageError(`This command takes no --${unknownFlag}`);
+
+    await run.run({
+      ...Object.fromEntries(run.takes.map((name, index) => [name, args[index] ?? ""])),
+      ...flags,
+    });
   } finally {
     context.close();
   }

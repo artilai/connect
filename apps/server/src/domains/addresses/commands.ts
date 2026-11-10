@@ -31,7 +31,7 @@ export function createAddressCommands({ agents, addresses, out }: AddressCommand
       [
         `${address.value} now reaches ${agent.name} on ${channel.name}.`,
         `Only the server's agents wake ${agent.name} there; let someone in with:`,
-        `  artil-server access add ${shellQuoted(agent.name)} ${kind} <${channel.senders}>`,
+        `  artil-server account allow ${shellQuoted(agent.name)} <${channel.senders}> --channel ${kind}`,
       ].join("\n"),
     );
   }
@@ -52,15 +52,18 @@ export function createAddressCommands({ agents, addresses, out }: AddressCommand
   return new Map<string, Command>([
     [
       "account connect",
-      defineCommand(["account", "channel", "credentials"], ({ account, channel, credentials }) =>
-        connect({ kind: channel, name: account, credentials }),
-      ),
+      defineCommand({
+        takes: ["account", "channel", "credentials"],
+        run: ({ account, channel, credentials }) =>
+          connect({ kind: channel, name: account, credentials }),
+      }),
     ],
     [
       "account disconnect",
-      defineCommand(["account", "channel"], ({ account, channel }) =>
-        disconnect({ kind: channel, name: account }),
-      ),
+      defineCommand({
+        takes: ["account", "channel"],
+        run: ({ account, channel }) => disconnect({ kind: channel, name: account }),
+      }),
     ],
   ]);
 }

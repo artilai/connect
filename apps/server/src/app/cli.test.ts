@@ -119,52 +119,56 @@ test("sets the server up on a start in a terminal until it has an agent", async 
   expect(await start({ dataDir, interactive: true })).toEqual([]);
 });
 
-test("adds a sender to an agent's list on a channel", async () => {
+test("adds a sender to an agent's list on the channel it names", async () => {
   const dataDir = await mkdtemp(join(tmpdir(), "artil-server-"));
 
   await cli(dataDir, "account", "create", "Codex");
 
-  expect(await cli(dataDir, "access", "add", "Codex", "test", "@AdaLovelace")).toBe(
+  expect(await cli(dataDir, "account", "allow", "Codex", "@AdaLovelace", "--channel", "test")).toBe(
     "@adalovelace now wakes Codex on Test.",
   );
 
   expect(await cli(dataDir, "account", "list")).toContain("woken on Test by @adalovelace");
-  await expect(cli(dataDir, "access", "add", "Codex", "test", "not a sender!")).rejects.toThrow(
-    "not a sender! is not a name or @handle",
+  await expect(
+    cli(dataDir, "account", "allow", "Codex", "not a sender!", "--channel", "test"),
+  ).rejects.toThrow("not a sender! is not a name or @handle");
+  await expect(cli(dataDir, "account", "allow", "Codex", "@AdaLovelace")).rejects.toThrow(
+    "Codex is connected to no channel; name one with --channel",
   );
 });
 
 test("lets anyone, the team beside the list, or only the list wake an agent on a channel", async () => {
   const dataDir = await mkdtemp(join(tmpdir(), "artil-server-"));
+  const onTest = ["--channel", "test"];
 
   await cli(dataDir, "account", "create", "Codex");
 
-  expect(await cli(dataDir, "access", "set", "Codex", "test", "list")).toBe(
-    "Only Codex's list now wakes it on Test.\nNo one is on it yet; add someone with: artil-server access add 'Codex' test <sender>",
+  expect(await cli(dataDir, "account", "disallow", "Codex", "team", ...onTest)).toBe(
+    "Only Codex's list now wakes it on Test.\nNo one is on it yet; add someone with: artil-server account allow 'Codex' <sender> --channel test",
   );
   expect(await cli(dataDir, "account", "list")).toContain("woken on Test by no one");
 
-  await cli(dataDir, "access", "add", "Codex", "test", "@AdaLovelace");
+  await cli(dataDir, "account", "allow", "Codex", "@AdaLovelace", ...onTest);
 
   expect(await cli(dataDir, "account", "list")).toContain("woken on Test only by @adalovelace");
-  expect(await cli(dataDir, "access", "set", "Codex", "test", "Anyone")).toBe(
+  expect(await cli(dataDir, "account", "allow", "Codex", "Anyone", ...onTest)).toBe(
     "Anyone now wakes Codex on Test.",
   );
   expect(await cli(dataDir, "account", "list")).toContain("woken on Test by anyone");
-  expect(await cli(dataDir, "access", "remove", "Codex", "test", "@AdaLovelace")).toBe(
+  expect(await cli(dataDir, "account", "allow", "Codex", "team", ...onTest)).toBe(
+    "Anyone wakes Codex on Test.",
+  );
+  expect(await cli(dataDir, "account", "disallow", "Codex", "@AdaLovelace", ...onTest)).toBe(
     "@adalovelace is off Codex's list on Test.",
   );
-  await cli(dataDir, "access", "add", "Codex", "test", "@AdaLovelace");
-  expect(await cli(dataDir, "access", "set", "Codex", "test", "team")).toBe(
+  await cli(dataDir, "account", "allow", "Codex", "@AdaLovelace", ...onTest);
+  expect(await cli(dataDir, "account", "disallow", "Codex", "anyone", ...onTest)).toBe(
     "The server's agents and Codex's list now wake it on Test.",
   );
   expect(await cli(dataDir, "account", "list")).toContain("woken on Test by @adalovelace");
-  await expect(cli(dataDir, "access", "set", "Codex", "url", "anyone")).rejects.toThrow(
-    "Only the team or the senders you list can wake an agent at its Message URL",
-  );
-  await expect(cli(dataDir, "access", "set", "Codex", "test", "everyone")).rejects.toThrow(
-    "everyone is not anyone, team or list",
-  );
+  await expect(
+    cli(dataDir, "account", "allow", "Codex", "anyone", "--channel", "url"),
+  ).rejects.toThrow("Only the team or the senders you list can wake an agent at its Message URL");
 });
 
 test("names the channels it has when a command names one it does not", async () => {
@@ -200,6 +204,9 @@ test("says how to use a command it does not know", async () => {
 
   await expect(cli(dataDir, "account", "fly")).rejects.toThrow("There is no command account fly");
   await expect(cli(dataDir, "account", "create")).rejects.toThrow("This command takes <name>");
+  await expect(cli(dataDir, "account", "list", "--channel", "test")).rejects.toThrow(
+    "This command takes no --channel",
+  );
   expect(await cli(dataDir, "--help")).toContain("artil-server account create <name>");
 });
 
@@ -221,6 +228,9 @@ test("connects an account to a channel the config loads, and disconnects it", as
     "echo:hi now reaches Codex on Echo.",
   );
   expect(await cli(dataDir, "account", "list")).toContain("Echo echo:hi");
+  expect(await cli(dataDir, "account", "allow", "Codex", "ada")).toBe(
+    "ada now wakes Codex on Echo.",
+  );
   expect(await cli(dataDir, "account", "disconnect", "Codex", "echo")).toBe(
     "echo:hi no longer reaches Codex.",
   );
