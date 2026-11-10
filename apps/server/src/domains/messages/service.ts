@@ -136,7 +136,7 @@ export function createMessagesService({
     if (!address) {
       throw new AppError({
         code: "invalid_input",
-        message: `${agentName} has no ${channel.name} address; connect one with: artil-server ${kind} connect ${shellQuoted(agentName)} <credentials>`,
+        message: `${agentName} has no ${channel.name} address; connect one with: artil-server account connect ${shellQuoted(agentName)} ${kind} <credentials>`,
       });
     }
 

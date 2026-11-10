@@ -27,19 +27,19 @@ import type { runSetup } from "./setup";
 const usage = `artil-server: a self-hosted Artil Server
 
 Usage:
-  artil-server                                             Start the server, setting it up first if it is new
-  artil-server setup                                       Set up the accounts, channels, files and who reaches the server
-  artil-server account create <name>                       Create an agent account
-  artil-server account list                                List the accounts
-  artil-server account remove <name>                       Remove an account with its messages
-  artil-server account token <name>                        Make a token, for a computer without a browser
-  artil-server account revoke <name>                       Sign the account out of every client
-  artil-server <channel> connect <account> <credentials>   Connect an address of a channel to an account, with what the channel asks for
-  artil-server <channel> disconnect <account>              Disconnect the account's address of the channel
-  artil-server access add <account> <channel> <sender>     Let someone wake the agent on the channel
-  artil-server access remove <account> <channel> <sender>  Take them off the list
-  artil-server access set <account> <channel> <who>        Choose who wakes the agent on the channel: anyone, team or list
-  artil-server password                                    Set the password the sign-in page asks for
+  artil-server                                                    Start the server, setting it up first if it is new
+  artil-server setup                                              Set up the accounts, channels, files and who reaches the server
+  artil-server account create <name>                              Create an agent account
+  artil-server account list                                       List the accounts
+  artil-server account remove <name>                              Remove an account with its messages
+  artil-server account token <name>                               Make a token, for a computer without a browser
+  artil-server account revoke <name>                              Sign the account out of every client
+  artil-server account connect <account> <channel> <credentials>  Connect an address of a channel to an account, with what the channel asks for
+  artil-server account disconnect <account> <channel>             Disconnect the account's address of the channel
+  artil-server access add <account> <channel> <sender>            Let someone wake the agent on the channel
+  artil-server access remove <account> <channel> <sender>         Take them off the list
+  artil-server access set <account> <channel> <who>               Choose who wakes the agent on the channel: anyone, team or list
+  artil-server password                                           Set the password the sign-in page asks for
 
 Options:
   --public          Open the server to the internet through Tailscale Funnel
@@ -235,11 +235,11 @@ export async function runCli(environment: Environment) {
   });
 
   try {
-    // A command a domain gives, or one of a channel's, which go by its kind.
-    const run =
-      new Map([...createAgentCommands(context), ...createAccessCommands(context)]).get(
-        `${command} ${subcommand}`,
-      ) ?? createAddressCommands(context).get(subcommand)?.(command);
+    const run = new Map([
+      ...createAgentCommands(context),
+      ...createAddressCommands(context),
+      ...createAccessCommands(context),
+    ]).get(`${command} ${subcommand}`);
 
     if (!run) {
       throw usageError(`There is no command ${[command, subcommand].filter(Boolean).join(" ")}`);

@@ -11,7 +11,8 @@ type AddressCommandsOptions = {
   out: (line: string) => void;
 };
 
-// A channel's commands go by its kind: artil-server <kind> connect.
+// An account's addresses on the channels, which the commands name by their kind:
+// artil-server account connect claude telegram.
 export function createAddressCommands({ agents, addresses, out }: AddressCommandsOptions) {
   type ConnectOptions = { kind: ChannelKind; name: string; credentials: string };
 
@@ -48,17 +49,18 @@ export function createAddressCommands({ agents, addresses, out }: AddressCommand
     );
   }
 
-  return new Map<string, (kind: ChannelKind) => Command>([
+  return new Map<string, Command>([
     [
-      "connect",
-      (kind) =>
-        defineCommand(["account", "credentials"], ({ account, credentials }) =>
-          connect({ kind, name: account, credentials }),
-        ),
+      "account connect",
+      defineCommand(["account", "channel", "credentials"], ({ account, channel, credentials }) =>
+        connect({ kind: channel, name: account, credentials }),
+      ),
     ],
     [
-      "disconnect",
-      (kind) => defineCommand(["account"], ({ account }) => disconnect({ kind, name: account })),
+      "account disconnect",
+      defineCommand(["account", "channel"], ({ account, channel }) =>
+        disconnect({ kind: channel, name: account }),
+      ),
     ],
   ]);
 }

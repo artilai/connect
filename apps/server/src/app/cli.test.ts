@@ -172,7 +172,7 @@ test("names the channels it has when a command names one it does not", async () 
 
   await cli(dataDir, "account", "create", "Codex");
 
-  await expect(cli(dataDir, "discord", "connect", "Codex", "token")).rejects.toThrow(
+  await expect(cli(dataDir, "account", "connect", "Codex", "discord", "token")).rejects.toThrow(
     "This server has no discord channel; it has test, url",
   );
 });
@@ -203,7 +203,7 @@ test("says how to use a command it does not know", async () => {
   expect(await cli(dataDir, "--help")).toContain("artil-server account create <name>");
 });
 
-test("connects an address of a channel the config loads", async () => {
+test("connects an account to a channel the config loads, and disconnects it", async () => {
   const dataDir = await mkdtemp(join(tmpdir(), "artil-server-"));
 
   await writeFile(join(dataDir, "echo-channel.ts"), channelModule("echo"));
@@ -217,8 +217,11 @@ test("connects an address of a channel the config loads", async () => {
 
   await writeConfig(paths, { ...config, channels: ["test", "./echo-channel.ts"] });
 
-  expect(await cli(dataDir, "echo", "connect", "Codex", "hi")).toContain(
+  expect(await cli(dataDir, "account", "connect", "Codex", "echo", "hi")).toContain(
     "echo:hi now reaches Codex on Echo.",
   );
   expect(await cli(dataDir, "account", "list")).toContain("Echo echo:hi");
+  expect(await cli(dataDir, "account", "disconnect", "Codex", "echo")).toBe(
+    "echo:hi no longer reaches Codex.",
+  );
 });
