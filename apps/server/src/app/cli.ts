@@ -34,6 +34,7 @@ Usage:
   artil-server set --password                          Set the password the sign-in page asks for, typed or piped in
   artil-server account create <name>                   Create an agent account
   artil-server account list                            List the accounts
+  artil-server account rename <account> <name>         Give an account another name
   artil-server account remove <name>                   Remove an account with its messages
   artil-server account token <name>                    Make a token, for a computer without a browser
   artil-server account revoke <name>                   Sign the account out of every client

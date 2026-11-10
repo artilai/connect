@@ -23,6 +23,9 @@ type AgentCommandsOptions = {
 
 type SignInGuideOptions = { baseUrl: string; names: readonly string[] };
 
+// The account by its id or present name, and the name it takes.
+type RenameAgentOptions = { name: string; newName: string };
+
 // How each kind of client signs the agents in to this server.
 export function signInGuide({ baseUrl, names }: SignInGuideOptions) {
   return [
@@ -84,6 +87,13 @@ export function createAgentCommands({
     }
   }
 
+  function renameAgent({ name, newName }: RenameAgentOptions) {
+    const agent = agents.getByIdOrName(name);
+    const renamed = agents.rename({ id: agent.id, name: newName });
+
+    out(`Renamed ${agent.name} to ${renamed}.`);
+  }
+
   async function removeAgent(name: string) {
     const agent = agents.getByIdOrName(name);
 
@@ -114,6 +124,13 @@ export function createAgentCommands({
   return new Map<string, Command>([
     ["account create", defineCommand({ takes: ["name"], run: ({ name }) => createAgent(name) })],
     ["account list", defineCommand({ takes: [], run: () => listAgents() })],
+    [
+      "account rename",
+      defineCommand({
+        takes: ["account", "name"],
+        run: ({ account, name }) => renameAgent({ name: account, newName: name }),
+      }),
+    ],
     ["account remove", defineCommand({ takes: ["name"], run: ({ name }) => removeAgent(name) })],
     ["account token", defineCommand({ takes: ["name"], run: ({ name }) => issueToken(name) })],
     ["account revoke", defineCommand({ takes: ["name"], run: ({ name }) => revokeTokens(name) })],

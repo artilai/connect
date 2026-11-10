@@ -16,7 +16,31 @@ function newAgentId() {
 
 type CreateAgentsServiceOptions = { agentsRepository: AgentsRepository; files: FilesService };
 
+type ReadNameOptions = { name: string; agentId?: string };
+
+type RenameOptions = { id: string; name: string };
+
 export function createAgentsService({ agentsRepository, files }: CreateAgentsServiceOptions) {
+  // A name a person gives the agent: 1 to 80 characters, and no other agent's name or id.
+  function readName({ name, agentId }: ReadNameOptions) {
+    const trimmed = name.trim();
+
+    if (!namePattern.test(trimmed)) {
+      throw new AppError({
+        code: "invalid_input",
+        message: "An agent's name is 1 to 80 characters, with no control characters",
+      });
+    }
+
+    const holder = agentsRepository.findByIdOrName(trimmed);
+
+    if (holder && holder.id !== agentId) {
+      throw new AppError({ code: "conflict", message: `There is already an agent ${trimmed}` });
+    }
+
+    return trimmed;
+  }
+
   return {
     findById: agentsRepository.findById,
     findByIdOrName: agentsRepository.findByIdOrName,
@@ -36,21 +60,17 @@ export function createAgentsService({ agentsRepository, files }: CreateAgentsSer
       return agent;
     },
 
-    create(name: string) {
-      const trimmed = name.trim();
+    create: (name: string) =>
+      agentsRepository.create({ id: newAgentId(), name: readName({ name }) }),
 
-      if (!namePattern.test(trimmed)) {
-        throw new AppError({
-          code: "invalid_input",
-          message: "An agent's name is 1 to 80 characters, with no control characters",
-        });
-      }
+    // Gives the agent another name, and returns it; its id, and so its sign-ins and the lists it
+    // is on, stay as they are.
+    rename({ id, name }: RenameOptions) {
+      const newName = readName({ name, agentId: id });
 
-      if (agentsRepository.findByIdOrName(trimmed)) {
-        throw new AppError({ code: "conflict", message: `There is already an agent ${trimmed}` });
-      }
+      agentsRepository.rename({ id, name: newName });
 
-      return agentsRepository.create({ id: newAgentId(), name: trimmed });
+      return newName;
     },
 
     // Removes the agent with its messages and sign-ins, and its files from the bucket.

@@ -86,6 +86,22 @@ test("creates agents, lists them and makes a token to sign one in with", async (
   expect(await cli(dataDir, "account", "revoke", "codex")).toBe("Signed Codex out of 1 client.");
 });
 
+test("renames an account, keeping its id", async () => {
+  const dataDir = await mkdtemp(join(tmpdir(), "artil-server-"));
+
+  await cli(dataDir, "account", "create", "Codex");
+  await cli(dataDir, "account", "create", "Claude");
+
+  const [, id] = /^Codex {2}(\w{8})/v.exec(await cli(dataDir, "account", "list")) ?? [];
+
+  expect(await cli(dataDir, "account", "rename", "codex", "Coder")).toBe("Renamed Codex to Coder.");
+  expect(await cli(dataDir, "account", "list")).toContain(`Coder  ${id}`);
+  expect(await cli(dataDir, "account", "rename", "coder", "CODER")).toBe("Renamed Coder to CODER.");
+  await expect(cli(dataDir, "account", "rename", "coder", "claude")).rejects.toThrow(
+    "There is already an agent claude",
+  );
+});
+
 test("keeps its config and data where only its owner reads them", async () => {
   const dataDir = await mkdtemp(join(tmpdir(), "artil-server-"));
 

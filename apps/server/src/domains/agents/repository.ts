@@ -5,6 +5,8 @@ import { agents } from "../../platform/db/schema";
 
 type CreateOptions = { id: string; name: string };
 
+type RenameOptions = { id: string; name: string };
+
 export function createAgentsRepository(db: Database) {
   function findById(id: string) {
     return db.select().from(agents).where(eq(agents.id, id)).get();
@@ -39,6 +41,10 @@ export function createAgentsRepository(db: Database) {
 
     create: ({ id, name }: CreateOptions) =>
       db.insert(agents).values({ id, name }).returning().get(),
+
+    rename: ({ id, name }: RenameOptions) => {
+      db.update(agents).set({ name }).where(eq(agents.id, id)).run();
+    },
 
     remove: (id: string) =>
       db.delete(agents).where(eq(agents.id, id)).returning({ id: agents.id }).all().length > 0,
