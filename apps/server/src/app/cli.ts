@@ -22,7 +22,7 @@ import {
 import type { Tailscale } from "../platform/tailscale";
 import { openCommandContext } from "./context";
 import { startServer } from "./server";
-import { runSetup } from "./setup";
+import type { runSetup } from "./setup";
 
 const usage = `artil-server: a self-hosted Artil Server
 
@@ -58,6 +58,10 @@ type Environment = {
   tailscale: Tailscale | undefined;
   // The artil CLI on this computer, which the setup offers when it is missing.
   artil: ArtilCli;
+  // Asks for the agents, their channels, files and mode in the terminal, and saves the config.
+  runSetup: typeof runSetup;
+  // Resolves when the server should stop, like on Ctrl-C.
+  waitForStop: () => Promise<void>;
   out: (line: string) => void;
 };
 
@@ -106,12 +110,7 @@ async function serve({ paths, config, environment }: ServeOptions) {
   out(`Sign an agent in with: ${loginCommand(server.baseUrl)}`);
   out(`MCP clients connect to ${server.baseUrl}/mcp`);
 
-  const { promise, resolve } = Promise.withResolvers<void>();
-
-  process.once("SIGINT", resolve);
-  process.once("SIGTERM", resolve);
-
-  await promise;
+  await environment.waitForStop();
   out("Stopping");
   await server.stop();
 }
@@ -163,7 +162,10 @@ export async function runCli(environment: Environment) {
   }
 
   const [command = "", subcommand = "", ...args] = positionals;
-  const { migrationsFolder, tailscale, artil, out, interactive, builtInChannels } = environment;
+
+  const { migrationsFolder, tailscale, artil, runSetup, out, interactive, builtInChannels } =
+    environment;
+
   const builtInKinds = builtInChannels.map(({ kind }) => kind);
 
   // A server is new until it has an agent, so a setup stopped before it made one runs again.

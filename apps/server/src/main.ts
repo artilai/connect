@@ -8,7 +8,7 @@ import { channel as telegramChannel } from "@artil/telegram-channel";
 
 import { version } from "../package.json";
 import { runCli } from "./app/cli";
-import { SetupStopped } from "./app/setup";
+import { runSetup, SetupStopped } from "./app/setup";
 import { findArtilCli } from "./platform/artil-cli";
 import { createTailscale, findTailscale, runWith } from "./platform/tailscale";
 
@@ -19,6 +19,16 @@ const migrationsFolder = fileURLToPath(new URL("../migrations", import.meta.url)
 process.umask(0o077);
 
 const binary = findTailscale(process.platform);
+
+// The server runs until Ctrl-C or the system stops it.
+function waitForStop() {
+  const { promise, resolve } = Promise.withResolvers<void>();
+
+  process.once("SIGINT", resolve);
+  process.once("SIGTERM", resolve);
+
+  return promise;
+}
 
 try {
   await runCli({
@@ -31,6 +41,8 @@ try {
     migrationsFolder,
     tailscale: binary === undefined ? undefined : createTailscale({ run: runWith(binary) }),
     artil: findArtilCli(),
+    runSetup,
+    waitForStop,
     out: (line) => console.log(line),
   });
 } catch (cause) {
