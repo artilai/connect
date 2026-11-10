@@ -26,6 +26,13 @@ export function defineCommand<
   return { takes, flags: flags ?? [], run };
 }
 
+// Lines of a label and a value each under a heading, with the values lined up.
+export function toRows(pairs: readonly (readonly [string, string])[]) {
+  const width = Math.max(...pairs.map(([label]) => label.length)) + 2;
+
+  return pairs.map(([label, value]) => `  ${label.padEnd(width)}${value}`);
+}
+
 type ReadSecretOptions = {
   message: string;
   // How a person gets the secret, which a terminal shows before it asks.

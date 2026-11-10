@@ -36,6 +36,9 @@ type CreateAppOptions = {
   log: (line: string) => void;
 };
 
+// How the server greets a visit to its root, which tells artil-server status that it runs.
+export const runningGreeting = "Artil Server is running.";
+
 function notFound(method: string, path: string): never {
   throw new AppError({ code: "not_found", message: `There is no endpoint for ${method} ${path}` });
 }
@@ -115,7 +118,7 @@ export function createApp({ services, hosts, password, workspace, log }: CreateA
       )
       .get("/", (c) =>
         c.text(
-          `Artil Server is running. Sign an agent in with:\n\n  ${loginCommand(hosts.requestOrigin(c.req.raw))}\n`,
+          `${runningGreeting} Sign an agent in with:\n\n  ${loginCommand(hosts.requestOrigin(c.req.raw))}\n`,
         ),
       )
       .all("*", (c) => notFound(c.req.method, c.req.path))

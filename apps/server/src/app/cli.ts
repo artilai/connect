@@ -22,12 +22,14 @@ import { openCommandContext } from "./context";
 import { startServer } from "./server";
 import { changeSettings, settingFlags } from "./settings";
 import type { runSetup } from "./setup";
+import { findStartProblems, showStatus } from "./status";
 
 const usage = `artil-server: a self-hosted Artil Server
 
 Usage:
   artil-server                                         Start the server, setting it up first if it is new
   artil-server setup                                   Set up the accounts, channels, files and who reaches the server
+  artil-server status                                  Show where the server is, whether it runs, and what keeps it from starting
   artil-server set --public                            Open the server to the internet through Tailscale Funnel from its next start
   artil-server set --local                             Keep the server on this computer from its next start
   artil-server set --port <port>                       Listen on another port from the server's next start
@@ -77,22 +79,9 @@ type ServeOptions = { paths: Paths; config: Config; environment: Environment };
 
 async function serve({ paths, config, environment }: ServeOptions) {
   const { migrationsFolder, tailscale, out } = environment;
+  const [problem] = findStartProblems({ config, tailscale });
 
-  if (config.public && !tailscale) {
-    throw new AppError({
-      code: "unavailable",
-      message:
-        "Public mode needs Tailscale: install it from https://tailscale.com/download, or keep the server on this computer with artil-server set --local",
-    });
-  }
-
-  if (config.public && config.password === null) {
-    throw new AppError({
-      code: "invalid_input",
-      message:
-        "Public mode needs a password for the sign-in page: set one with artil-server set --password",
-    });
-  }
+  if (problem) throw new AppError({ code: "invalid_input", message: problem });
 
   const server = await startServer({
     config,
@@ -242,6 +231,12 @@ export async function runCli(environment: Environment) {
   });
 
   try {
+    if (command === "status") {
+      checkFlags([]);
+
+      return await showStatus({ config, tailscale, context, out });
+    }
+
     const run = new Map([
       ...createAgentCommands(context),
       ...createAddressCommands({ ...context, readSecret }),

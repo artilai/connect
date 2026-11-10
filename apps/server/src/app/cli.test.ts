@@ -145,6 +145,33 @@ test("keeps its config and data where only its owner reads them", async () => {
   });
 });
 
+test("says where the server is, whether it runs, and what keeps it from starting", async () => {
+  const dataDir = await mkdtemp(join(tmpdir(), "artil-server-"));
+  const port = await findFreePort();
+
+  await cli(dataDir, "set", "--port", String(port));
+
+  expect(await cli(dataDir, "status")).toBe(
+    [
+      "Artil Server",
+      `  Address       http://localhost:${port}, on this computer`,
+      "  Running       no; start it with: artil-server",
+      "  Files         off; turn them on with an S3 bucket in artil-server setup",
+      "  Sign-in page  asks for no password",
+      "  Channels      Test, Message URL",
+      "  Accounts      none yet; create one with: artil-server account create <name>",
+    ].join("\n"),
+  );
+
+  await cli(dataDir, "account", "create", "Codex");
+  await pipeInto({ dataDir, stdin: "correct horse" }, "set", "--password");
+  await cli(dataDir, "set", "--public");
+
+  expect(await cli(dataDir, "status")).toContain(
+    "  Accounts      Codex not listening\nProblems:\n  Public mode needs Tailscale",
+  );
+});
+
 test("changes the server's mode, port and password with set", async () => {
   const dataDir = await mkdtemp(join(tmpdir(), "artil-server-"));
 

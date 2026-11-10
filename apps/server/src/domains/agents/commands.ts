@@ -2,7 +2,7 @@ import { AppError } from "@artil/errors";
 import { shellQuoted } from "@artil/utils/shell";
 
 import { loginCommand } from "../../platform/artil-cli";
-import { type Command, defineCommand } from "../../platform/commands";
+import { type Command, defineCommand, toRows } from "../../platform/commands";
 import { type Access, defaultAccess } from "../access/schema";
 import type { AccessService } from "../access/service";
 import type { AddressesService } from "../addresses/service";
@@ -42,13 +42,6 @@ type DescribeWakersOptions = Access & { kind: ChannelKind };
 
 // How a date shows to a person, like Nov 10, 2026.
 const dateFormat = new Intl.DateTimeFormat("en", { dateStyle: "medium" });
-
-// Lines of a label and a value each, with the values lined up.
-function toRows(pairs: readonly (readonly [string, string])[]) {
-  const width = Math.max(...pairs.map(([label]) => label.length)) + 2;
-
-  return pairs.map(([label, value]) => `  ${label.padEnd(width)}${value}`);
-}
 
 // How each kind of client signs the agents in to this server.
 export function signInGuide({ baseUrl, names }: SignInGuideOptions) {
