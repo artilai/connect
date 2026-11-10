@@ -12,8 +12,8 @@ const styles = `
   code { font: 13px ui-monospace, monospace; }
   fieldset { border: 1px solid var(--line); border-radius: 10px; margin: 0 0 16px; padding: 4px 12px; }
   legend { padding: 0 4px; font-weight: 600; }
-  label.agent { display: flex; gap: 10px; align-items: center; padding: 8px 0; }
-  label.agent + label.agent { border-top: 1px solid var(--line); }
+  label.account { display: flex; gap: 10px; align-items: center; padding: 8px 0; }
+  label.account + label.account { border-top: 1px solid var(--line); }
   label.password { display: grid; gap: 6px; margin: 0 0 16px; font-weight: 600; }
   input[type=password] { font: inherit; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: transparent; color: inherit; }
   .error { color: var(--error); }
@@ -41,15 +41,15 @@ function Layout({ title, children }: LayoutProps) {
   );
 }
 
-type Agent = { id: string; name: string };
+type Account = { id: string; name: string };
 
 export type SignInPageProps = {
-  // Who asks to act as an agent, like an MCP client or the artil CLI on a computer.
+  // Who asks to sign in as an account, like an MCP client or the artil CLI on a computer.
   client: string;
   // Where the code goes, so the person can tell a client from one that only borrows its name.
   redirectHost: string;
-  agents: readonly Agent[];
-  selectedAgentId: string | undefined;
+  accounts: readonly Account[];
+  selectedAccountId: string | undefined;
   askPassword: boolean;
   error: string | undefined;
 };
@@ -57,36 +57,37 @@ export type SignInPageProps = {
 export function SignInPage({
   client,
   redirectHost,
-  agents,
-  selectedAgentId,
+  accounts,
+  selectedAccountId,
   askPassword,
   error,
 }: SignInPageProps) {
-  const checkedAgentId = agents.find(({ id }) => id === selectedAgentId)?.id ?? agents[0]?.id;
+  const checkedAccountId =
+    accounts.find(({ id }) => id === selectedAccountId)?.id ?? accounts[0]?.id;
 
   return (
     <Layout title="Sign in to Artil Server">
       <h1>Sign in to Artil Server</h1>
       <p>
-        <strong>{client}</strong> wants to act as one of this server's agents. It gets the answer at{" "}
-        <code>{redirectHost}</code>.
+        <strong>{client}</strong> wants to sign in as one of this server's accounts. It gets the
+        answer at <code>{redirectHost}</code>.
       </p>
       <form method="post">
-        {agents.length === 0 ? (
+        {accounts.length === 0 ? (
           <p>
-            This server has no agents yet. Make one on the server with{" "}
+            This server has no accounts yet. Make one on the server with{" "}
             <code>artil-server account create &lt;name&gt;</code>, then sign in again.
           </p>
         ) : (
           <fieldset>
-            <legend>Act as</legend>
-            {agents.map(({ id, name }) => (
-              <label class="agent">
+            <legend>Sign in as</legend>
+            {accounts.map(({ id, name }) => (
+              <label class="account">
                 <input
                   type="radio"
-                  name="agent"
+                  name="account"
                   value={id}
-                  checked={id === checkedAgentId}
+                  checked={id === checkedAccountId}
                   required
                 />
                 {name}
@@ -94,7 +95,7 @@ export function SignInPage({
             ))}
           </fieldset>
         )}
-        {askPassword && agents.length > 0 && (
+        {askPassword && accounts.length > 0 && (
           <label class="password">
             Server password
             <input type="password" name="password" autocomplete="current-password" required />
@@ -102,7 +103,7 @@ export function SignInPage({
         )}
         {error && <p class="error">{error}</p>}
         <div class="actions">
-          {agents.length > 0 && (
+          {accounts.length > 0 && (
             <button type="submit" name="decision" value="allow">
               Allow
             </button>

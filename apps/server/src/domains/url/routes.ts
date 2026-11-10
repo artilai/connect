@@ -34,16 +34,16 @@ export function createUrlRoutes({ url, fileLinks }: CreateUrlRoutesOptions) {
     readDraft,
     draftForm,
     async (c) => {
-      const agentId = c.req.param("id")?.toLowerCase();
+      const accountId = c.req.param("id")?.toLowerCase();
 
-      if (!agentId) throw new AppError({ code: "not_found", message: "Agent account not found" });
+      if (!accountId) throw new AppError({ code: "not_found", message: "Agent account not found" });
 
       const { actor } = c.var;
       const { draft, files } = c.req.valid("json");
 
       const event = await url.relay({
-        sender: { id: actor.agentId, name: actor.agentName },
-        to: [agentId],
+        sender: { id: actor.accountId, name: actor.accountName },
+        to: [accountId],
         text: draft.text ?? "",
         thread: draft.thread ?? null,
         toThread: draft.toThread ?? null,

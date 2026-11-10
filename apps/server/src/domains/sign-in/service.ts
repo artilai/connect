@@ -10,7 +10,7 @@ const maxPending = 500;
 
 type CreateSignInsServiceOptions = { signInsRepository: SignInsRepository; tokens: TokensService };
 
-type ApproveOptions = { id: string; agentId: string };
+type ApproveOptions = { id: string; accountId: string };
 
 type ExchangeOptions = {
   kind: SignInRecord["kind"];
@@ -43,16 +43,16 @@ export function createSignInsService({ signInsRepository, tokens }: CreateSignIn
     findPending: signInsRepository.findPending,
     deny: signInsRepository.deny,
 
-    // Gives the sign-in its agent and returns the code the client trades for a token.
-    approve({ id, agentId }: ApproveOptions) {
+    // Gives the sign-in its account and returns the code the client trades for a token.
+    approve({ id, accountId }: ApproveOptions) {
       const code = randomSecret();
 
-      return signInsRepository.approve({ id, agentId, codeHash: hashSecret(code) })
+      return signInsRepository.approve({ id, accountId, codeHash: hashSecret(code) })
         ? code
         : undefined;
     },
 
-    // Trades a code once for a token of the agent chosen, if the client proves it asked for it.
+    // Trades a code once for a token of the account chosen, if the client proves it asked for it.
     exchange({ kind, code, verifier, redirectUri, clientId }: ExchangeOptions) {
       const signIn = signInsRepository.takeByCode(hashSecret(code));
 
@@ -62,9 +62,9 @@ export function createSignInsService({ signInsRepository, tokens }: CreateSignIn
         signIn.redirectUri === redirectUri &&
         (clientId === undefined || signIn.clientId === clientId);
 
-      if (!matchesRequest || signIn.agentId === null) return undefined;
+      if (!matchesRequest || signIn.accountId === null) return undefined;
 
-      return tokens.issue({ agentId: signIn.agentId, name: tokenNameFor(signIn) });
+      return tokens.issue({ accountId: signIn.accountId, name: tokenNameFor(signIn) });
     },
   };
 }

@@ -60,6 +60,8 @@ export function pathsIn(dataDir: string) {
     dataDir,
     config: join(dataDir, "config.json"),
     database: join(dataDir, "artil.db"),
+    // The port the running server took, which artil-server status reads.
+    running: join(dataDir, "running.json"),
   };
 }
 

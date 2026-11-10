@@ -7,11 +7,13 @@ import { mintToken, readToken } from "./token";
 
 type CreateTokensServiceOptions = { tokensRepository: TokensRepository };
 
-type IssueOptions = { agentId: string; name: string };
+type IssueOptions = { accountId: string; name: string };
+
+type ListByNameOptions = { accountId: string; name: string };
 
 export function createTokensService({ tokensRepository }: CreateTokensServiceOptions) {
   return {
-    // Makes a token for the agent and returns it; only its hash is kept.
+    // Makes a token for the account and returns it; only its hash is kept.
     issue(options: IssueOptions) {
       const { token, hash } = mintToken();
 
@@ -24,9 +26,9 @@ export function createTokensService({ tokensRepository }: CreateTokensServiceOpt
     authenticate(authorization: string | undefined): Actor {
       const token = readToken(authorization);
       const hash = token && hashSecret(token);
-      const signedInAgent = hash && tokensRepository.findByHash(hash);
+      const signedInAccount = hash && tokensRepository.findByHash(hash);
 
-      if (!hash || !signedInAgent) {
+      if (!hash || !signedInAccount) {
         throw new AppError({
           code: "unauthorized",
           message: token ? "Invalid access token" : "Sign in with a bearer token",
@@ -34,16 +36,29 @@ export function createTokensService({ tokensRepository }: CreateTokensServiceOpt
       }
 
       return {
-        agentId: signedInAgent.agentId,
-        agentName: signedInAgent.agentName,
+        accountId: signedInAccount.accountId,
+        accountName: signedInAccount.accountName,
         tokenHash: hash,
-        tokenName: signedInAgent.name,
+        tokenName: signedInAccount.name,
       };
     },
 
     isValid: (hash: string) => tokensRepository.findByHash(hash) !== undefined,
+    listByAccount: tokensRepository.listByAccount,
+
+    // The account's sign-ins that go by a name a person gives, in any case. JavaScript folds the
+    // case, as SQLite folds only ASCII, so what a command finds is what it revokes.
+    listByName({ accountId, name }: ListByNameOptions) {
+      const wanted = name.trim().toLowerCase();
+
+      return tokensRepository
+        .listByAccount(accountId)
+        .filter((signIn) => signIn.name.toLowerCase() === wanted);
+    },
+
     revokeByHash: tokensRepository.revokeByHash,
-    revokeByAgent: tokensRepository.revokeByAgent,
+    revokeByIds: tokensRepository.revokeByIds,
+    revokeByAccount: tokensRepository.revokeByAccount,
   };
 }
 

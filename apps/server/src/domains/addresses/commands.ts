@@ -1,36 +1,62 @@
 import { shellQuoted } from "@artil/utils/shell";
 
-import { type Command, defineCommand } from "../../platform/commands";
-import type { AgentsService } from "../agents/service";
+import {
+  type Command,
+  type Confirm,
+  defineCommand,
+  type ReadSecret,
+} from "../../platform/commands";
+import type { AccountsService } from "../accounts/service";
 import type { ChannelKind } from "../channels/schema";
+import type { ChannelsService } from "../channels/service";
 import type { AddressesService } from "./service";
 
 type AddressCommandsOptions = {
-  agents: AgentsService;
+  accounts: AccountsService;
   addresses: AddressesService;
+  channels: ChannelsService;
+  // Reads what a channel asks for to connect, like a bot's token.
+  readSecret: ReadSecret;
+  confirm: Confirm;
   out: (line: string) => void;
 };
 
-// A channel's commands go by its kind: artil-server <kind> connect.
-export function createAddressCommands({ agents, addresses, out }: AddressCommandsOptions) {
-  type ConnectOptions = { kind: ChannelKind; name: string; credentials: string };
+// An account's addresses on the channels, which the commands name by their kind:
+// artil-server account connect claude telegram.
+export function createAddressCommands({
+  accounts,
+  addresses,
+  channels,
+  readSecret,
+  confirm,
+  out,
+}: AddressCommandsOptions) {
+  type ConnectOptions = { kind: ChannelKind; name: string };
 
-  async function connect({ kind, name, credentials }: ConnectOptions) {
-    const agent = agents.getByIdOrName(name);
+  async function connect({ kind, name }: ConnectOptions) {
+    const account = accounts.getByIdOrName(name);
+    const channel = addresses.getConnectable(kind);
 
-    const { address, replaced, channel } = await addresses.connect({
-      agentId: agent.id,
-      kind,
-      credentials,
+    const credentials = await readSecret({
+      message: channel.credentials,
+      guide: channel.credentialsGuide,
     });
 
-    for (const old of replaced) out(`${old.value} no longer reaches ${agent.name}.`);
+    if (credentials === undefined) return;
+
+    const { address, replaced } = await addresses.connect({
+      accountId: account.id,
+      kind,
+      credentials: credentials.trim(),
+    });
+
+    for (const old of replaced) out(`${old.value} no longer reaches ${account.name}.`);
 
     out(
       [
-        `${address.value} now reaches ${agent.name} on ${channel.name}.`,
-        `Only the server's agents wake ${agent.name} there; let someone in with:`,
-        `  artil-server access add ${shellQuoted(agent.name)} ${kind} <${channel.senders}>`,
+        `${address.value} now reaches ${account.name} on ${channel.name}.`,
+        `Only the server's accounts wake ${account.name} there; let someone in with:`,
+        `  artil-server account allow ${shellQuoted(account.name)} <${channel.senders}> --channel ${kind}`,
       ].join("\n"),
     );
   }
@@ -38,27 +64,34 @@ export function createAddressCommands({ agents, addresses, out }: AddressCommand
   type DisconnectOptions = { kind: ChannelKind; name: string };
 
   async function disconnect({ kind, name }: DisconnectOptions) {
-    const agent = agents.getByIdOrName(name);
-    const { address, channel } = await addresses.disconnect({ agentId: agent.id, kind });
+    const account = accounts.getByIdOrName(name);
+    const channel = channels.get(kind);
+    const address = addresses.findByAccount({ accountId: account.id, channel: kind });
 
-    out(
-      address
-        ? `${address.value} no longer reaches ${agent.name}.`
-        : `${agent.name} has no ${channel.name} address.`,
-    );
+    if (!address) return out(`${account.name} has no ${channel.name} address.`);
+
+    if (!(await confirm(`Disconnect ${address.value} from ${account.name}?`))) {
+      return out("Nothing changed.");
+    }
+
+    await addresses.disconnect({ accountId: account.id, kind });
+    out(`${address.value} no longer reaches ${account.name}.`);
   }
 
-  return new Map<string, (kind: ChannelKind) => Command>([
+  return new Map<string, Command>([
     [
-      "connect",
-      (kind) =>
-        defineCommand(["account", "credentials"], ({ account, credentials }) =>
-          connect({ kind, name: account, credentials }),
-        ),
+      "account connect",
+      defineCommand({
+        takes: ["account", "channel"],
+        run: ({ account, channel }) => connect({ kind: channel, name: account }),
+      }),
     ],
     [
-      "disconnect",
-      (kind) => defineCommand(["account"], ({ account }) => disconnect({ kind, name: account })),
+      "account disconnect",
+      defineCommand({
+        takes: ["account", "channel"],
+        run: ({ account, channel }) => disconnect({ kind: channel, name: account }),
+      }),
     ],
   ]);
 }

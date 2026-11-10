@@ -8,7 +8,7 @@ import { missingChannel } from "../../platform/cloud";
 import { createDraftReader, sendBodyLimit } from "../../platform/http/draft";
 import { jsonResponse } from "../../platform/http/openapi";
 import { readId, validateQuery } from "../../platform/http/validate";
-import type { AgentEnv } from "../agents/schema";
+import type { AccountEnv } from "../accounts/schema";
 import { apiChannelKinds } from "../channels/schema";
 import type { ChannelsService } from "../channels/service";
 import type { FileLinks } from "../files/schema";
@@ -75,7 +75,7 @@ type CreateMessageRoutesOptions = {
 };
 
 export function createMessageRoutes({ messages, channels, fileLinks }: CreateMessageRoutesOptions) {
-  return new Hono<AgentEnv>()
+  return new Hono<AccountEnv>()
     .get("/", docs.list, validateQuery(listSchema), (c) => {
       const filter = c.req.valid("query");
 
@@ -83,13 +83,13 @@ export function createMessageRoutes({ messages, channels, fileLinks }: CreateMes
 
       return c.json(
         messages
-          .list({ agentId: c.var.agent.id, filter })
+          .list({ accountId: c.var.account.id, filter })
           .map((message) => toMessage(message, fileLinks)),
       );
     })
     .get("/:messageId", docs.read, (c) => {
       const id = readId(c.req.param("messageId"));
-      const message = id && messages.find({ agentId: c.var.agent.id, id });
+      const message = id && messages.find({ accountId: c.var.account.id, id });
 
       if (!message) throw new AppError({ code: "not_found", message: "Message not found" });
 
@@ -97,9 +97,9 @@ export function createMessageRoutes({ messages, channels, fileLinks }: CreateMes
     })
     .post("/", docs.send, sendBodyLimit, readDraft, draftForm, async (c) => {
       const { draft, files } = c.req.valid("json");
-      const { id, name } = c.var.agent;
+      const { id, name } = c.var.account;
 
-      const sent = await messages.send({ agentId: id, agentName: name, draft, uploads: files });
+      const sent = await messages.send({ accountId: id, accountName: name, draft, uploads: files });
 
       return c.json(toMessage(sent, fileLinks), 201);
     });

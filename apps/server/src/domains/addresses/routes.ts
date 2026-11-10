@@ -3,7 +3,7 @@ import { describeRoute } from "hono-openapi";
 import { z } from "zod";
 
 import { jsonResponse } from "../../platform/http/openapi";
-import type { AgentEnv } from "../agents/schema";
+import type { AccountEnv } from "../accounts/schema";
 import { addressSchema, toAddress } from "./schema";
 import type { AddressesService } from "./service";
 
@@ -20,7 +20,7 @@ const docs = {
 type CreateAddressRoutesOptions = { addresses: AddressesService };
 
 export function createAddressRoutes({ addresses }: CreateAddressRoutesOptions) {
-  return new Hono<AgentEnv>().get("/", docs.list, (c) =>
-    c.json(addresses.listByAgent(c.var.agent.id).map(toAddress)),
+  return new Hono<AccountEnv>().get("/", docs.list, (c) =>
+    c.json(addresses.listByAccount(c.var.account.id).map(toAddress)),
   );
 }

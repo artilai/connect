@@ -9,8 +9,15 @@ export const urlKind = "url";
 // A message on the Message URL holds up to 2000 characters.
 export const maxUrlText = 2000;
 
+type ToMessageUrlOptions = { baseUrl: string; accountId: string };
+
+// An account's Message URL as a person copies it: the short one the server answers beside the API's.
+export function toMessageUrl({ baseUrl, accountId }: ToMessageUrlOptions) {
+  return `${baseUrl}/a/${accountId}`;
+}
+
 // What only the Message URL takes with a message: the thread of the sender's client it comes from,
-// the thread of the agent's client it is for, and the client the sender writes in. A thread is
+// the thread of the account's client it is for, and the client the sender writes in. A thread is
 // whatever a client calls its conversation, like a Codex thread id.
 export type UrlData = {
   thread: string | null;

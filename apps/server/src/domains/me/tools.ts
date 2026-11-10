@@ -21,9 +21,9 @@ export function registerMeTools({ server, actor, runTool, addresses }: RegisterM
     },
     () =>
       runTool(() => ({
-        agent: { id: actor.agentId, name: actor.agentName },
+        agent: { id: actor.accountId, name: actor.accountName },
         addresses: addresses
-          .listByAgent(actor.agentId)
+          .listByAccount(actor.accountId)
           .map(({ channel, value }) => ({ channel, value, primary: true })),
         signedInBy: null,
       })),

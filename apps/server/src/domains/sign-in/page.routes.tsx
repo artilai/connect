@@ -4,7 +4,7 @@ import { csrf } from "hono/csrf";
 import { z } from "zod";
 
 import type { Hosts } from "../../platform/http/hosts";
-import type { AgentsService } from "../agents/service";
+import type { AccountsService } from "../accounts/service";
 import { ExpiredPage, SignInPage } from "./page";
 import type { PasswordCheck } from "./password";
 import type { SignInRecord } from "./schema";
@@ -12,13 +12,13 @@ import type { SignInsService } from "./service";
 
 const decisionSchema = z.object({
   decision: z.enum(["allow", "deny"]),
-  agent: z.string().optional(),
+  account: z.string().optional(),
   password: z.string().optional(),
 });
 
 type CreateSignInPageRoutesOptions = {
   signIns: SignInsService;
-  agents: AgentsService;
+  accounts: AccountsService;
   password: PasswordCheck;
   hosts: Hosts;
 };
@@ -27,27 +27,27 @@ function describeClient({ kind, clientName }: SignInRecord) {
   return kind === "cli" ? `The artil CLI on ${clientName}` : clientName;
 }
 
-// The page a person picks the agent on for a client that signs in, and proves they run the server
+// The page a person picks the account on for a client that signs in, and proves they run the server
 // with its password when it has one.
 export function createSignInPageRoutes({
   signIns,
-  agents,
+  accounts,
   password,
   hosts,
 }: CreateSignInPageRoutesOptions) {
   type RenderPageOptions = {
     signIn: SignInRecord;
-    selectedAgentId: string | undefined;
+    selectedAccountId: string | undefined;
     error?: string;
   };
 
-  async function renderPage({ signIn, selectedAgentId, error }: RenderPageOptions) {
+  async function renderPage({ signIn, selectedAccountId, error }: RenderPageOptions) {
     return (
       <SignInPage
         client={describeClient(signIn)}
         redirectHost={new URL(signIn.redirectUri).host || signIn.redirectUri}
-        agents={agents.list()}
-        selectedAgentId={selectedAgentId}
+        accounts={accounts.list()}
+        selectedAccountId={selectedAccountId}
         askPassword={await password.required()}
         error={error}
       />
@@ -85,13 +85,13 @@ export function createSignInPageRoutes({
 
         if (!signIn) return c.html(<ExpiredPage />, 404);
 
-        // The CLI names the agent it signs in as, which the page then selects.
+        // The CLI names the account it signs in as, which the page then selects.
         const account = c.req.query("account");
 
-        const selectedAgentId =
-          account === undefined ? undefined : agents.findByIdOrName(account)?.id;
+        const selectedAccountId =
+          account === undefined ? undefined : accounts.findByIdOrName(account)?.id;
 
-        return c.html(await renderPage({ signIn, selectedAgentId }));
+        return c.html(await renderPage({ signIn, selectedAccountId }));
       })
       // Only the page itself posts a decision, from the address the server answers at.
       .post(
@@ -114,12 +114,12 @@ export function createSignInPageRoutes({
             );
           }
 
-          const agent =
-            form.data.agent === undefined ? undefined : agents.findById(form.data.agent);
+          const account =
+            form.data.account === undefined ? undefined : accounts.findById(form.data.account);
 
-          if (!agent)
+          if (!account)
             return c.html(
-              await renderPage({ signIn, selectedAgentId: undefined, error: "Pick an agent" }),
+              await renderPage({ signIn, selectedAccountId: undefined, error: "Pick an account" }),
               400,
             );
 
@@ -132,12 +132,12 @@ export function createSignInPageRoutes({
                 : "Too many wrong passwords; wait a minute and try again";
 
             return c.html(
-              await renderPage({ signIn, selectedAgentId: agent.id, error }),
+              await renderPage({ signIn, selectedAccountId: account.id, error }),
               passwordResult === "wrong" ? 401 : 429,
             );
           }
 
-          const code = signIns.approve({ id: signIn.id, agentId: agent.id });
+          const code = signIns.approve({ id: signIn.id, accountId: account.id });
 
           if (!code) return c.html(<ExpiredPage />, 404);
 

@@ -8,58 +8,58 @@ const latestCount = 50;
 
 const pageSize = 100;
 
-type AddOptions = { agentId: string; event: NewEvent };
+type AddOptions = { accountId: string; event: NewEvent };
 
-type ListAfterOptions = { agentId: string; cursor: number };
+type ListAfterOptions = { accountId: string; cursor: number };
 
-type FindRelayOptions = { agentId: string; messageId: string };
+type FindRelayOptions = { accountId: string; messageId: string };
 
 export function createEventsRepository(db: Database) {
   return {
-    add: ({ agentId, event }: AddOptions) =>
+    add: ({ accountId, event }: AddOptions) =>
       db
         .insert(events)
-        .values({ agentId, ...event })
+        .values({ accountId, ...event })
         .returning()
         .get(),
 
     // The newest events, newest first.
-    listLatest: (agentId: string) =>
+    listLatest: (accountId: string) =>
       db
         .select()
         .from(events)
-        .where(eq(events.agentId, agentId))
+        .where(eq(events.accountId, accountId))
         .orderBy(desc(events.id))
         .limit(latestCount)
         .all(),
 
     // The events that followed the cursor, oldest first.
-    listAfter: ({ agentId, cursor }: ListAfterOptions) =>
+    listAfter: ({ accountId, cursor }: ListAfterOptions) =>
       db
         .select()
         .from(events)
-        .where(and(eq(events.agentId, agentId), gt(events.id, cursor)))
+        .where(and(eq(events.accountId, accountId), gt(events.id, cursor)))
         .orderBy(asc(events.id))
         .limit(pageSize)
         .all(),
 
-    findLastId: (agentId: string) =>
+    findLastId: (accountId: string) =>
       db
         .select({ id: events.id })
         .from(events)
-        .where(eq(events.agentId, agentId))
+        .where(eq(events.accountId, accountId))
         .orderBy(desc(events.id))
         .limit(1)
         .get()?.id ?? 0,
 
     // A relayed message's event, which names its sender.
-    findRelay: ({ agentId, messageId }: FindRelayOptions) =>
+    findRelay: ({ accountId, messageId }: FindRelayOptions) =>
       db
         .select()
         .from(events)
         .where(
           and(
-            eq(events.agentId, agentId),
+            eq(events.accountId, accountId),
             isNotNull(events.sender),
             eq(events.messageId, messageId),
           ),

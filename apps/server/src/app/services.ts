@@ -2,10 +2,10 @@ import type { Channel } from "@artil/channels/contract";
 
 import { createAccessRepository } from "../domains/access/repository";
 import { createAccessService } from "../domains/access/service";
+import { createAccountsRepository } from "../domains/accounts/repository";
+import { createAccountsService } from "../domains/accounts/service";
 import { createAddressesRepository } from "../domains/addresses/repository";
 import { createAddressesService } from "../domains/addresses/service";
-import { createAgentsRepository } from "../domains/agents/repository";
-import { createAgentsService } from "../domains/agents/service";
 import type { ChannelKind } from "../domains/channels/schema";
 import { createChannelsService } from "../domains/channels/service";
 import { createConnectionsRepository } from "../domains/connections/repository";
@@ -50,7 +50,15 @@ export function createServices({
 }: CreateServicesOptions) {
   const files = createFilesService({ filesRepository: createFilesRepository(db), store, log });
   const fileLinks = createFileLinks({ secret, apiUrl: `${baseUrl}/api` });
-  const agents = createAgentsService({ agentsRepository: createAgentsRepository(db), files });
+
+  const access = createAccessService({ accessRepository: createAccessRepository(db) });
+
+  const accounts = createAccountsService({
+    accountsRepository: createAccountsRepository(db),
+    access,
+    files,
+  });
+
   const tokens = createTokensService({ tokensRepository: createTokensRepository(db) });
 
   const events = createEventsService({
@@ -64,9 +72,7 @@ export function createServices({
     events,
   });
 
-  const access = createAccessService({ accessRepository: createAccessRepository(db) });
-
-  const url = new UrlChannel({ agents, access, connections, events, files });
+  const url = new UrlChannel({ accounts, access, connections, events, files });
 
   // Every channel behind the one interface, whatever carries its messages.
   const channels = createChannelsService(
@@ -80,16 +86,18 @@ export function createServices({
 
   const messages = createMessagesService({
     messagesRepository: createMessagesRepository(db),
+    accounts,
     files,
     addresses,
     access,
     events,
     channels,
     url,
+    log,
   });
 
   return {
-    agents,
+    accounts,
     tokens,
     signIns: createSignInsService({ signInsRepository: createSignInsRepository(db), tokens }),
     addresses,
@@ -101,7 +109,7 @@ export function createServices({
     fileLinks,
     channels,
     url,
-    team: createTeamService({ agents, addresses, connections }),
+    team: createTeamService({ accounts, addresses, connections }),
   };
 }
 

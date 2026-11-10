@@ -47,7 +47,7 @@ export async function openCommandContext({
     db: database.db,
     secret: config.secret,
     baseUrl: localUrl,
-    // Removing an agent removes its files from the bucket.
+    // Removing an account removes its files from the bucket.
     store: config.s3 ? createS3Store(config.s3) : undefined,
     channels,
     log: out,

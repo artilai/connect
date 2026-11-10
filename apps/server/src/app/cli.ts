@@ -1,16 +1,14 @@
 import { parseArgs } from "node:util";
 
-import { password as askPassword, isCancel } from "@clack/prompts";
-
 import type { ChannelDefinition } from "@artil/channels/contract";
 import { AppError } from "@artil/errors";
 
 import { createAccessCommands } from "../domains/access/commands";
+import { createAccountCommands } from "../domains/accounts/commands";
 import { createAddressCommands } from "../domains/addresses/commands";
-import { createAgentCommands } from "../domains/agents/commands";
 import { loadChannels } from "../domains/channels/load";
-import { hashPassword, validatePassword } from "../domains/sign-in/password";
 import { type ArtilCli, loginCommand } from "../platform/artil-cli";
+import { type Command, createConfirm, createSecretReader } from "../platform/commands";
 import {
   type Config,
   newConfig,
@@ -19,33 +17,44 @@ import {
   readConfig,
   writeConfig,
 } from "../platform/config";
+import { markRunning, unmarkRunning } from "../platform/running";
 import type { Tailscale } from "../platform/tailscale";
-import { openCommandContext } from "./context";
+import { createArgumentChoosers } from "./arguments";
+import { type CommandContext, openCommandContext } from "./context";
 import { startServer } from "./server";
+import { changeSettings, settingFlags } from "./settings";
 import type { runSetup } from "./setup";
+import { findStartProblems, showStatus } from "./status";
 
 const usage = `artil-server: a self-hosted Artil Server
 
 Usage:
-  artil-server                                             Start the server, setting it up first if it is new
-  artil-server setup                                       Set up the accounts, channels, files and who reaches the server
-  artil-server account create <name>                       Create an agent account
-  artil-server account list                                List the accounts
-  artil-server account remove <name>                       Remove an account with its messages
-  artil-server account token <name>                        Make a token, for a computer without a browser
-  artil-server account revoke <name>                       Sign the account out of every client
-  artil-server <channel> connect <account> <credentials>   Connect an address of a channel to an account, with what the channel asks for
-  artil-server <channel> disconnect <account>              Disconnect the account's address of the channel
-  artil-server access add <account> <channel> <sender>     Let someone wake the agent on the channel
-  artil-server access remove <account> <channel> <sender>  Take them off the list
-  artil-server access set <account> <channel> <who>        Choose who wakes the agent on the channel: anyone, team or list
-  artil-server password                                    Set the password the sign-in page asks for
+  artil-server                                         Start the server, setting it up first if it is new
+  artil-server setup                                   Set up the accounts, channels, files and who reaches the server
+  artil-server status                                  Show where the server is, whether it runs, and what keeps it from starting
+  artil-server set --public                            Open the server to the internet through Tailscale Funnel from its next start
+  artil-server set --local                             Keep the server on this computer from its next start
+  artil-server set --port <port>                       Listen on another port from the server's next start
+  artil-server set --password                          Set the password the sign-in page asks for, typed or piped in
+  artil-server account create <name>                   Create an account
+  artil-server account list                            List the accounts
+  artil-server account show <account>                  Show an account's addresses, clients and who wakes it
+  artil-server account rename <account> <name>         Give an account another name
+  artil-server account remove <account>                Remove an account with its messages
+  artil-server account token <account> <name>          Make a token by a name of its own, for a computer without a browser
+  artil-server account revoke <account> <client>       Sign the account out of a client by its name, or out of all
+  artil-server account connect <account> <channel>     Connect an address of a channel to an account, with what the channel asks for, typed or piped in
+  artil-server account disconnect <account> <channel>  Disconnect the account's address of the channel
+  artil-server account allow <account> <who>           Let a sender, the team or anyone wake the account's agent
+  artil-server account disallow <account> <who>        Stop a sender, the team or anyone from waking it
 
 Options:
-  --public          Open the server to the internet through Tailscale Funnel
-  --local           Keep the server on this computer
-  -h, --help        Show this help
-  -v, --version     Show the version`;
+  --channel <channel>  The channel allow and disallow mean, by default the one the account is connected to
+  -y, --yes            Answer yes to what remove, disconnect and revoke ask
+  -h, --help           Show this help
+  -v, --version        Show the version
+
+In a terminal, a command offers the account, channel, client or sender it is not given.`;
 
 type Environment = {
   argv: string[];
@@ -58,10 +67,12 @@ type Environment = {
   tailscale: Tailscale | undefined;
   // The artil CLI on this computer, which the setup offers when it is missing.
   artil: ArtilCli;
-  // Asks for the agents, their channels, files and mode in the terminal, and saves the config.
+  // Asks for the accounts, their channels, files and mode in the terminal, and saves the config.
   runSetup: typeof runSetup;
   // Resolves when the server should stop, like on Ctrl-C.
   waitForStop: () => Promise<void>;
+  // What is piped in, like a bot's token, which a command reads outside a terminal.
+  readStdin: () => Promise<string>;
   out: (line: string) => void;
 };
 
@@ -73,22 +84,9 @@ type ServeOptions = { paths: Paths; config: Config; environment: Environment };
 
 async function serve({ paths, config, environment }: ServeOptions) {
   const { migrationsFolder, tailscale, out } = environment;
+  const [problem] = findStartProblems({ config, tailscale });
 
-  if (config.public && !tailscale) {
-    throw new AppError({
-      code: "unavailable",
-      message:
-        "Public mode needs Tailscale: install it from https://tailscale.com/download, or start with --local",
-    });
-  }
-
-  if (config.public && config.password === null) {
-    throw new AppError({
-      code: "invalid_input",
-      message:
-        "Public mode needs a password for the sign-in page: set one with artil-server password",
-    });
-  }
+  if (problem) throw new AppError({ code: "invalid_input", message: problem });
 
   const server = await startServer({
     config,
@@ -107,26 +105,14 @@ async function serve({ paths, config, environment }: ServeOptions) {
   out(
     `Artil Server is at ${server.baseUrl}${config.public ? " (public, through Tailscale Funnel)" : ""}.`,
   );
-  out(`Sign an agent in with: ${loginCommand(server.baseUrl)}`);
+  out(`Sign in as an account with: ${loginCommand(server.baseUrl)}`);
   out(`MCP clients connect to ${server.baseUrl}/mcp`);
+  await markRunning({ paths, port: server.port });
 
   await environment.waitForStop();
   out("Stopping");
   await server.stop();
-}
-
-type SetPasswordOptions = { paths: Paths; config: Config; out: (line: string) => void };
-
-async function setPassword({ paths, config, out }: SetPasswordOptions) {
-  const newPassword = await askPassword({
-    message: "A password the sign-in page asks for",
-    validate: validatePassword,
-  });
-
-  if (isCancel(newPassword)) return;
-
-  await writeConfig(paths, { ...config, password: await hashPassword(newPassword) });
-  out("The sign-in page asks for it from now on.");
+  await unmarkRunning(paths);
 }
 
 export async function runCli(environment: Environment) {
@@ -134,8 +120,12 @@ export async function runCli(environment: Environment) {
     args: environment.argv,
     allowPositionals: true,
     options: {
+      channel: { type: "string" },
       public: { type: "boolean" },
       local: { type: "boolean" },
+      port: { type: "string" },
+      password: { type: "boolean" },
+      yes: { type: "boolean", short: "y" },
       help: { type: "boolean", short: "h" },
       version: { type: "boolean", short: "v" },
     },
@@ -148,17 +138,14 @@ export async function runCli(environment: Environment) {
   const paths = pathsIn(environment.dataDir);
   const savedConfig = await readConfig(paths);
 
-  // --public and --local change the mode the server starts in, and the config keeps it.
-  async function applyFlags(config: Config) {
-    const changed = {
-      ...config,
-      ...(values.public && { public: true }),
-      ...(values.local && { public: false }),
-    };
+  // Refuses a flag the command does not read, like --public beside account list.
+  // --yes answers whatever a command asks, so every command takes it.
+  function checkFlags(accepted: readonly string[]) {
+    const unknownFlag = Object.keys(values).find(
+      (flag) => flag !== "yes" && !accepted.includes(flag),
+    );
 
-    if (changed.public !== config.public) await writeConfig(paths, changed);
-
-    return changed;
+    if (unknownFlag) throw usageError(`This command takes no --${unknownFlag}`);
   }
 
   const [command = "", subcommand = "", ...args] = positionals;
@@ -167,9 +154,38 @@ export async function runCli(environment: Environment) {
     environment;
 
   const builtInKinds = builtInChannels.map(({ kind }) => kind);
+  const readSecret = createSecretReader({ interactive, readStdin: environment.readStdin });
+  const confirm = createConfirm({ interactive, yes: values.yes === true });
 
-  // A server is new until it has an agent, so a setup stopped before it made one runs again.
-  async function hasAgents(config: Config) {
+  type ReadArgumentsOptions = { run: Command; context: CommandContext };
+
+  // The command's arguments by name, with what a terminal offers for any the command line left
+  // out; undefined when the person stops.
+  async function readArguments({ run, context }: ReadArgumentsOptions) {
+    const expected = run.takes.map((name) => `<${name}>`).join(" ") || "no arguments";
+
+    if (args.length > run.takes.length) throw usageError(`This command takes ${expected}`);
+
+    const given = new Map(args.map((value, index) => [run.takes[index] ?? "", value]));
+    const choosers = createArgumentChoosers(context);
+
+    for (const name of run.takes.slice(args.length)) {
+      const chooser = choosers.get(`${command} ${subcommand} ${name}`) ?? choosers.get(name);
+
+      if (!interactive || !chooser) throw usageError(`This command takes ${expected}`);
+
+      const choice = await chooser({ given, channel: values.channel });
+
+      if (choice === undefined) return undefined;
+
+      given.set(name, choice);
+    }
+
+    return given;
+  }
+
+  // A server is new until it has an account, so a setup stopped before it made one runs again.
+  async function hasAccounts(config: Config) {
     const context = await openCommandContext({
       paths,
       config,
@@ -180,15 +196,17 @@ export async function runCli(environment: Environment) {
     });
 
     try {
-      return context.agents.list().length > 0;
+      return context.accounts.list().length > 0;
     } finally {
       context.close();
     }
   }
 
   if (command === "" || command === "start") {
+    checkFlags([]);
+
     const config =
-      interactive && (!savedConfig || !(await hasAgents(savedConfig)))
+      interactive && (!savedConfig || !(await hasAccounts(savedConfig)))
         ? await runSetup({
             paths,
             config: savedConfig,
@@ -202,10 +220,12 @@ export async function runCli(environment: Environment) {
 
     if (!savedConfig && !interactive) await writeConfig(paths, config);
 
-    return serve({ paths, config: await applyFlags(config), environment });
+    return serve({ paths, config, environment });
   }
 
   if (command === "setup") {
+    checkFlags([]);
+
     await runSetup({
       paths,
       config: savedConfig,
@@ -223,7 +243,22 @@ export async function runCli(environment: Environment) {
 
   if (!savedConfig) await writeConfig(paths, config);
 
-  if (command === "password") return setPassword({ paths, config, out });
+  if (command === "set") {
+    checkFlags(settingFlags);
+
+    if (Object.keys(values).length === 0) {
+      throw usageError("artil-server set takes --public, --local, --port <port> or --password");
+    }
+
+    const change = {
+      public: values.public === true,
+      local: values.local === true,
+      port: values.port,
+      password: values.password === true,
+    };
+
+    return changeSettings({ paths, config, change, readSecret, out });
+  }
 
   const context = await openCommandContext({
     paths,
@@ -235,23 +270,32 @@ export async function runCli(environment: Environment) {
   });
 
   try {
-    // A command a domain gives, or one of a channel's, which go by its kind.
-    const run =
-      new Map([...createAgentCommands(context), ...createAccessCommands(context)]).get(
-        `${command} ${subcommand}`,
-      ) ?? createAddressCommands(context).get(subcommand)?.(command);
+    if (command === "status") {
+      checkFlags([]);
+
+      return await showStatus({ config, tailscale, context, out });
+    }
+
+    const run = new Map([
+      ...createAccountCommands({ ...context, confirm }),
+      ...createAddressCommands({ ...context, readSecret, confirm }),
+      ...createAccessCommands(context),
+    ]).get(`${command} ${subcommand}`);
 
     if (!run) {
       throw usageError(`There is no command ${[command, subcommand].filter(Boolean).join(" ")}`);
     }
 
-    if (args.length !== run.takes.length) {
-      const expected = run.takes.map((name) => `<${name}>`).join(" ") || "no arguments";
+    checkFlags(run.flags);
 
-      throw usageError(`This command takes ${expected}`);
-    }
+    const given = await readArguments({ run, context });
 
-    await run.run(Object.fromEntries(run.takes.map((name, index) => [name, args[index] ?? ""])));
+    if (!given) return;
+
+    await run.run({
+      ...Object.fromEntries(given),
+      ...(values.channel !== undefined && { channel: values.channel }),
+    });
   } finally {
     context.close();
   }

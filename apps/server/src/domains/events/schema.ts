@@ -12,11 +12,11 @@ import { teammateSchema, toTeammate } from "../team/schema";
 
 export type EventRow = typeof events.$inferSelect;
 
-// A message the server keeps in the agent's inbox, which the event points at.
+// A message the server keeps in the account's inbox, which the event points at.
 type Arrival = { type: "message.received"; channel: ChannelKind; messageId: string };
 
 // A message on a channel without an inbox, which the server relays whole in the event: with its
-// sender, the sender's thread to answer in, the agent's thread it is for, and the client the sender
+// sender, the sender's thread to answer in, the account's thread it is for, and the client the sender
 // wrote it in.
 export type Relay = {
   type: "message.received";

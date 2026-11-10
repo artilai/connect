@@ -1,16 +1,16 @@
 import { Hono } from "hono";
 
 import { onlyInCloud } from "../../platform/cloud";
-import type { AgentEnv } from "../agents/schema";
+import type { AccountEnv } from "../accounts/schema";
 
-// The CLI reads an agent's webhooks when it shows its status, so they read as none; changing them
+// The CLI reads an account's webhooks when it shows its status, so they read as none; changing them
 // says that webhooks are only in Artil Cloud.
 export function createWebhookRoutes() {
-  const webhooks = new Hono<AgentEnv>()
+  const webhooks = new Hono<AccountEnv>()
     .get("/", (c) => c.json([]))
     .all("*", () => {
       throw onlyInCloud("Webhooks");
     });
 
-  return new Hono<AgentEnv>().route("/webhooks", webhooks);
+  return new Hono<AccountEnv>().route("/webhooks", webhooks);
 }

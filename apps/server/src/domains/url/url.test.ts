@@ -4,10 +4,10 @@ import { day, minute } from "@artil/utils/time";
 
 import { createTestServer, listen } from "../../app/testing";
 
-test("hands a message at an agent's Message URL to the client that listens to it", async () => {
+test("hands a message at an account's Message URL to the client that listens to it", async () => {
   const server = await createTestServer();
-  const claude = server.agent("Claude");
-  const codex = server.agent("Codex");
+  const claude = server.account("Claude");
+  const codex = server.account("Codex");
   const stream = await listen(codex);
 
   const sent = await claude.json(`/api/agents/${codex.id}/url`, {
@@ -32,10 +32,10 @@ test("hands a message at an agent's Message URL to the client that listens to it
   stream.close();
 });
 
-test("refuses a message when nobody listens to the agent", async () => {
+test("refuses a message when nobody listens to the account", async () => {
   const server = await createTestServer();
-  const claude = server.agent("Claude");
-  const codex = server.agent("Codex");
+  const claude = server.account("Claude");
+  const codex = server.account("Codex");
 
   const sent = await claude.json(`/api/agents/${codex.id}/url`, { text: "Hi" });
 
@@ -45,13 +45,13 @@ test("refuses a message when nobody listens to the agent", async () => {
   });
 });
 
-test("refuses an agent its list leaves out, once only the list wakes it", async () => {
+test("refuses an account its list leaves out, once only the list wakes it", async () => {
   const server = await createTestServer();
-  const claude = server.agent("Claude");
-  const codex = server.agent("Codex");
+  const claude = server.account("Claude");
+  const codex = server.account("Codex");
   const stream = await listen(codex);
 
-  server.services.access.setAdmit({ agentId: codex.id, channel: "url", admit: "list" });
+  server.services.access.setAdmit({ accountId: codex.id, channel: "url", admit: "list" });
 
   const refused = await claude.json(`/api/agents/${codex.id}/url`, { text: "Hi" });
 
@@ -60,17 +60,37 @@ test("refuses an agent its list leaves out, once only the list wakes it", async 
     error: { message: "Codex does not take messages from you at its Message URL" },
   });
 
-  server.services.access.addSender({ agentId: codex.id, channel: "url", sender: claude.id });
+  server.services.access.addSender({ accountId: codex.id, channel: "url", sender: claude.id });
 
   expect((await claude.json(`/api/agents/${codex.id}/url`, { text: "Hi" })).status).toBe(201);
 
   stream.close();
 });
 
+test("lets in an account a person put on its list by name", async () => {
+  const server = await createTestServer();
+  const claude = server.account("Claude");
+  const codex = server.account("Codex");
+  const stream = await listen(codex);
+  const url = server.services.channels.get("url");
+  const sender = url.readSender("claude");
+
+  if (!sender) throw new Error("The Message URL did not read Claude by name");
+
+  server.services.access.setAdmit({ accountId: codex.id, channel: "url", admit: "list" });
+  server.services.access.addSender({ accountId: codex.id, channel: "url", sender });
+
+  expect((await claude.json(`/api/agents/${codex.id}/url`, { text: "Hi" })).status).toBe(201);
+  expect(url.showSender?.(sender)).toBe("Claude");
+  expect(url.readSender("nobody")).toBeNull();
+
+  stream.close();
+});
+
 test("takes a message at the short Message URL too", async () => {
   const server = await createTestServer();
-  const claude = server.agent("Claude");
-  const codex = server.agent("Codex");
+  const claude = server.account("Claude");
+  const codex = server.account("Codex");
   const stream = await listen(codex);
 
   const sent = await claude.json(`/a/${codex.id}`, { text: "Hi" });
@@ -83,7 +103,7 @@ test("takes a message at the short Message URL too", async () => {
 
 test("ends a stream once another client connects, and refuses it after", async () => {
   const server = await createTestServer();
-  const codex = server.agent("Codex");
+  const codex = server.account("Codex");
   const first = await listen(codex, "Pi");
   const second = await listen(codex, "Claude Code");
 
@@ -100,8 +120,8 @@ test("ends a stream once another client connects, and refuses it after", async (
 
 test("brings a relayed message's files, which the agent downloads for a day", async () => {
   const server = await createTestServer();
-  const claude = server.agent("Claude");
-  const codex = server.agent("Codex");
+  const claude = server.account("Claude");
+  const codex = server.account("Codex");
   const stream = await listen(codex);
 
   const form = new FormData();
@@ -135,8 +155,8 @@ test("brings a relayed message's files, which the agent downloads for a day", as
 
 test("says files are off on a server without a bucket", async () => {
   const server = await createTestServer({ files: false });
-  const claude = server.agent("Claude");
-  const codex = server.agent("Codex");
+  const claude = server.account("Claude");
+  const codex = server.account("Codex");
   const stream = await listen(codex);
 
   const sent = await claude.json(`/api/agents/${codex.id}/url`, {
@@ -152,9 +172,9 @@ test("says files are off on a server without a bucket", async () => {
   stream.close();
 });
 
-test("lets an agent write to its own Message URL only from one thread to another", async () => {
+test("lets an account write to its own Message URL only from one thread to another", async () => {
   const server = await createTestServer();
-  const codex = server.agent("Codex");
+  const codex = server.account("Codex");
   const stream = await listen(codex);
 
   expect((await codex.json(`/api/agents/${codex.id}/url`, { text: "Hi" })).status).toBe(400);

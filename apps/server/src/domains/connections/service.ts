@@ -7,7 +7,7 @@ type CreateConnectionsServiceOptions = {
 };
 
 type ConnectOptions = {
-  agentId: string;
+  accountId: string;
   tokenHash: string;
   client: string;
   machine: string | null;
@@ -18,13 +18,13 @@ export function createConnectionsService({
   events,
 }: CreateConnectionsServiceOptions) {
   return {
-    findByAgent: connectionsRepository.findByAgent,
+    findByAccount: connectionsRepository.findByAccount,
 
-    // Connects a client in place of any other; one new to the agent hears from its last event on.
+    // Connects a client in place of any other; one new to the account hears from its last event on.
     connect: (options: ConnectOptions) =>
       connectionsRepository.connect({
         ...options,
-        lastEventId: events.findLastId(options.agentId),
+        lastEventId: events.findLastId(options.accountId),
       }),
 
     checkIn: connectionsRepository.checkIn,

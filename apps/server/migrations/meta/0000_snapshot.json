@@ -1,14 +1,14 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "60312d1a-a54d-4a68-bfe0-1b962094f830",
+  "id": "4c0b6c82-4533-4724-b4a4-c19d884f6d12",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
     "access": {
       "name": "access",
       "columns": {
-        "agent_id": {
-          "name": "agent_id",
+        "account_id": {
+          "name": "account_id",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
@@ -38,12 +38,12 @@
       },
       "indexes": {},
       "foreignKeys": {
-        "access_agent_id_agents_id_fk": {
-          "name": "access_agent_id_agents_id_fk",
+        "access_account_id_accounts_id_fk": {
+          "name": "access_account_id_accounts_id_fk",
           "tableFrom": "access",
-          "tableTo": "agents",
+          "tableTo": "accounts",
           "columnsFrom": [
-            "agent_id"
+            "account_id"
           ],
           "columnsTo": [
             "id"
@@ -53,14 +53,53 @@
         }
       },
       "compositePrimaryKeys": {
-        "access_agent_id_channel_pk": {
+        "access_account_id_channel_pk": {
           "columns": [
-            "agent_id",
+            "account_id",
             "channel"
           ],
-          "name": "access_agent_id_channel_pk"
+          "name": "access_account_id_channel_pk"
         }
       },
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "accounts": {
+      "name": "accounts",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "accounts_name_idx": {
+          "name": "accounts_name_idx",
+          "columns": [
+            "lower(\"name\")"
+          ],
+          "isUnique": true
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {}
     },
@@ -74,8 +113,8 @@
           "notNull": true,
           "autoincrement": false
         },
-        "agent_id": {
-          "name": "agent_id",
+        "account_id": {
+          "name": "account_id",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
@@ -120,21 +159,21 @@
           "isUnique": true,
           "where": "\"addresses\".\"credentials\" is not null"
         },
-        "addresses_agent_id_idx": {
-          "name": "addresses_agent_id_idx",
+        "addresses_account_id_idx": {
+          "name": "addresses_account_id_idx",
           "columns": [
-            "agent_id"
+            "account_id"
           ],
           "isUnique": false
         }
       },
       "foreignKeys": {
-        "addresses_agent_id_agents_id_fk": {
-          "name": "addresses_agent_id_agents_id_fk",
+        "addresses_account_id_accounts_id_fk": {
+          "name": "addresses_account_id_accounts_id_fk",
           "tableFrom": "addresses",
-          "tableTo": "agents",
+          "tableTo": "accounts",
           "columnsFrom": [
-            "agent_id"
+            "account_id"
           ],
           "columnsTo": [
             "id"
@@ -147,50 +186,11 @@
       "uniqueConstraints": {},
       "checkConstraints": {}
     },
-    "agents": {
-      "name": "agents",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "name": {
-          "name": "name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        }
-      },
-      "indexes": {
-        "agents_name_idx": {
-          "name": "agents_name_idx",
-          "columns": [
-            "lower(\"name\")"
-          ],
-          "isUnique": true
-        }
-      },
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "checkConstraints": {}
-    },
     "connections": {
       "name": "connections",
       "columns": {
-        "agent_id": {
-          "name": "agent_id",
+        "account_id": {
+          "name": "account_id",
           "type": "text",
           "primaryKey": true,
           "notNull": true,
@@ -241,12 +241,12 @@
       },
       "indexes": {},
       "foreignKeys": {
-        "connections_agent_id_agents_id_fk": {
-          "name": "connections_agent_id_agents_id_fk",
+        "connections_account_id_accounts_id_fk": {
+          "name": "connections_account_id_accounts_id_fk",
           "tableFrom": "connections",
-          "tableTo": "agents",
+          "tableTo": "accounts",
           "columnsFrom": [
-            "agent_id"
+            "account_id"
           ],
           "columnsTo": [
             "id"
@@ -282,8 +282,8 @@
           "notNull": true,
           "autoincrement": true
         },
-        "agent_id": {
-          "name": "agent_id",
+        "account_id": {
+          "name": "account_id",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
@@ -354,22 +354,22 @@
         }
       },
       "indexes": {
-        "events_agent_id_id_idx": {
-          "name": "events_agent_id_id_idx",
+        "events_account_id_id_idx": {
+          "name": "events_account_id_id_idx",
           "columns": [
-            "agent_id",
+            "account_id",
             "id"
           ],
           "isUnique": false
         }
       },
       "foreignKeys": {
-        "events_agent_id_agents_id_fk": {
-          "name": "events_agent_id_agents_id_fk",
+        "events_account_id_accounts_id_fk": {
+          "name": "events_account_id_accounts_id_fk",
           "tableFrom": "events",
-          "tableTo": "agents",
+          "tableTo": "accounts",
           "columnsFrom": [
-            "agent_id"
+            "account_id"
           ],
           "columnsTo": [
             "id"
@@ -392,8 +392,8 @@
           "notNull": true,
           "autoincrement": false
         },
-        "agent_id": {
-          "name": "agent_id",
+        "account_id": {
+          "name": "account_id",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
@@ -459,12 +459,12 @@
         }
       },
       "foreignKeys": {
-        "files_agent_id_agents_id_fk": {
-          "name": "files_agent_id_agents_id_fk",
+        "files_account_id_accounts_id_fk": {
+          "name": "files_account_id_accounts_id_fk",
           "tableFrom": "files",
-          "tableTo": "agents",
+          "tableTo": "accounts",
           "columnsFrom": [
-            "agent_id"
+            "account_id"
           ],
           "columnsTo": [
             "id"
@@ -487,8 +487,8 @@
           "notNull": true,
           "autoincrement": false
         },
-        "agent_id": {
-          "name": "agent_id",
+        "account_id": {
+          "name": "account_id",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
@@ -587,10 +587,10 @@
         }
       },
       "indexes": {
-        "messages_agent_id_created_at_idx": {
-          "name": "messages_agent_id_created_at_idx",
+        "messages_account_id_created_at_idx": {
+          "name": "messages_account_id_created_at_idx",
           "columns": [
-            "agent_id",
+            "account_id",
             "created_at"
           ],
           "isUnique": false
@@ -607,12 +607,12 @@
         }
       },
       "foreignKeys": {
-        "messages_agent_id_agents_id_fk": {
-          "name": "messages_agent_id_agents_id_fk",
+        "messages_account_id_accounts_id_fk": {
+          "name": "messages_account_id_accounts_id_fk",
           "tableFrom": "messages",
-          "tableTo": "agents",
+          "tableTo": "accounts",
           "columnsFrom": [
-            "agent_id"
+            "account_id"
           ],
           "columnsTo": [
             "id"
@@ -690,8 +690,8 @@
           "notNull": false,
           "autoincrement": false
         },
-        "agent_id": {
-          "name": "agent_id",
+        "account_id": {
+          "name": "account_id",
           "type": "text",
           "primaryKey": false,
           "notNull": false,
@@ -722,12 +722,12 @@
         }
       },
       "foreignKeys": {
-        "sign_ins_agent_id_agents_id_fk": {
-          "name": "sign_ins_agent_id_agents_id_fk",
+        "sign_ins_account_id_accounts_id_fk": {
+          "name": "sign_ins_account_id_accounts_id_fk",
           "tableFrom": "sign_ins",
-          "tableTo": "agents",
+          "tableTo": "accounts",
           "columnsFrom": [
-            "agent_id"
+            "account_id"
           ],
           "columnsTo": [
             "id"
@@ -750,8 +750,8 @@
           "notNull": true,
           "autoincrement": false
         },
-        "agent_id": {
-          "name": "agent_id",
+        "account_id": {
+          "name": "account_id",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
@@ -787,21 +787,21 @@
           ],
           "isUnique": true
         },
-        "tokens_agent_id_idx": {
-          "name": "tokens_agent_id_idx",
+        "tokens_account_id_idx": {
+          "name": "tokens_account_id_idx",
           "columns": [
-            "agent_id"
+            "account_id"
           ],
           "isUnique": false
         }
       },
       "foreignKeys": {
-        "tokens_agent_id_agents_id_fk": {
-          "name": "tokens_agent_id_agents_id_fk",
+        "tokens_account_id_accounts_id_fk": {
+          "name": "tokens_account_id_accounts_id_fk",
           "tableFrom": "tokens",
-          "tableTo": "agents",
+          "tableTo": "accounts",
           "columnsFrom": [
-            "agent_id"
+            "account_id"
           ],
           "columnsTo": [
             "id"
@@ -824,7 +824,7 @@
   },
   "internal": {
     "indexes": {
-      "agents_name_idx": {
+      "accounts_name_idx": {
         "columns": {
           "lower(\"name\")": {
             "isExpression": true

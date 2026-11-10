@@ -10,16 +10,16 @@ import type { ConnectionRecord } from "./schema";
 const listenWindow = 90 * second;
 
 type ConnectOptions = {
-  agentId: string;
+  accountId: string;
   tokenHash: string;
   client: string;
   machine: string | null;
-  // The agent's last event, after which a client that is new to it starts.
+  // The account's last event, after which a client that is new to it starts.
   lastEventId: number;
 };
 
 type CheckInOptions = {
-  agentId: string;
+  accountId: string;
   id: string;
   // The last event the client was sent, after which it hears on when it comes back.
   cursor: number;
@@ -34,23 +34,27 @@ const columns = {
 };
 
 export function createConnectionsRepository(db: Database) {
-  function findByAgent(agentId: string): ConnectionRecord | undefined {
+  function findByAccount(accountId: string): ConnectionRecord | undefined {
     return db
       .select(columns)
       .from(connections)
       .innerJoin(tokens, eq(tokens.hash, connections.tokenHash))
-      .where(eq(connections.agentId, agentId))
+      .where(eq(connections.accountId, accountId))
       .get();
   }
 
   return {
-    findByAgent,
+    findByAccount,
 
     // Connects a client in place of any other. The same client coming back resumes where it left
     // off; another starts from now.
-    connect({ agentId, tokenHash, client, machine, lastEventId }: ConnectOptions) {
+    connect({ accountId, tokenHash, client, machine, lastEventId }: ConnectOptions) {
       return db.transaction((tx) => {
-        const current = tx.select().from(connections).where(eq(connections.agentId, agentId)).get();
+        const current = tx
+          .select()
+          .from(connections)
+          .where(eq(connections.accountId, accountId))
+          .get();
 
         const sameClient =
           current?.tokenHash === tokenHash &&
@@ -67,15 +71,15 @@ export function createConnectionsRepository(db: Database) {
         };
 
         tx.insert(connections)
-          .values({ agentId, ...values })
-          .onConflictDoUpdate({ target: connections.agentId, set: values })
+          .values({ accountId, ...values })
+          .onConflictDoUpdate({ target: connections.accountId, set: values })
           .run();
 
         const connection = tx
           .select(columns)
           .from(connections)
           .innerJoin(tokens, eq(tokens.hash, connections.tokenHash))
-          .where(eq(connections.agentId, agentId))
+          .where(eq(connections.accountId, accountId))
           .get();
 
         if (!connection) throw new Error("The connection went missing");
@@ -84,23 +88,23 @@ export function createConnectionsRepository(db: Database) {
       });
     },
 
-    // Says whether the client is still the agent's connection, and notes that it listens and
+    // Says whether the client is still the account's connection, and notes that it listens and
     // what it heard.
-    checkIn: ({ agentId, id, cursor }: CheckInOptions) =>
+    checkIn: ({ accountId, id, cursor }: CheckInOptions) =>
       db
         .update(connections)
         .set({ listenedAt: new Date(), startsAfter: cursor })
-        .where(and(eq(connections.agentId, agentId), eq(connections.id, id)))
+        .where(and(eq(connections.accountId, accountId), eq(connections.id, id)))
         .returning({ id: connections.id })
         .all().length > 0,
 
-    isListening: (agentId: string) =>
+    isListening: (accountId: string) =>
       db
         .select({ id: connections.id })
         .from(connections)
         .where(
           and(
-            eq(connections.agentId, agentId),
+            eq(connections.accountId, accountId),
             gt(connections.listenedAt, new Date(Date.now() - listenWindow)),
           ),
         )

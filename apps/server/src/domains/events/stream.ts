@@ -3,7 +3,7 @@ import { streamSSE } from "hono/streaming";
 
 import { second } from "@artil/utils/time";
 
-import type { AgentEnv } from "../agents/schema";
+import type { AccountEnv } from "../accounts/schema";
 import { createNotifier } from "./notifier";
 import type { Event, EventRecord } from "./schema";
 import type { EventsService } from "./service";
@@ -14,7 +14,7 @@ const checkInInterval = 30 * second;
 const heartbeatInterval = 5 * second;
 
 type StreamEventsOptions = {
-  c: Context<AgentEnv>;
+  c: Context<AccountEnv>;
   events: EventsService;
   // What a client sees of an event.
   toClientEvent: (event: EventRecord) => Event;
@@ -30,11 +30,11 @@ export function streamEvents({
   resumeAfter,
   checkIn,
 }: StreamEventsOptions) {
-  const agentId = c.var.agent.id;
+  const accountId = c.var.account.id;
 
   return streamSSE(c, async (stream) => {
     const notifier = createNotifier();
-    const unsubscribe = events.subscribe(agentId, () => notifier.notify());
+    const unsubscribe = events.subscribe(accountId, () => notifier.notify());
 
     stream.onAbort(() => notifier.notify());
 
@@ -51,7 +51,7 @@ export function streamEvents({
         }
 
         if (unread) {
-          const page = events.listAfter({ agentId, cursor });
+          const page = events.listAfter({ accountId, cursor });
 
           for (const event of page) {
             await stream.writeSSE({

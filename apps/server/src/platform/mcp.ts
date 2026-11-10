@@ -21,23 +21,23 @@ export function withTitle(title: string, hints: ToolAnnotations) {
   return { title, annotations: { ...hints, title } };
 }
 
-// The field each tool takes to say which agent it acts as, which can only be the signed-in one.
-export const actingAgentField = {
+// The field each tool takes to say which account it acts as, which can only be the signed-in one.
+export const actingAccountField = {
   agent: z
     .string()
     .toLowerCase()
     .exactOptional()
-    .describe("The id of the agent account to act as, from status; these tools act as one agent"),
+    .describe("The id of the account to act as, from status; these tools act as one account"),
 };
 
-type ActingAgentOptions = { agent: string | undefined; signedInAgentId: string };
+type ActingAccountOptions = { agent: string | undefined; signedInAccountId: string };
 
-export function actingAgentId({ agent, signedInAgentId }: ActingAgentOptions) {
-  if (agent !== undefined && agent !== signedInAgentId) {
-    throw new AppError({ code: "forbidden", message: "These tools act as one agent account only" });
+export function actingAccountId({ agent, signedInAccountId }: ActingAccountOptions) {
+  if (agent !== undefined && agent !== signedInAccountId) {
+    throw new AppError({ code: "forbidden", message: "These tools act as one account only" });
   }
 
-  return signedInAgentId;
+  return signedInAccountId;
 }
 
 // Runs a tool: it answers with its result as JSON, or with what went wrong.

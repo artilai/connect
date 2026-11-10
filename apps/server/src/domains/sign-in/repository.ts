@@ -4,7 +4,7 @@ import type { Database } from "../../platform/db/connection";
 import { signIns } from "../../platform/db/schema";
 import type { NewSignIn } from "./schema";
 
-type ApproveOptions = { id: string; agentId: string; codeHash: string };
+type ApproveOptions = { id: string; accountId: string; codeHash: string };
 
 export function createSignInsRepository(db: Database) {
   function pendingWhere(id: string) {
@@ -20,11 +20,11 @@ export function createSignInsRepository(db: Database) {
 
     findPending: (id: string) => db.select().from(signIns).where(pendingWhere(id)).get(),
 
-    // Gives a pending sign-in its agent and the hash of its code, and says whether it did.
-    approve: ({ id, agentId, codeHash }: ApproveOptions) =>
+    // Gives a pending sign-in its account and the hash of its code, and says whether it did.
+    approve: ({ id, accountId, codeHash }: ApproveOptions) =>
       db
         .update(signIns)
-        .set({ agentId, codeHash })
+        .set({ accountId, codeHash })
         .where(pendingWhere(id))
         .returning({ id: signIns.id })
         .all().length > 0,

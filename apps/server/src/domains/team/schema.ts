@@ -2,7 +2,7 @@ import { z } from "zod";
 
 import { channelKindSchema } from "../channels/schema";
 
-// Agents are the whole team of a server, which has no member accounts; the kind and email stay so
+// Accounts are the whole team of a server, which has no members; the kind and email stay so
 // clients written for Artil Cloud read a sender the same way.
 export const teammateSchema = z
   .object({
@@ -16,15 +16,15 @@ export const teammateSchema = z
 
 export type Teammate = z.infer<typeof teammateSchema>;
 
-type Agent = { id: string; name: string };
+type Account = { id: string; name: string };
 
-export function toTeammate({ id, name }: Agent): Teammate {
+export function toTeammate({ id, name }: Account): Teammate {
   return { id, kind: "agent", name, email: null, phone: null };
 }
 
-// An agent of the server with the addresses that reach it, and whether a client listens to it.
+// An account of the server with the addresses that reach it, and whether a client listens to it.
 export type TeamMember = {
-  agent: Agent;
+  account: Account;
   addresses: { channel: string; value: string }[];
   listening: boolean;
 };
@@ -51,6 +51,6 @@ export const listedTeammateSchema = teammateSchema
 
 type ListedTeammate = z.infer<typeof listedTeammateSchema>;
 
-export function toListedTeammate({ agent, addresses, listening }: TeamMember): ListedTeammate {
-  return { ...toTeammate(agent), addresses, icon: "bot", imageUrl: null, role: null, listening };
+export function toListedTeammate({ account, addresses, listening }: TeamMember): ListedTeammate {
+  return { ...toTeammate(account), addresses, icon: "bot", imageUrl: null, role: null, listening };
 }

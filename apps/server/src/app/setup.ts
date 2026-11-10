@@ -17,7 +17,7 @@ import type { Channel, ChannelDefinition } from "@artil/channels/contract";
 import { messageOf } from "@artil/errors";
 
 import { createAccessCommands } from "../domains/access/commands";
-import { signInGuide } from "../domains/agents/commands";
+import { signInGuide } from "../domains/accounts/commands";
 import { hashPassword, validatePassword } from "../domains/sign-in/password";
 import type { ArtilCli } from "../platform/artil-cli";
 import {
@@ -49,21 +49,21 @@ function validateNotEmpty(value: string | undefined) {
   return value?.trim() ? undefined : "Fill this in";
 }
 
-async function createAgents(context: CommandContext) {
-  const existingAgents = context.agents.list();
+async function createAccounts(context: CommandContext) {
+  const existingAccounts = context.accounts.list();
 
-  if (existingAgents.length > 0) {
-    log.info(`Accounts: ${existingAgents.map(({ name }) => name).join(", ")}`);
+  if (existingAccounts.length > 0) {
+    log.info(`Accounts: ${existingAccounts.map(({ name }) => name).join(", ")}`);
   }
 
   const namesInput = requireAnswer(
     await text({
       message:
-        existingAgents.length === 0
-          ? "Agent accounts to create, separated by commas"
+        existingAccounts.length === 0
+          ? "Accounts to create, separated by commas"
           : "More accounts to create, if any",
       placeholder: "claude, codex",
-      defaultValue: existingAgents.length === 0 ? "claude, codex" : "",
+      defaultValue: existingAccounts.length === 0 ? "claude, codex" : "",
     }),
   );
 
@@ -72,9 +72,9 @@ async function createAgents(context: CommandContext) {
     .map((part) => part.trim())
     .filter(Boolean)) {
     try {
-      const agent = context.agents.create(name);
+      const account = context.accounts.create(name);
 
-      log.success(`Created ${agent.name}`);
+      log.success(`Created ${account.name}`);
     } catch (cause) {
       log.warn(messageOf(cause, `Could not create ${name}`));
     }
@@ -87,15 +87,17 @@ type SetUpChannelOptions = { context: CommandContext; channel: Channel };
 // lets someone wake the agent there.
 async function setUpChannel({ context, channel }: SetUpChannelOptions) {
   function accountsWithout() {
-    return context.agents
+    return context.accounts
       .list()
-      .filter(({ id }) => !context.addresses.findByAgent({ agentId: id, channel: channel.kind }));
+      .filter(
+        ({ id }) => !context.addresses.findByAccount({ accountId: id, channel: channel.kind }),
+      );
   }
 
   let connected = false;
-  let agents = accountsWithout();
+  let accounts = accountsWithout();
 
-  while (agents.length > 0) {
+  while (accounts.length > 0) {
     const connectNow = requireAnswer(
       await confirm({
         message: `Connect a ${channel.name} address to ${connected ? "another" : "an"} account?`,
@@ -105,16 +107,16 @@ async function setUpChannel({ context, channel }: SetUpChannelOptions) {
 
     if (!connectNow) return;
 
-    const agentId = requireAnswer(
+    const accountId = requireAnswer(
       await select({
         message: `Which account gets the ${channel.name} address?`,
-        options: agents.map(({ id, name }) => ({ value: id, label: name })),
+        options: accounts.map(({ id, name }) => ({ value: id, label: name })),
       }),
     );
 
-    const agent = agents.find(({ id }) => id === agentId);
+    const account = accounts.find(({ id }) => id === accountId);
 
-    if (!agent) return;
+    if (!account) return;
 
     if (channel.credentialsGuide) note(channel.credentialsGuide, `Connecting ${channel.name}`);
 
@@ -128,12 +130,12 @@ async function setUpChannel({ context, channel }: SetUpChannelOptions) {
 
     try {
       const { address } = await context.addresses.connect({
-        agentId: agent.id,
+        accountId: account.id,
         kind: channel.kind,
         credentials: credentials.trim(),
       });
 
-      progressSpinner.stop(`${address.value} now reaches ${agent.name} on ${channel.name}`);
+      progressSpinner.stop(`${address.value} now reaches ${account.name} on ${channel.name}`);
       connected = true;
     } catch (cause) {
       progressSpinner.error(messageOf(cause, `Could not connect the ${channel.name} address`));
@@ -141,11 +143,11 @@ async function setUpChannel({ context, channel }: SetUpChannelOptions) {
       continue;
     }
 
-    agents = accountsWithout();
+    accounts = accountsWithout();
 
     const sender = requireAnswer(
       await text({
-        message: `Who may wake ${agent.name} on ${channel.name}? Give ${channel.senders}, or leave it empty for only the server's agents`,
+        message: `Who may wake ${account.name} on ${channel.name}? Give ${channel.senders}, or leave it empty for only the server's accounts`,
         defaultValue: "",
       }),
     ).trim();
@@ -158,8 +160,8 @@ async function setUpChannel({ context, channel }: SetUpChannelOptions) {
         });
 
         await accessCommands
-          .get("access add")
-          ?.run({ account: agent.name, channel: channel.kind, sender });
+          .get("account allow")
+          ?.run({ account: account.name, who: sender, channel: channel.kind });
       } catch (cause) {
         log.warn(messageOf(cause, `Could not add ${sender}`));
       }
@@ -292,7 +294,7 @@ async function setUpMode({ config, tailscale }: SetUpModeOptions) {
 
   const newPassword = requireAnswer(
     await password({
-      message: "A password for the sign-in page, which anyone who signs an agent in types",
+      message: "A password for the sign-in page, which anyone who signs in as an account types",
       validate: validatePassword,
     }),
   );
@@ -306,7 +308,7 @@ async function installArtilCli(artil: ArtilCli) {
 
   const installNow = requireAnswer(
     await confirm({
-      message: "Install the artil CLI, which the agents' clients talk through?",
+      message: "Install the artil CLI, which agents talk through?",
       initialValue: true,
     }),
   );
@@ -340,8 +342,8 @@ type RunSetupOptions = {
   out: (line: string) => void;
 };
 
-// Offers the artil CLI, asks for the agents, their channels' addresses, files and mode, and
-// saves the config. The agents and their addresses go to the database as soon as they are made.
+// Offers the artil CLI, asks for the accounts, their channels' addresses, files and mode, and
+// saves the config. The accounts and their addresses go to the database as soon as they are made.
 export async function runSetup({
   paths,
   config: savedConfig,
@@ -369,7 +371,7 @@ export async function runSetup({
   });
 
   try {
-    await createAgents(context);
+    await createAccounts(context);
 
     for (const channel of context.channels.list()) {
       if (channel.connect) await setUpChannel({ context, channel });
@@ -381,7 +383,7 @@ export async function runSetup({
 
     await writeConfig(paths, updatedConfig);
 
-    const names = context.agents.list().map(({ name }) => name);
+    const names = context.accounts.list().map(({ name }) => name);
 
     const baseUrl =
       updatedConfig.public && tailscale

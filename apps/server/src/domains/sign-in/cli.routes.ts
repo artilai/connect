@@ -35,7 +35,7 @@ const requestSchema = z.object({
   redirectUri: loopbackCallback,
   challenge: z.string().regex(secret),
   state: z.string().regex(/^[A-Za-z0-9_\-]{32,128}$/v),
-  // Older CLIs ask for agent or account access; this server signs agents in only.
+  // Older CLIs ask for an agent account or the person's own; this server signs in accounts only.
   account: z.boolean().optional(),
 });
 
