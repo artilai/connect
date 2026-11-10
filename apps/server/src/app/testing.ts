@@ -202,6 +202,8 @@ export async function createTestServer({
   const hashed = password === undefined ? null : await hashPassword(password);
 
   const channels = new Map<ChannelKind, Channel>([["test", testChannel]]);
+  // What the server logs, as its terminal shows it.
+  const logs: string[] = [];
 
   const services = createServices({
     db: database.db,
@@ -209,7 +211,7 @@ export async function createTestServer({
     baseUrl,
     store: files ? memory.store : undefined,
     channels,
-    log: () => {},
+    log: (line) => logs.push(line),
   });
 
   const app = createApp({
@@ -281,6 +283,7 @@ export async function createTestServer({
 
   return {
     services,
+    logs,
     app,
     call,
     agent,

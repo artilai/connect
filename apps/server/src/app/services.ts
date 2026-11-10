@@ -80,12 +80,14 @@ export function createServices({
 
   const messages = createMessagesService({
     messagesRepository: createMessagesRepository(db),
+    agents,
     files,
     addresses,
     access,
     events,
     channels,
     url,
+    log,
   });
 
   return {

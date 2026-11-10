@@ -1,7 +1,8 @@
-import { and, desc, eq, lt, or } from "drizzle-orm";
+import { and, desc, eq, inArray, lt, max, or } from "drizzle-orm";
 
 import type { Database } from "../../platform/db/connection";
 import { messages } from "../../platform/db/schema";
+import type { Refusal } from "../access/schema";
 import type { ChannelKind } from "../channels/schema";
 import { messageListLimit, type MessageRow, type NewMessage } from "./schema";
 
@@ -21,6 +22,12 @@ type FindOptions = { agentId: string; id: string };
 type HasReceivedOptions = { addressId: string; externalId: string };
 
 type HasReceivedFromOptions = { agentId: string; channel: ChannelKind; counterpart: string };
+
+type ListRefusedSendersOptions = {
+  agentId: string;
+  channel: ChannelKind;
+  refusals: readonly Refusal[];
+};
 
 export function createMessagesRepository(db: Database) {
   function find({ agentId, id }: FindOptions) {
@@ -95,6 +102,23 @@ export function createMessagesRepository(db: Database) {
           ),
         )
         .get() !== undefined,
+
+    // Who wrote to the agent on the channel and was refused for one of the reasons, the latest
+    // first, by the name they last gave.
+    listRefusedSenders: ({ agentId, channel, refusals }: ListRefusedSendersOptions) =>
+      db
+        .select({ sender: messages.counterpart, name: messages.counterpartName })
+        .from(messages)
+        .where(
+          and(
+            eq(messages.agentId, agentId),
+            eq(messages.channel, channel),
+            inArray(messages.refusal, refusals),
+          ),
+        )
+        .groupBy(messages.counterpart)
+        .orderBy(desc(max(messages.createdAt)))
+        .all(),
 
     // Marks a message the server sent with the id the provider gave it.
     markSent: (id: string, externalId: string) =>

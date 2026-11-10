@@ -4,8 +4,10 @@ import { shellQuoted } from "@artil/utils/shell";
 
 import { missingChannel, onlyInCloud } from "../../platform/cloud";
 import type { Upload } from "../../platform/storage";
+import type { Refusal } from "../access/schema";
 import type { AccessService } from "../access/service";
 import type { AddressesService } from "../addresses/service";
+import type { AgentsService } from "../agents/service";
 import type { ChannelKind } from "../channels/schema";
 import type { ChannelsService } from "../channels/service";
 import type { RelayRecord } from "../events/schema";
@@ -17,15 +19,22 @@ import type { Draft, MessageRecord, MessageRow } from "./schema";
 
 const recipientSeparator = ", ";
 
+// The refusals a person mends by putting the sender on the agent's list.
+const keptOut: ReadonlySet<Refusal> = new Set(["sender", "outsider"]);
+
 type CreateMessagesServiceOptions = {
   messagesRepository: MessagesRepository;
+  agents: AgentsService;
   files: FilesService;
   addresses: AddressesService;
   access: AccessService;
   events: EventsService;
   channels: ChannelsService;
   url: UrlChannel;
+  log: (line: string) => void;
 };
+
+type ListKeptOutOptions = { agentId: string; channel: ChannelKind };
 
 type ReceiveOptions = { channel: ChannelKind; message: InboundMessage };
 
@@ -73,12 +82,14 @@ function checkCarried(draft: Draft, kind: ChannelKind) {
 
 export function createMessagesService({
   messagesRepository,
+  agents,
   files,
   addresses,
   access,
   events,
   channels,
   url,
+  log,
 }: CreateMessagesServiceOptions) {
   function toRecords(rows: MessageRow[]): MessageRecord[] {
     const attachmentsByMessage = files.describeByMessages(rows.map(({ id }) => id));
@@ -211,8 +222,27 @@ export function createMessagesService({
     return sent;
   }
 
+  type LogKeptOutOptions = { agentId: string; channel: ChannelKind; message: InboundMessage };
+
+  // Lets them in by their address, which stays theirs, where a handle can pass to someone else.
+  function logKeptOut({ agentId, channel, message }: LogKeptOutOptions) {
+    const agentName = agents.findById(agentId)?.name ?? agentId;
+    const { address, handle, name } = message.from;
+    const goesBy = handle ?? address;
+    const named = name ? `${name} (${goesBy})` : goesBy;
+
+    log(
+      `${named} wrote to ${agentName} on ${channels.find(channel)?.name ?? channel} but is not on its list; let them in with: artil-server account allow ${shellQuoted(agentName)} ${shellQuoted(address)} --channel ${channel}`,
+    );
+  }
+
   return {
     find,
+
+    // Who wrote to the agent on the channel and was kept out for being on neither its team nor
+    // its list, the latest first.
+    listKeptOut: ({ agentId, channel }: ListKeptOutOptions) =>
+      messagesRepository.listRefusedSenders({ agentId, channel, refusals: [...keptOut] }),
 
     list: ({ agentId, filter }: ListOptions) =>
       toRecords(messagesRepository.list({ agentId, filter })),
@@ -243,6 +273,15 @@ export function createMessagesService({
         fromTeam: sender !== undefined,
         fromVerified: message.from.verified,
       });
+
+      // The first time someone the list keeps out writes, the log says how to let them in.
+      if (refusal && keptOut.has(refusal)) {
+        const counterpart = message.from.address;
+
+        if (!messagesRepository.hasReceivedFrom({ agentId, channel, counterpart })) {
+          logKeptOut({ agentId, channel, message });
+        }
+      }
 
       const id = crypto.randomUUID();
 

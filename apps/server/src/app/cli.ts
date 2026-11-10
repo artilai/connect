@@ -40,7 +40,7 @@ Usage:
   artil-server account show <account>                  Show an account's addresses, clients and who wakes it
   artil-server account rename <account> <name>         Give an account another name
   artil-server account remove <account>                Remove an account with its messages
-  artil-server account token <account> <name>         Make a token by a name of its own, for a computer without a browser
+  artil-server account token <account> <name>          Make a token by a name of its own, for a computer without a browser
   artil-server account revoke <account> <client>       Sign the account out of a client by its name, or out of all
   artil-server account connect <account> <channel>     Connect an address of a channel to an account, with what the channel asks for, typed or piped in
   artil-server account disconnect <account> <channel>  Disconnect the account's address of the channel
@@ -53,7 +53,7 @@ Options:
   -h, --help           Show this help
   -v, --version        Show the version
 
-In a terminal, a command offers the account, channel or client it is not given.`;
+In a terminal, a command offers the account, channel, client or sender it is not given.`;
 
 type Environment = {
   argv: string[];
@@ -171,7 +171,7 @@ export async function runCli(environment: Environment) {
 
       if (!interactive || !chooser) throw usageError(`This command takes ${expected}`);
 
-      const choice = await chooser(given);
+      const choice = await chooser({ given, channel: values.channel });
 
       if (choice === undefined) return undefined;
 

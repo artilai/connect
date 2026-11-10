@@ -23,11 +23,36 @@ type Agent = { id: string; name: string };
 // Whom a command lets wake the account's agent or keeps out, on the channel --channel names.
 type WhoOptions = { name: string; who: string; kind: ChannelKind | undefined };
 
-type ReadChannelOptions = { agent: Agent; kind: ChannelKind | undefined };
+type ReadChannelOptions = {
+  agent: Agent;
+  kind: ChannelKind | undefined;
+  addresses: AddressesService;
+  channels: ChannelsService;
+};
 
 type ReadSenderOptions = { channel: Channel; who: string };
 
 type SayWokenOptions = { agent: Agent; channel: Channel; admit: Admit; changed: boolean };
+
+// The channel --channel names, or else the one the account is connected to, as allow and
+// disallow take it and the terminal picks a sender on.
+export function readChannel({ agent, kind, addresses, channels }: ReadChannelOptions) {
+  if (kind !== undefined) return channels.get(kind);
+
+  const connected = [...new Set(addresses.listByAgent(agent.id).map(({ channel }) => channel))];
+  const [onlyKind] = connected;
+
+  if (onlyKind === undefined || connected.length > 1) {
+    const named = connected.length === 0 ? "no channel" : connected.join(" and ");
+
+    throw new AppError({
+      code: "invalid_input",
+      message: `${agent.name} is connected to ${named}; name one with --channel`,
+    });
+  }
+
+  return channels.get(onlyKind);
+}
 
 export function createAccessCommands({
   agents,
@@ -36,25 +61,6 @@ export function createAccessCommands({
   channels,
   out,
 }: AccessCommandsOptions) {
-  // The channel --channel names, or else the one the account is connected to.
-  function readChannel({ agent, kind }: ReadChannelOptions) {
-    if (kind !== undefined) return channels.get(kind);
-
-    const connected = [...new Set(addresses.listByAgent(agent.id).map(({ channel }) => channel))];
-    const [onlyKind] = connected;
-
-    if (onlyKind === undefined || connected.length > 1) {
-      const named = connected.length === 0 ? "no channel" : connected.join(" and ");
-
-      throw new AppError({
-        code: "invalid_input",
-        message: `${agent.name} is connected to ${named}; name one with --channel`,
-      });
-    }
-
-    return channels.get(onlyKind);
-  }
-
   // The sender as the channel writes it in from.
   function readSender({ channel, who }: ReadSenderOptions) {
     const sender = channel.readSender(who);
@@ -95,7 +101,7 @@ export function createAccessCommands({
   // A sender, the team or anyone wakes the agent on the channel from now on.
   function allow({ name, who, kind }: WhoOptions) {
     const agent = agents.getByIdOrName(name);
-    const channel = readChannel({ agent, kind });
+    const channel = readChannel({ agent, kind, addresses, channels });
     const group = readGroup(who);
 
     if (group) {
@@ -118,7 +124,7 @@ export function createAccessCommands({
   // A sender, the team or anyone no longer wakes the agent on the channel.
   function disallow({ name, who, kind }: WhoOptions) {
     const agent = agents.getByIdOrName(name);
-    const channel = readChannel({ agent, kind });
+    const channel = readChannel({ agent, kind, addresses, channels });
     const group = readGroup(who);
 
     if (group) {

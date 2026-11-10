@@ -68,6 +68,24 @@ test("keeps a stranger's message without waking the agent", async () => {
   expect(server.services.events.listLatest(codex.id)).toEqual([]);
 });
 
+test("says in the log how to let a stranger in, the first time they write", async () => {
+  const server = await createTestServer();
+  const codex = server.agent("Codex");
+  const address = await server.connectAddress({ agent: codex, word: "codex" });
+  const fromAda = { to: address, from: "42", fromHandle: "@ada" };
+
+  server.testChannel.queue("codex", { id: "1", ...fromAda, text: "Hello?" });
+  server.testChannel.queue("codex", { id: "2", ...fromAda, text: "Still there?" });
+  await server.deliverQueued();
+
+  expect(server.logs).toEqual([
+    "@ada wrote to Codex on Test but is not on its list; let them in with: artil-server account allow 'Codex' '42' --channel test",
+  ]);
+  expect(server.services.messages.listKeptOut({ agentId: codex.id, channel: "test" })).toEqual([
+    { sender: "42", name: null },
+  ]);
+});
+
 test("wakes the agent with a stranger's message once anyone may", async () => {
   const server = await createTestServer();
   const codex = server.agent("Codex");
