@@ -151,7 +151,7 @@ export class UrlChannel extends Channel<"url", UrlData> {
     if (!connections.isListening(recipient.id)) {
       throw new AppError({
         code: "conflict",
-        message: `No one is listening to ${recipient.name}; write to it at another of its addresses`,
+        message: `No one is listening to ${recipient.name}: start its client, and turn on new messages there with: artil listen on`,
       });
     }
 
