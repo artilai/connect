@@ -9,6 +9,8 @@ type CreateTokensServiceOptions = { tokensRepository: TokensRepository };
 
 type IssueOptions = { accountId: string; name: string };
 
+type ListByNameOptions = { accountId: string; name: string };
+
 export function createTokensService({ tokensRepository }: CreateTokensServiceOptions) {
   return {
     // Makes a token for the account and returns it; only its hash is kept.
@@ -43,8 +45,19 @@ export function createTokensService({ tokensRepository }: CreateTokensServiceOpt
 
     isValid: (hash: string) => tokensRepository.findByHash(hash) !== undefined,
     listByAccount: tokensRepository.listByAccount,
+
+    // The account's sign-ins that go by a name a person gives, in any case. JavaScript folds the
+    // case, as SQLite folds only ASCII, so what a command finds is what it revokes.
+    listByName({ accountId, name }: ListByNameOptions) {
+      const wanted = name.trim().toLowerCase();
+
+      return tokensRepository
+        .listByAccount(accountId)
+        .filter((signIn) => signIn.name.toLowerCase() === wanted);
+    },
+
     revokeByHash: tokensRepository.revokeByHash,
-    revokeByName: tokensRepository.revokeByName,
+    revokeByIds: tokensRepository.revokeByIds,
     revokeByAccount: tokensRepository.revokeByAccount,
   };
 }

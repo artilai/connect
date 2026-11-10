@@ -1,6 +1,8 @@
 import { AppError } from "@artil/errors";
 
+import type { AccessService } from "../access/service";
 import type { FilesService } from "../files/service";
+import { urlKind } from "../url/schema";
 import type { AccountsRepository } from "./repository";
 
 // Account ids look like Artil Cloud's: eight characters of Crockford's base32.
@@ -14,13 +16,21 @@ function newAccountId() {
   );
 }
 
-type CreateAccountsServiceOptions = { accountsRepository: AccountsRepository; files: FilesService };
+type CreateAccountsServiceOptions = {
+  accountsRepository: AccountsRepository;
+  access: AccessService;
+  files: FilesService;
+};
 
 type ReadNameOptions = { name: string; accountId?: string };
 
 type RenameOptions = { id: string; name: string };
 
-export function createAccountsService({ accountsRepository, files }: CreateAccountsServiceOptions) {
+export function createAccountsService({
+  accountsRepository,
+  access,
+  files,
+}: CreateAccountsServiceOptions) {
   // A name a person gives the account: 1 to 80 characters, and no other account's name or id.
   function readName({ name, accountId }: ReadNameOptions) {
     const trimmed = name.trim();
@@ -73,9 +83,11 @@ export function createAccountsService({ accountsRepository, files }: CreateAccou
       return newName;
     },
 
-    // Removes the account with its messages and sign-ins, and its files from the bucket.
+    // Removes the account with its messages and sign-ins, its files from the bucket, and itself
+    // from the other accounts' lists at their Message URLs, where it goes by its id.
     async remove(id: string) {
       await files.removeByAccount(id);
+      access.removeSenderEverywhere({ channel: urlKind, sender: id });
 
       return accountsRepository.remove(id);
     },

@@ -11,6 +11,8 @@ type SetAdmitOptions = ChannelOptions & { admit: Admit };
 
 type SenderOptions = ChannelOptions & { sender: string };
 
+type RemoveSenderEverywhereOptions = { channel: ChannelKind; sender: string };
+
 export function createAccessRepository(db: Database) {
   function read({ accountId, channel }: ChannelOptions): Access {
     const row = db
@@ -63,6 +65,20 @@ export function createAccessRepository(db: Database) {
       });
 
       return true;
+    },
+
+    // Takes the sender off every account's list on the channel.
+    removeSenderEverywhere: ({ channel, sender }: RemoveSenderEverywhereOptions) => {
+      const lists = db.select().from(access).where(eq(access.channel, channel)).all();
+
+      for (const list of lists) {
+        if (!list.senders.includes(sender)) continue;
+
+        write(
+          { accountId: list.accountId, channel },
+          { admit: list.admit, senders: list.senders.filter((listed) => listed !== sender) },
+        );
+      }
     },
   };
 }

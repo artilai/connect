@@ -68,6 +68,7 @@ export function createAccessService({ accessRepository }: CreateAccessServiceOpt
     read: accessRepository.read,
     addSender: accessRepository.addSender,
     removeSender: accessRepository.removeSender,
+    removeSenderEverywhere: accessRepository.removeSenderEverywhere,
     setAdmit,
     addGroup: (options: GroupOptions) => setGroup({ ...options, allowed: true }),
     removeGroup: (options: GroupOptions) => setGroup({ ...options, allowed: false }),

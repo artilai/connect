@@ -51,8 +51,11 @@ export function createServices({
   const files = createFilesService({ filesRepository: createFilesRepository(db), store, log });
   const fileLinks = createFileLinks({ secret, apiUrl: `${baseUrl}/api` });
 
+  const access = createAccessService({ accessRepository: createAccessRepository(db) });
+
   const accounts = createAccountsService({
     accountsRepository: createAccountsRepository(db),
+    access,
     files,
   });
 
@@ -68,8 +71,6 @@ export function createServices({
     connectionsRepository: createConnectionsRepository(db),
     events,
   });
-
-  const access = createAccessService({ accessRepository: createAccessRepository(db) });
 
   const url = new UrlChannel({ accounts, access, connections, events, files });
 

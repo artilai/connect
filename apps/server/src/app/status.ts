@@ -2,6 +2,7 @@ import { messageOf } from "@artil/errors";
 
 import { toRows } from "../platform/commands";
 import type { Config } from "../platform/config";
+import { findRunningPort } from "../platform/running";
 import type { Tailscale } from "../platform/tailscale";
 import type { CommandContext } from "./context";
 import { runningGreeting } from "./http";
@@ -56,6 +57,14 @@ export async function showStatus({ config, tailscale, context, out }: ShowStatus
     return `http://localhost:${config.port}`;
   });
 
+  // The port the running server took, which a new one in the config waits for its restart to be.
+  const runningPort = (await findRunningPort(context.paths)) ?? config.port;
+
+  const restart =
+    runningPort === config.port
+      ? ""
+      : `, on port ${runningPort} until it restarts on ${config.port}`;
+
   const accounts = context.accounts
     .list()
     .map(
@@ -71,7 +80,10 @@ export async function showStatus({ config, tailscale, context, out }: ShowStatus
           "Address",
           `${address}, ${config.public ? "public through Tailscale Funnel" : "on this computer"}`,
         ],
-        ["Running", (await isRunning(config.port)) ? "yes" : "no; start it with: artil-server"],
+        [
+          "Running",
+          (await isRunning(runningPort)) ? `yes${restart}` : "no; start it with: artil-server",
+        ],
         [
           "Files",
           config.s3

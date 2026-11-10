@@ -17,6 +17,7 @@ import {
   readConfig,
   writeConfig,
 } from "../platform/config";
+import { markRunning, unmarkRunning } from "../platform/running";
 import type { Tailscale } from "../platform/tailscale";
 import { createArgumentChoosers } from "./arguments";
 import { type CommandContext, openCommandContext } from "./context";
@@ -106,10 +107,12 @@ async function serve({ paths, config, environment }: ServeOptions) {
   );
   out(`Sign in as an account with: ${loginCommand(server.baseUrl)}`);
   out(`MCP clients connect to ${server.baseUrl}/mcp`);
+  await markRunning({ paths, port: server.port });
 
   await environment.waitForStop();
   out("Stopping");
   await server.stop();
+  await unmarkRunning(paths);
 }
 
 export async function runCli(environment: Environment) {
@@ -167,7 +170,7 @@ export async function runCli(environment: Environment) {
     const choosers = createArgumentChoosers(context);
 
     for (const name of run.takes.slice(args.length)) {
-      const chooser = choosers.get(name);
+      const chooser = choosers.get(`${command} ${subcommand} ${name}`) ?? choosers.get(name);
 
       if (!interactive || !chooser) throw usageError(`This command takes ${expected}`);
 

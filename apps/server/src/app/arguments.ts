@@ -39,9 +39,10 @@ type ChooserOptions = {
 // Picks an argument a command line left out.
 type Chooser = (options: ChooserOptions) => Promise<string | undefined>;
 
-// What a terminal offers for an argument a command line left out, by the argument's name: the
-// server's accounts, the channels an account connects to, the clients it is signed in to, and who
-// wrote to it and was kept out. A name stays for the command line to give.
+// What a terminal offers for an argument a command line left out, by the argument's name, or by
+// the command and the name where one command offers something else: the server's accounts, the
+// channels an account connects to, the clients it is signed in to, who wrote to it and was kept out,
+// and who is on its list. A name stays for the command line to give.
 export function createArgumentChoosers({
   accounts,
   channels,
@@ -106,6 +107,28 @@ export function createArgumentChoosers({
           message: `Who of those who wrote to ${account.name} on ${channel.name} may wake it?`,
           choices: keptOut,
           none: `No one ${account.name}'s list keeps out has written to it on ${channel.name}; name the sender with: artil-server account allow ${shellQuoted(account.name)} <${channel.senders}>`,
+        });
+      },
+    ],
+    // What disallow takes away: whoever is on the list, and anyone or the team where they come in.
+    [
+      "account disallow who",
+      ({ given, channel: kind }) => {
+        const account = accounts.getByIdOrName(given.get("account") ?? "");
+        const channel = readChannel({ account, kind, addresses, channels });
+        const { admit, senders } = access.read({ accountId: account.id, channel: channel.kind });
+        const comingIn = { anyone: ["anyone", "team"], team: ["team"], list: [] }[admit];
+
+        return choose({
+          message: `Who may no longer wake ${account.name} on ${channel.name}?`,
+          choices: [
+            ...senders.map((sender) => ({
+              value: sender,
+              label: channels.showSender(channel.kind, sender),
+            })),
+            ...comingIn.map(toChoice),
+          ],
+          none: `Only ${account.name}'s list wakes it on ${channel.name}, and no one is on it`,
         });
       },
     ],

@@ -1,12 +1,13 @@
 import { Database } from "bun:sqlite";
 import { expect, test } from "bun:test";
-import { mkdtemp, stat, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { type Config, newConfig, pathsIn, readConfig, writeConfig } from "../platform/config";
 import { runCli } from "./cli";
+import { runningGreeting } from "./http";
 import { channelModule, findFreePort, testChannelDefinition } from "./testing";
 
 const migrationsFolder = fileURLToPath(new URL("../../migrations", import.meta.url));
@@ -83,6 +84,20 @@ test("creates accounts, lists them and makes a token to sign one in with", async
   expect(await cli(dataDir, "account", "list")).toMatch(/^Codex {2}\w{8} · not listening$/v);
   expect(await cli(dataDir, "account", "token", "codex", "macbook")).toMatch(
     /named macbook\..*\n.*artil auth login --base-url http:\/\/localhost:4747 --token artil_[\w\-]{43}$/v,
+  );
+});
+
+test("signs an account out of a client by a name in any case, letters beyond ASCII too", async () => {
+  const dataDir = await mkdtemp(join(tmpdir(), "artil-server-"));
+
+  await cli(dataDir, "account", "create", "Codex");
+  await cli(dataDir, "account", "token", "Codex", "École");
+
+  expect(await cli(dataDir, "account", "revoke", "Codex", "école", "--yes")).toBe(
+    "Signed Codex out of école.",
+  );
+  expect(await cli(dataDir, "account", "revoke", "Codex", "all")).toBe(
+    "Codex is signed in to no client.",
   );
 });
 
@@ -178,6 +193,58 @@ test("keeps its config and data where only its owner reads them", async () => {
     public: false,
     password: null,
   });
+});
+
+test("notes the port a running server took, while it runs", async () => {
+  const dataDir = await mkdtemp(join(tmpdir(), "artil-server-"));
+  const paths = pathsIn(dataDir);
+  let note = "";
+
+  await cli(dataDir, "account", "create", "Codex");
+  await cli(dataDir, "set", "--port", String(await findFreePort()));
+
+  await runCli({
+    ...environment,
+    argv: [],
+    dataDir,
+    interactive: false,
+    runSetup: refuseSetup,
+    waitForStop: async () => {
+      note = await readFile(paths.running, "utf8");
+    },
+    readStdin: async () => "",
+    out: () => {},
+  });
+
+  expect(JSON.parse(note)).toMatchObject({ pid: process.pid });
+  expect(await readFile(paths.running, "utf8").catch(() => "gone")).toBe("gone");
+});
+
+test("says a running server keeps its port until it restarts", async () => {
+  const dataDir = await mkdtemp(join(tmpdir(), "artil-server-"));
+  const runningPort = await findFreePort();
+
+  const running = Bun.serve({
+    hostname: "127.0.0.1",
+    port: runningPort,
+    fetch: () => new Response(`${runningGreeting} Sign in with: artil auth login`),
+  });
+
+  try {
+    const newPort = await findFreePort();
+
+    await cli(dataDir, "set", "--port", String(newPort));
+    await writeFile(
+      pathsIn(dataDir).running,
+      JSON.stringify({ pid: process.pid, port: runningPort }),
+    );
+
+    expect(await cli(dataDir, "status")).toContain(
+      `  Running       yes, on port ${runningPort} until it restarts on ${newPort}`,
+    );
+  } finally {
+    await running.stop();
+  }
 });
 
 test("says where the server is, whether it runs, and what keeps it from starting", async () => {
@@ -334,6 +401,10 @@ test("lists the server's accounts by name at the Message URL", async () => {
   await expect(cli(dataDir, "account", "allow", "Codex", "nobody", ...onUrl)).rejects.toThrow(
     "nobody is not an account of this server, by its name or id",
   );
+
+  await cli(dataDir, "account", "remove", "Claude", "--yes");
+
+  expect(await cli(dataDir, "account", "list")).toContain("woken on Message URL by no one");
 });
 
 test("names the channels it has when a command names one it does not", async () => {

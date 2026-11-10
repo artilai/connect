@@ -1,11 +1,9 @@
-import { and, asc, eq, sql } from "drizzle-orm";
+import { asc, eq, inArray } from "drizzle-orm";
 
 import type { Database } from "../../platform/db/connection";
 import { accounts, tokens } from "../../platform/db/schema";
 
 type CreateOptions = { accountId: string; name: string; hash: string };
-
-type RevokeByNameOptions = { accountId: string; name: string };
 
 export function createTokensRepository(db: Database) {
   return {
@@ -34,16 +32,11 @@ export function createTokensRepository(db: Database) {
     revokeByHash: (hash: string) =>
       db.delete(tokens).where(eq(tokens.hash, hash)).returning({ id: tokens.id }).all().length > 0,
 
-    // Signs the account out of the clients of that name, in any case, and counts them.
-    revokeByName: ({ accountId, name }: RevokeByNameOptions) =>
+    // Signs out the clients of these sign-ins, and counts them.
+    revokeByIds: (ids: readonly string[]) =>
       db
         .delete(tokens)
-        .where(
-          and(
-            eq(tokens.accountId, accountId),
-            eq(sql`lower(${tokens.name})`, name.trim().toLowerCase()),
-          ),
-        )
+        .where(inArray(tokens.id, [...ids]))
         .returning({ id: tokens.id })
         .all().length,
 

@@ -250,7 +250,9 @@ export function createAccountCommands({
       );
     }
 
-    if (!clients.some((clientName) => clientName.toLowerCase() === wanted)) {
+    const named = tokens.listByName({ accountId: account.id, name: client });
+
+    if (named.length === 0) {
       throw new AppError({
         code: "not_found",
         message:
@@ -264,8 +266,14 @@ export function createAccountCommands({
       return out("Nothing changed.");
     }
 
-    tokens.revokeByName({ accountId: account.id, name: client });
-    out(`Signed ${account.name} out of ${client.trim()}.`);
+    // Another command may have signed it out meanwhile.
+    const revoked = tokens.revokeByIds(named.map(({ id }) => id));
+
+    out(
+      revoked > 0
+        ? `Signed ${account.name} out of ${client.trim()}.`
+        : `${account.name} was signed out of ${client.trim()} already.`,
+    );
   }
 
   return new Map<string, Command>([
