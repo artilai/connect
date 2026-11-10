@@ -265,6 +265,11 @@ test("says where the server is, whether it runs, and what keeps it from starting
     ].join("\n"),
   );
 
+  // A note a server left half written counts as none.
+  await writeFile(pathsIn(dataDir).running, '{"pid":');
+
+  expect(await cli(dataDir, "status")).toContain("  Running       no; start it with: artil-server");
+
   await cli(dataDir, "account", "create", "Codex");
   await pipeInto({ dataDir, stdin: "correct horse" }, "set", "--password");
   await cli(dataDir, "set", "--public");

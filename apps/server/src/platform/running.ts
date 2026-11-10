@@ -1,4 +1,4 @@
-import { readFile, rm, writeFile } from "node:fs/promises";
+import { readFile, rename, rm, writeFile } from "node:fs/promises";
 
 import { z } from "zod";
 
@@ -10,10 +10,12 @@ const runningSchema = z.object({ pid: z.int(), port: z.int() });
 
 type MarkRunningOptions = { paths: Paths; port: number };
 
+// The note goes in whole or not at all, so artil-server status never reads half of it.
 export async function markRunning({ paths, port }: MarkRunningOptions) {
-  await writeFile(paths.running, `${JSON.stringify({ pid: process.pid, port })}\n`, {
-    mode: 0o600,
-  });
+  const draft = `${paths.running}.${process.pid}.tmp`;
+
+  await writeFile(draft, `${JSON.stringify({ pid: process.pid, port })}\n`, { mode: 0o600 });
+  await rename(draft, paths.running);
 }
 
 export async function unmarkRunning(paths: Paths) {
@@ -30,14 +32,20 @@ function isAlive(pid: number) {
   }
 }
 
+// The note, or nothing for one that is not a note, like an empty file.
+function readNote(text: string) {
+  try {
+    return runningSchema.safeParse(JSON.parse(text)).data;
+  } catch {
+    return undefined;
+  }
+}
+
 // The port of the server that serves the data folder, if one does. A server that stopped without
 // a word leaves its note behind, with a process that is gone.
 export async function findRunningPort(paths: Paths) {
   const text = await readFile(paths.running, "utf8").catch(() => undefined);
-
-  if (text === undefined) return undefined;
-
-  const running = runningSchema.safeParse(JSON.parse(text)).data;
+  const running = text === undefined ? undefined : readNote(text);
 
   return running && isAlive(running.pid) ? running.port : undefined;
 }
