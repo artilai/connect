@@ -1,6 +1,6 @@
 import { shellQuoted } from "@artil/utils/shell";
 
-import { type Command, defineCommand } from "../../platform/commands";
+import { type Command, defineCommand, type ReadSecret } from "../../platform/commands";
 import type { AgentsService } from "../agents/service";
 import type { ChannelKind } from "../channels/schema";
 import type { AddressesService } from "./service";
@@ -8,21 +8,36 @@ import type { AddressesService } from "./service";
 type AddressCommandsOptions = {
   agents: AgentsService;
   addresses: AddressesService;
+  // Reads what a channel asks for to connect, like a bot's token.
+  readSecret: ReadSecret;
   out: (line: string) => void;
 };
 
 // An account's addresses on the channels, which the commands name by their kind:
 // artil-server account connect claude telegram.
-export function createAddressCommands({ agents, addresses, out }: AddressCommandsOptions) {
-  type ConnectOptions = { kind: ChannelKind; name: string; credentials: string };
+export function createAddressCommands({
+  agents,
+  addresses,
+  readSecret,
+  out,
+}: AddressCommandsOptions) {
+  type ConnectOptions = { kind: ChannelKind; name: string };
 
-  async function connect({ kind, name, credentials }: ConnectOptions) {
+  async function connect({ kind, name }: ConnectOptions) {
     const agent = agents.getByIdOrName(name);
+    const channel = addresses.getConnectable(kind);
 
-    const { address, replaced, channel } = await addresses.connect({
+    const credentials = await readSecret({
+      message: channel.credentials,
+      guide: channel.credentialsGuide,
+    });
+
+    if (credentials === undefined) return;
+
+    const { address, replaced } = await addresses.connect({
       agentId: agent.id,
       kind,
-      credentials,
+      credentials: credentials.trim(),
     });
 
     for (const old of replaced) out(`${old.value} no longer reaches ${agent.name}.`);
@@ -53,9 +68,8 @@ export function createAddressCommands({ agents, addresses, out }: AddressCommand
     [
       "account connect",
       defineCommand({
-        takes: ["account", "channel", "credentials"],
-        run: ({ account, channel, credentials }) =>
-          connect({ kind: channel, name: account, credentials }),
+        takes: ["account", "channel"],
+        run: ({ account, channel }) => connect({ kind: channel, name: account }),
       }),
     ],
     [

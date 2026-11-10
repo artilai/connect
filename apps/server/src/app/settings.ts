@@ -1,8 +1,7 @@
-import { isCancel, password } from "@clack/prompts";
-
 import { AppError } from "@artil/errors";
 
 import { hashPassword, validatePassword } from "../domains/sign-in/password";
+import type { ReadSecret } from "../platform/commands";
 import { type Config, type Paths, writeConfig } from "../platform/config";
 
 // The flags artil-server set reads, each naming a setting it changes.
@@ -20,6 +19,7 @@ type ChangeSettingsOptions = {
   paths: Paths;
   config: Config;
   change: SettingsChange;
+  readSecret: ReadSecret;
   out: (line: string) => void;
 };
 
@@ -36,18 +36,24 @@ function readPort(given: string) {
 }
 
 // The hash of a new password for the sign-in page, or undefined when the person stops.
-async function askNewPassword() {
-  const newPassword = await password({
+async function readNewPassword(readSecret: ReadSecret) {
+  const newPassword = await readSecret({
     message: "A password the sign-in page asks for",
     validate: validatePassword,
   });
 
-  return isCancel(newPassword) ? undefined : hashPassword(newPassword);
+  return newPassword === undefined ? undefined : hashPassword(newPassword);
 }
 
 // Saves the settings the flags change and says what changed. The sign-in page asks for a new
 // password at once, and a new mode or port counts from the server's next start.
-export async function changeSettings({ paths, config, change, out }: ChangeSettingsOptions) {
+export async function changeSettings({
+  paths,
+  config,
+  change,
+  readSecret,
+  out,
+}: ChangeSettingsOptions) {
   if (change.public && change.local) throw invalid("The server is either --public or --local");
 
   const port = change.port === undefined ? config.port : readPort(change.port);
@@ -57,7 +63,7 @@ export async function changeSettings({ paths, config, change, out }: ChangeSetti
     throw invalid("Public mode needs a password for the sign-in page; give --password too");
   }
 
-  const passwordHash = change.password ? await askNewPassword() : config.password;
+  const passwordHash = change.password ? await readNewPassword(readSecret) : config.password;
 
   if (passwordHash === undefined) return;
 

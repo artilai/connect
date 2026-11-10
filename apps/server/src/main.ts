@@ -43,6 +43,7 @@ try {
     artil: findArtilCli(),
     runSetup,
     waitForStop,
+    readStdin: () => Bun.stdin.text(),
     out: (line) => console.log(line),
   });
 } catch (cause) {

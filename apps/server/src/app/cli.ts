@@ -8,6 +8,7 @@ import { createAddressCommands } from "../domains/addresses/commands";
 import { createAgentCommands } from "../domains/agents/commands";
 import { loadChannels } from "../domains/channels/load";
 import { type ArtilCli, loginCommand } from "../platform/artil-cli";
+import { createSecretReader } from "../platform/commands";
 import {
   type Config,
   newConfig,
@@ -25,21 +26,21 @@ import type { runSetup } from "./setup";
 const usage = `artil-server: a self-hosted Artil Server
 
 Usage:
-  artil-server                                                    Start the server, setting it up first if it is new
-  artil-server setup                                              Set up the accounts, channels, files and who reaches the server
-  artil-server set --public                                       Open the server to the internet through Tailscale Funnel from its next start
-  artil-server set --local                                        Keep the server on this computer from its next start
-  artil-server set --port <port>                                  Listen on another port from the server's next start
-  artil-server set --password                                     Set the password the sign-in page asks for
-  artil-server account create <name>                              Create an agent account
-  artil-server account list                                       List the accounts
-  artil-server account remove <name>                              Remove an account with its messages
-  artil-server account token <name>                               Make a token, for a computer without a browser
-  artil-server account revoke <name>                              Sign the account out of every client
-  artil-server account connect <account> <channel> <credentials>  Connect an address of a channel to an account, with what the channel asks for
-  artil-server account disconnect <account> <channel>             Disconnect the account's address of the channel
-  artil-server account allow <account> <who>                      Let a sender, the team or anyone wake the account's agent
-  artil-server account disallow <account> <who>                   Stop a sender, the team or anyone from waking it
+  artil-server                                         Start the server, setting it up first if it is new
+  artil-server setup                                   Set up the accounts, channels, files and who reaches the server
+  artil-server set --public                            Open the server to the internet through Tailscale Funnel from its next start
+  artil-server set --local                             Keep the server on this computer from its next start
+  artil-server set --port <port>                       Listen on another port from the server's next start
+  artil-server set --password                          Set the password the sign-in page asks for, typed or piped in
+  artil-server account create <name>                   Create an agent account
+  artil-server account list                            List the accounts
+  artil-server account remove <name>                   Remove an account with its messages
+  artil-server account token <name>                    Make a token, for a computer without a browser
+  artil-server account revoke <name>                   Sign the account out of every client
+  artil-server account connect <account> <channel>     Connect an address of a channel to an account, with what the channel asks for, typed or piped in
+  artil-server account disconnect <account> <channel>  Disconnect the account's address of the channel
+  artil-server account allow <account> <who>           Let a sender, the team or anyone wake the account's agent
+  artil-server account disallow <account> <who>        Stop a sender, the team or anyone from waking it
 
 Options:
   --channel <channel>  The channel allow and disallow mean, by default the one the account is connected to
@@ -61,6 +62,8 @@ type Environment = {
   runSetup: typeof runSetup;
   // Resolves when the server should stop, like on Ctrl-C.
   waitForStop: () => Promise<void>;
+  // What is piped in, like a bot's token, which a command reads outside a terminal.
+  readStdin: () => Promise<string>;
   out: (line: string) => void;
 };
 
@@ -149,6 +152,7 @@ export async function runCli(environment: Environment) {
     environment;
 
   const builtInKinds = builtInChannels.map(({ kind }) => kind);
+  const readSecret = createSecretReader({ interactive, readStdin: environment.readStdin });
 
   // A server is new until it has an agent, so a setup stopped before it made one runs again.
   async function hasAgents(config: Config) {
@@ -223,7 +227,7 @@ export async function runCli(environment: Environment) {
       password: values.password === true,
     };
 
-    return changeSettings({ paths, config, change, out });
+    return changeSettings({ paths, config, change, readSecret, out });
   }
 
   const context = await openCommandContext({
@@ -238,7 +242,7 @@ export async function runCli(environment: Environment) {
   try {
     const run = new Map([
       ...createAgentCommands(context),
-      ...createAddressCommands(context),
+      ...createAddressCommands({ ...context, readSecret }),
       ...createAccessCommands(context),
     ]).get(`${command} ${subcommand}`);
 

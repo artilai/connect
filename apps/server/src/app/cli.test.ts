@@ -23,7 +23,10 @@ async function refuseSetup(): Promise<Config> {
   throw new Error("A command ran the setup");
 }
 
-async function cli(dataDir: string, ...argv: string[]) {
+type PipeOptions = { dataDir: string; stdin: string };
+
+// Runs artil-server the way a script does, with what it pipes in, like a bot's token.
+async function pipeInto({ dataDir, stdin }: PipeOptions, ...argv: string[]) {
   const lines: string[] = [];
 
   await runCli({
@@ -33,10 +36,15 @@ async function cli(dataDir: string, ...argv: string[]) {
     interactive: false,
     runSetup: refuseSetup,
     waitForStop: async () => {},
+    readStdin: async () => stdin,
     out: (line) => lines.push(line),
   });
 
   return lines.join("\n");
+}
+
+async function cli(dataDir: string, ...argv: string[]) {
+  return pipeInto({ dataDir, stdin: "" }, ...argv);
 }
 
 type StartOptions = { dataDir: string; interactive: boolean };
@@ -57,6 +65,7 @@ async function start({ dataDir, interactive }: StartOptions) {
       return { ...(config ?? newConfig({ channels: [] })), port: 0 };
     },
     waitForStop: async () => {},
+    readStdin: async () => "",
     out: () => {},
   });
 
@@ -94,25 +103,22 @@ test("keeps its config and data where only its owner reads them", async () => {
   });
 });
 
-test("changes the server's mode and port with set", async () => {
+test("changes the server's mode, port and password with set", async () => {
   const dataDir = await mkdtemp(join(tmpdir(), "artil-server-"));
 
   expect(await cli(dataDir, "set", "--port", "4848")).toBe(
     "The server listens on port 4848 from its next start.",
   );
+  expect(await readConfig(pathsIn(dataDir))).toMatchObject({ port: 4848, public: false });
   await expect(cli(dataDir, "set", "--public")).rejects.toThrow(
     "Public mode needs a password for the sign-in page; give --password too",
   );
-
-  const paths = pathsIn(dataDir);
-  const config = await readConfig(paths);
-
-  if (!config) throw new Error("set did not write a config");
-
-  expect(config).toMatchObject({ port: 4848, public: false });
-
-  await writeConfig(paths, { ...config, password: "the password's hash" });
-
+  await expect(pipeInto({ dataDir, stdin: "short\n" }, "set", "--password")).rejects.toThrow(
+    "A password the sign-in page asks for: Use at least 8 characters",
+  );
+  expect(await pipeInto({ dataDir, stdin: "correct horse\n" }, "set", "--password")).toBe(
+    "The sign-in page asks for the new password from now on.",
+  );
   expect(await cli(dataDir, "set", "--public")).toBe(
     "The server opens to the internet through Tailscale Funnel from its next start.",
   );
@@ -214,7 +220,7 @@ test("names the channels it has when a command names one it does not", async () 
 
   await cli(dataDir, "account", "create", "Codex");
 
-  await expect(cli(dataDir, "account", "connect", "Codex", "discord", "token")).rejects.toThrow(
+  await expect(cli(dataDir, "account", "connect", "Codex", "discord")).rejects.toThrow(
     "This server has no discord channel; it has test, url",
   );
 });
@@ -263,9 +269,15 @@ test("connects an account to a channel the config loads, and disconnects it", as
 
   await writeConfig(paths, { ...config, channels: ["test", "./echo-channel.ts"] });
 
-  expect(await cli(dataDir, "account", "connect", "Codex", "echo", "hi")).toContain(
-    "echo:hi now reaches Codex on Echo.",
+  await expect(cli(dataDir, "account", "connect", "Codex", "echo")).rejects.toThrow(
+    "Not a terminal, so pipe it in: The address's credentials",
   );
+  await expect(cli(dataDir, "account", "connect", "Codex", "url")).rejects.toThrow(
+    "Every agent has its Message URL already; there is nothing to connect",
+  );
+  expect(
+    await pipeInto({ dataDir, stdin: "hi\n" }, "account", "connect", "Codex", "echo"),
+  ).toContain("echo:hi now reaches Codex on Echo.");
   expect(await cli(dataDir, "account", "list")).toContain("Echo echo:hi");
   expect(await cli(dataDir, "account", "allow", "Codex", "ada")).toBe(
     "ada now wakes Codex on Echo.",
