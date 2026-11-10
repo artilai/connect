@@ -37,7 +37,7 @@ type IssueTokenOptions = { name: string; tokenName: string };
 type RevokeOptions = { name: string; client: string };
 
 // The word revoke takes for every client an account is signed in to.
-const everyClient = "all";
+export const everyClient = "all";
 
 type DescribeWakersOptions = Access & { kind: ChannelKind };
 
@@ -278,7 +278,10 @@ export function createAgentCommands({
         run: ({ account, name }) => renameAgent({ name: account, newName: name }),
       }),
     ],
-    ["account remove", defineCommand({ takes: ["name"], run: ({ name }) => removeAgent(name) })],
+    [
+      "account remove",
+      defineCommand({ takes: ["account"], run: ({ account }) => removeAgent(account) }),
+    ],
     [
       "account token",
       defineCommand({

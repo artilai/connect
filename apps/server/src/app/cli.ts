@@ -8,7 +8,7 @@ import { createAddressCommands } from "../domains/addresses/commands";
 import { createAgentCommands } from "../domains/agents/commands";
 import { loadChannels } from "../domains/channels/load";
 import { type ArtilCli, loginCommand } from "../platform/artil-cli";
-import { createConfirm, createSecretReader } from "../platform/commands";
+import { type Command, createConfirm, createSecretReader } from "../platform/commands";
 import {
   type Config,
   newConfig,
@@ -18,7 +18,8 @@ import {
   writeConfig,
 } from "../platform/config";
 import type { Tailscale } from "../platform/tailscale";
-import { openCommandContext } from "./context";
+import { createArgumentChoosers } from "./arguments";
+import { type CommandContext, openCommandContext } from "./context";
 import { startServer } from "./server";
 import { changeSettings, settingFlags } from "./settings";
 import type { runSetup } from "./setup";
@@ -38,7 +39,7 @@ Usage:
   artil-server account list                            List the accounts
   artil-server account show <account>                  Show an account's addresses, clients and who wakes it
   artil-server account rename <account> <name>         Give an account another name
-  artil-server account remove <name>                   Remove an account with its messages
+  artil-server account remove <account>                Remove an account with its messages
   artil-server account token <account> <name>         Make a token by a name of its own, for a computer without a browser
   artil-server account revoke <account> <client>       Sign the account out of a client by its name, or out of all
   artil-server account connect <account> <channel>     Connect an address of a channel to an account, with what the channel asks for, typed or piped in
@@ -50,7 +51,9 @@ Options:
   --channel <channel>  The channel allow and disallow mean, by default the one the account is connected to
   -y, --yes            Answer yes to what remove, disconnect and revoke ask
   -h, --help           Show this help
-  -v, --version        Show the version`;
+  -v, --version        Show the version
+
+In a terminal, a command offers the account, channel or client it is not given.`;
 
 type Environment = {
   argv: string[];
@@ -150,6 +153,33 @@ export async function runCli(environment: Environment) {
   const builtInKinds = builtInChannels.map(({ kind }) => kind);
   const readSecret = createSecretReader({ interactive, readStdin: environment.readStdin });
   const confirm = createConfirm({ interactive, yes: values.yes === true });
+
+  type ReadArgumentsOptions = { run: Command; context: CommandContext };
+
+  // The command's arguments by name, with what a terminal offers for any the command line left
+  // out; undefined when the person stops.
+  async function readArguments({ run, context }: ReadArgumentsOptions) {
+    const expected = run.takes.map((name) => `<${name}>`).join(" ") || "no arguments";
+
+    if (args.length > run.takes.length) throw usageError(`This command takes ${expected}`);
+
+    const given = new Map(args.map((value, index) => [run.takes[index] ?? "", value]));
+    const choosers = createArgumentChoosers(context);
+
+    for (const name of run.takes.slice(args.length)) {
+      const chooser = choosers.get(name);
+
+      if (!interactive || !chooser) throw usageError(`This command takes ${expected}`);
+
+      const choice = await chooser(given);
+
+      if (choice === undefined) return undefined;
+
+      given.set(name, choice);
+    }
+
+    return given;
+  }
 
   // A server is new until it has an agent, so a setup stopped before it made one runs again.
   async function hasAgents(config: Config) {
@@ -253,16 +283,14 @@ export async function runCli(environment: Environment) {
       throw usageError(`There is no command ${[command, subcommand].filter(Boolean).join(" ")}`);
     }
 
-    if (args.length !== run.takes.length) {
-      const expected = run.takes.map((name) => `<${name}>`).join(" ") || "no arguments";
-
-      throw usageError(`This command takes ${expected}`);
-    }
-
     checkFlags(run.flags);
 
+    const given = await readArguments({ run, context });
+
+    if (!given) return;
+
     await run.run({
-      ...Object.fromEntries(run.takes.map((name, index) => [name, args[index] ?? ""])),
+      ...Object.fromEntries(given),
       ...(values.channel !== undefined && { channel: values.channel }),
     });
   } finally {
