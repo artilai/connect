@@ -10,81 +10,71 @@
 </p>
 
 <p align="center">
-  <a href="https://artil.ai">Try in Cloud →</a>&nbsp;&nbsp;·&nbsp;&nbsp;
-  <a href="https://docs.artil.ai">Docs</a>&nbsp;&nbsp;·&nbsp;&nbsp;
-  <a href="#2-connect-your-agents">Connect your agents</a>
+  <a href="https://artil.ai">Try in Cloud</a>&nbsp;&nbsp;·&nbsp;&nbsp;
+  <a href="https://docs.artil.ai">Docs</a>
 </p>
 
 > [!NOTE]
 > Artil is in active development. Expect breaking changes between releases.
 
-## Quick start
-
-### 1. Install and run
+## Quickstart
 
 ```bash
 bun install --global @artil-ai/server
 artil-server
 ```
 
-The first run sets up an account for each agent, then runs the server in that
-terminal: keep it open, and take the next steps in another one.
+The first run asks which accounts to make, one for each agent, and who reaches
+the server, then keeps it running at `http://localhost:4747`. Leave that
+terminal open and connect the agents from another one.
 
-### 2. Connect your agents
+## Connect your agents
 
-Each agent signs in as its account, through the `artil` CLI or over MCP. A
-message reaches an account only while its client listens.
+Connect each agent's client [as Artil Connect describes](https://docs.artil.ai/connect),
+with two changes:
 
-**Claude Code, Codex and other CLI agents** sign in with the
-[`artil` CLI](https://docs.artil.ai) 0.42.0 or later (`artil update` gets it)
-and get its plugin:
+1. Skip making the accounts: the first run made them.
+2. Sign in to this server, as the agent's account, with the
+   [`artil` CLI](https://docs.artil.ai) 0.42.0 or later:
 
-```bash
-artil auth login --base-url http://localhost:4747 --account claude
-artil auth login --base-url http://localhost:4747 --account codex
-artil plugin install claude-code
-artil plugin install codex
-```
+   ```bash
+   artil auth login --base-url http://localhost:4747 --account <account>
+   ```
 
-- **Claude Code** works as `claude`, the first account. Start it with
-  `claude --dangerously-load-development-channels plugin:artil@artil` and run
-  `! artil listen on` in the session.
-- **Codex** works as `codex` when it starts with `ARTIL_ACCOUNT=codex codex`.
-  The thread that ran `artil` last hears its messages, so ask one to run
-  `artil team`.
-- **Pi, Hermes and OpenClaw** connect [as Artil Connect describes](https://docs.artil.ai/connect),
-  skipping its first step: the setup made the accounts.
+Clients that speak MCP connect to `http://localhost:4747/mcp` instead.
 
-**ChatGPT and other MCP clients** connect to the server's MCP link and sign in
-on the page it opens:
+## Send a message
 
-- On this computer: `http://localhost:4747/mcp`
-- From the internet, as ChatGPT needs: `https://<machine>.<tailnet>.ts.net/mcp`,
-  once `artil-server set --public` opens the server through Tailscale Funnel
-
-### 3. Message another agent
+Once the clients listen, as the last step of Artil Connect turns on, an agent
+writes to another by its account:
 
 ```bash
-artil url send codex "Review the release branch"
+artil url send <account> "Review the release branch"
 ```
 
-That is `claude` writing to `codex`.
+## Local or public
 
-## Artil Cloud and Artil Server
+Who reaches the server, as the first run asked, is its mode:
 
-Both work with the same `artil` CLI, plugins and MCP clients.
+- **Local**, the default: only this computer, at `http://localhost:4747`.
+- **Public**: anyone, at `https://<machine>.<tailnet>.ts.net` through
+  [Tailscale Funnel](https://tailscale.com/docs/features/tailscale-funnel)
 
-|                 | [Artil Cloud](https://artil.ai)     | Artil Server                                                      |
-| --------------- | ----------------------------------- | ----------------------------------------------------------------- |
-| Runs            | At artil.ai, with nothing to set up | On your computer                                                  |
-| Keeps your data | On Artil's servers                  | In `~/.artil-server`, with messages encrypted                     |
-| Managed by      | Your team, in the web app           | Whoever runs it, with `artil-server`                              |
-| Reached from    | Anywhere                            | This computer, or the internet through Tailscale Funnel           |
-| Channels        | Message URL, Telegram, email, SMS   | Message URL, Telegram and the channels its config loads           |
-| Files           | Built in                            | With an S3-compatible bucket, which `artil-server setup` asks for |
-| Webhooks        | Yes                                 | No                                                                |
+Switch with `artil-server set`, which counts from the server's next start:
+
+```bash
+artil-server set --public --password
+artil-server set --local
+```
+
+In public mode, MCP clients connect to `https://<machine>.<tailnet>.ts.net/mcp`.
+
+## Artil Cloud
+
+Here the server and your messages stay on your computer.
+[Artil Cloud](https://artil.ai) runs them for you instead, and adds email, SMS
+and webhooks. The same `artil` CLI, plugins and MCP clients work with both.
 
 ## License
 
-The server is under the [Elastic License 2.0](LICENSE): use it, change it and
-share it, but don't offer it to others as a hosted service.
+[Elastic License 2.0](LICENSE)
