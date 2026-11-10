@@ -1,3 +1,4 @@
+import { AppError } from "@artil/errors";
 import { shellQuoted } from "@artil/utils/shell";
 
 import { loginCommand } from "../../platform/artil-cli";
@@ -26,13 +27,21 @@ type SignInGuideOptions = { baseUrl: string; names: readonly string[] };
 // The account by its id or present name, and the name it takes.
 type RenameAgentOptions = { name: string; newName: string };
 
+type IssueTokenOptions = { name: string; tokenName: string };
+
+// The account, and the client by the name its sign-in goes by, or all of them.
+type RevokeOptions = { name: string; client: string };
+
+// The word revoke takes for every client an account is signed in to.
+const everyClient = "all";
+
 // How each kind of client signs the agents in to this server.
 export function signInGuide({ baseUrl, names }: SignInGuideOptions) {
   return [
     `Sign ${names.length === 1 ? "the agent" : "each agent"} in from its client:`,
     ...names.map((name) => `  ${loginCommand(baseUrl)} --account ${shellQuoted(name)}`),
     `MCP clients connect to ${baseUrl}/mcp and sign in on the page it opens.`,
-    "On a computer without a browser, make a token with: artil-server account token <name>",
+    "On a computer without a browser, make a token with: artil-server account token <account> <name>",
   ].join("\n");
 }
 
@@ -101,24 +110,56 @@ export function createAgentCommands({
     out(`Removed ${agent.name}, with its messages and sign-ins.`);
   }
 
+  // A token's name, which revoke takes it by; all is a word of its own there.
+  function readTokenName(given: string) {
+    const tokenName = given.trim();
+
+    if (!tokenName || tokenName.toLowerCase() === everyClient) {
+      throw new AppError({
+        code: "invalid_input",
+        message: `Name the token after where it signs in, like macbook, and not ${everyClient}`,
+      });
+    }
+
+    return tokenName;
+  }
+
   // A token for a computer without a browser, where the sign-in page cannot send its code back.
-  async function issueToken(name: string) {
+  async function issueToken({ name, tokenName }: IssueTokenOptions) {
     const agent = agents.getByIdOrName(name);
-    const token = tokens.issue({ agentId: agent.id, name: "artil-server account token" });
+    const named = readTokenName(tokenName);
+    const token = tokens.issue({ agentId: agent.id, name: named });
 
     out(
       [
-        `A token for ${agent.name}. Keep it secret; it signs in as the agent until you revoke it.`,
+        `A token for ${agent.name}, named ${named}. Keep it secret; it signs in as the agent until you revoke it.`,
         `  ${loginCommand(await baseUrl())} --token ${token}`,
       ].join("\n"),
     );
   }
 
-  function revokeTokens(name: string) {
+  function revoke({ name, client }: RevokeOptions) {
     const agent = agents.getByIdOrName(name);
-    const revoked = tokens.revokeByAgent(agent.id);
 
-    out(`Signed ${agent.name} out of ${revoked} ${revoked === 1 ? "client" : "clients"}.`);
+    if (client.trim().toLowerCase() === everyClient) {
+      const revoked = tokens.revokeByAgent(agent.id);
+
+      return out(`Signed ${agent.name} out of ${revoked} ${revoked === 1 ? "client" : "clients"}.`);
+    }
+
+    if (tokens.revokeByName({ agentId: agent.id, name: client }) === 0) {
+      const clients = tokens.listByAgent(agent.id).map((token) => token.name);
+
+      throw new AppError({
+        code: "not_found",
+        message:
+          clients.length === 0
+            ? `${agent.name} is signed in to no client`
+            : `${agent.name} has no client ${client}; it has ${clients.join(", ")}`,
+      });
+    }
+
+    out(`Signed ${agent.name} out of ${client.trim()}.`);
   }
 
   return new Map<string, Command>([
@@ -132,7 +173,19 @@ export function createAgentCommands({
       }),
     ],
     ["account remove", defineCommand({ takes: ["name"], run: ({ name }) => removeAgent(name) })],
-    ["account token", defineCommand({ takes: ["name"], run: ({ name }) => issueToken(name) })],
-    ["account revoke", defineCommand({ takes: ["name"], run: ({ name }) => revokeTokens(name) })],
+    [
+      "account token",
+      defineCommand({
+        takes: ["account", "name"],
+        run: ({ account, name }) => issueToken({ name: account, tokenName: name }),
+      }),
+    ],
+    [
+      "account revoke",
+      defineCommand({
+        takes: ["account", "client"],
+        run: ({ account, client }) => revoke({ name: account, client }),
+      }),
+    ],
   ]);
 }

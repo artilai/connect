@@ -36,8 +36,8 @@ Usage:
   artil-server account list                            List the accounts
   artil-server account rename <account> <name>         Give an account another name
   artil-server account remove <name>                   Remove an account with its messages
-  artil-server account token <name>                    Make a token, for a computer without a browser
-  artil-server account revoke <name>                   Sign the account out of every client
+  artil-server account token <account> <name>         Make a token by a name of its own, for a computer without a browser
+  artil-server account revoke <account> <client>       Sign the account out of a client by its name, or out of all
   artil-server account connect <account> <channel>     Connect an address of a channel to an account, with what the channel asks for, typed or piped in
   artil-server account disconnect <account> <channel>  Disconnect the account's address of the channel
   artil-server account allow <account> <who>           Let a sender, the team or anyone wake the account's agent

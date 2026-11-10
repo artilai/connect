@@ -42,7 +42,9 @@ export function createTokensService({ tokensRepository }: CreateTokensServiceOpt
     },
 
     isValid: (hash: string) => tokensRepository.findByHash(hash) !== undefined,
+    listByAgent: tokensRepository.listByAgent,
     revokeByHash: tokensRepository.revokeByHash,
+    revokeByName: tokensRepository.revokeByName,
     revokeByAgent: tokensRepository.revokeByAgent,
   };
 }

@@ -80,10 +80,36 @@ test("creates agents, lists them and makes a token to sign one in with", async (
   );
 
   expect(await cli(dataDir, "account", "list")).toMatch(/^Codex {2}\w{8} · not listening$/v);
-  expect(await cli(dataDir, "account", "token", "codex")).toMatch(
-    /artil auth login --base-url http:\/\/localhost:4747 --token artil_[\w\-]{43}$/v,
+  expect(await cli(dataDir, "account", "token", "codex", "macbook")).toMatch(
+    /named macbook\..*\n.*artil auth login --base-url http:\/\/localhost:4747 --token artil_[\w\-]{43}$/v,
   );
-  expect(await cli(dataDir, "account", "revoke", "codex")).toBe("Signed Codex out of 1 client.");
+});
+
+test("signs an account out of one client by name, or out of all", async () => {
+  const dataDir = await mkdtemp(join(tmpdir(), "artil-server-"));
+
+  await cli(dataDir, "account", "create", "Codex");
+  await cli(dataDir, "account", "token", "Codex", "macbook");
+  await cli(dataDir, "account", "token", "Codex", "server");
+
+  expect(await cli(dataDir, "account", "revoke", "Codex", "MacBook")).toBe(
+    "Signed Codex out of MacBook.",
+  );
+  await expect(cli(dataDir, "account", "revoke", "Codex", "macbook")).rejects.toThrow(
+    "Codex has no client macbook; it has server",
+  );
+  await expect(cli(dataDir, "account", "token", "Codex", "All")).rejects.toThrow(
+    "Name the token after where it signs in, like macbook, and not all",
+  );
+
+  await cli(dataDir, "account", "token", "Codex", "laptop");
+
+  expect(await cli(dataDir, "account", "revoke", "Codex", "all")).toBe(
+    "Signed Codex out of 2 clients.",
+  );
+  await expect(cli(dataDir, "account", "revoke", "Codex", "server")).rejects.toThrow(
+    "Codex is signed in to no client",
+  );
 });
 
 test("renames an account, keeping its id", async () => {
