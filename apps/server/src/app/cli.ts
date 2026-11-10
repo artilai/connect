@@ -1,7 +1,5 @@
 import { parseArgs } from "node:util";
 
-import { password as askPassword, isCancel } from "@clack/prompts";
-
 import type { ChannelDefinition } from "@artil/channels/contract";
 import { AppError } from "@artil/errors";
 
@@ -9,7 +7,6 @@ import { createAccessCommands } from "../domains/access/commands";
 import { createAddressCommands } from "../domains/addresses/commands";
 import { createAgentCommands } from "../domains/agents/commands";
 import { loadChannels } from "../domains/channels/load";
-import { hashPassword, validatePassword } from "../domains/sign-in/password";
 import { type ArtilCli, loginCommand } from "../platform/artil-cli";
 import {
   type Config,
@@ -22,6 +19,7 @@ import {
 import type { Tailscale } from "../platform/tailscale";
 import { openCommandContext } from "./context";
 import { startServer } from "./server";
+import { changeSettings, settingFlags } from "./settings";
 import type { runSetup } from "./setup";
 
 const usage = `artil-server: a self-hosted Artil Server
@@ -29,6 +27,10 @@ const usage = `artil-server: a self-hosted Artil Server
 Usage:
   artil-server                                                    Start the server, setting it up first if it is new
   artil-server setup                                              Set up the accounts, channels, files and who reaches the server
+  artil-server set --public                                       Open the server to the internet through Tailscale Funnel from its next start
+  artil-server set --local                                        Keep the server on this computer from its next start
+  artil-server set --port <port>                                  Listen on another port from the server's next start
+  artil-server set --password                                     Set the password the sign-in page asks for
   artil-server account create <name>                              Create an agent account
   artil-server account list                                       List the accounts
   artil-server account remove <name>                              Remove an account with its messages
@@ -38,12 +40,9 @@ Usage:
   artil-server account disconnect <account> <channel>             Disconnect the account's address of the channel
   artil-server account allow <account> <who>                      Let a sender, the team or anyone wake the account's agent
   artil-server account disallow <account> <who>                   Stop a sender, the team or anyone from waking it
-  artil-server password                                           Set the password the sign-in page asks for
 
 Options:
   --channel <channel>  The channel allow and disallow mean, by default the one the account is connected to
-  --public             Open the server to the internet through Tailscale Funnel
-  --local              Keep the server on this computer
   -h, --help           Show this help
   -v, --version        Show the version`;
 
@@ -78,7 +77,7 @@ async function serve({ paths, config, environment }: ServeOptions) {
     throw new AppError({
       code: "unavailable",
       message:
-        "Public mode needs Tailscale: install it from https://tailscale.com/download, or start with --local",
+        "Public mode needs Tailscale: install it from https://tailscale.com/download, or keep the server on this computer with artil-server set --local",
     });
   }
 
@@ -86,7 +85,7 @@ async function serve({ paths, config, environment }: ServeOptions) {
     throw new AppError({
       code: "invalid_input",
       message:
-        "Public mode needs a password for the sign-in page: set one with artil-server password",
+        "Public mode needs a password for the sign-in page: set one with artil-server set --password",
     });
   }
 
@@ -115,20 +114,6 @@ async function serve({ paths, config, environment }: ServeOptions) {
   await server.stop();
 }
 
-type SetPasswordOptions = { paths: Paths; config: Config; out: (line: string) => void };
-
-async function setPassword({ paths, config, out }: SetPasswordOptions) {
-  const newPassword = await askPassword({
-    message: "A password the sign-in page asks for",
-    validate: validatePassword,
-  });
-
-  if (isCancel(newPassword)) return;
-
-  await writeConfig(paths, { ...config, password: await hashPassword(newPassword) });
-  out("The sign-in page asks for it from now on.");
-}
-
 export async function runCli(environment: Environment) {
   const { values, positionals } = parseArgs({
     args: environment.argv,
@@ -137,6 +122,8 @@ export async function runCli(environment: Environment) {
       channel: { type: "string" },
       public: { type: "boolean" },
       local: { type: "boolean" },
+      port: { type: "string" },
+      password: { type: "boolean" },
       help: { type: "boolean", short: "h" },
       version: { type: "boolean", short: "v" },
     },
@@ -149,17 +136,11 @@ export async function runCli(environment: Environment) {
   const paths = pathsIn(environment.dataDir);
   const savedConfig = await readConfig(paths);
 
-  // --public and --local change the mode the server starts in, and the config keeps it.
-  async function applyFlags(config: Config) {
-    const changed = {
-      ...config,
-      ...(values.public && { public: true }),
-      ...(values.local && { public: false }),
-    };
+  // Refuses a flag the command does not read, like --public beside account list.
+  function checkFlags(accepted: readonly string[]) {
+    const unknownFlag = Object.keys(values).find((flag) => !accepted.includes(flag));
 
-    if (changed.public !== config.public) await writeConfig(paths, changed);
-
-    return changed;
+    if (unknownFlag) throw usageError(`This command takes no --${unknownFlag}`);
   }
 
   const [command = "", subcommand = "", ...args] = positionals;
@@ -188,6 +169,8 @@ export async function runCli(environment: Environment) {
   }
 
   if (command === "" || command === "start") {
+    checkFlags([]);
+
     const config =
       interactive && (!savedConfig || !(await hasAgents(savedConfig)))
         ? await runSetup({
@@ -203,10 +186,12 @@ export async function runCli(environment: Environment) {
 
     if (!savedConfig && !interactive) await writeConfig(paths, config);
 
-    return serve({ paths, config: await applyFlags(config), environment });
+    return serve({ paths, config, environment });
   }
 
   if (command === "setup") {
+    checkFlags([]);
+
     await runSetup({
       paths,
       config: savedConfig,
@@ -224,7 +209,22 @@ export async function runCli(environment: Environment) {
 
   if (!savedConfig) await writeConfig(paths, config);
 
-  if (command === "password") return setPassword({ paths, config, out });
+  if (command === "set") {
+    checkFlags(settingFlags);
+
+    if (Object.keys(values).length === 0) {
+      throw usageError("artil-server set takes --public, --local, --port <port> or --password");
+    }
+
+    const change = {
+      public: values.public === true,
+      local: values.local === true,
+      port: values.port,
+      password: values.password === true,
+    };
+
+    return changeSettings({ paths, config, change, out });
+  }
 
   const context = await openCommandContext({
     paths,
@@ -252,15 +252,11 @@ export async function runCli(environment: Environment) {
       throw usageError(`This command takes ${expected}`);
     }
 
-    // The flags a command reads beside its arguments, like --channel.
-    const flags = values.channel === undefined ? {} : { channel: values.channel };
-    const unknownFlag = Object.keys(flags).find((flag) => !run.flags.includes(flag));
-
-    if (unknownFlag) throw usageError(`This command takes no --${unknownFlag}`);
+    checkFlags(run.flags);
 
     await run.run({
       ...Object.fromEntries(run.takes.map((name, index) => [name, args[index] ?? ""])),
-      ...flags,
+      ...(values.channel !== undefined && { channel: values.channel }),
     });
   } finally {
     context.close();

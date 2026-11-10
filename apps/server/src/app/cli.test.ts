@@ -94,6 +94,44 @@ test("keeps its config and data where only its owner reads them", async () => {
   });
 });
 
+test("changes the server's mode and port with set", async () => {
+  const dataDir = await mkdtemp(join(tmpdir(), "artil-server-"));
+
+  expect(await cli(dataDir, "set", "--port", "4848")).toBe(
+    "The server listens on port 4848 from its next start.",
+  );
+  await expect(cli(dataDir, "set", "--public")).rejects.toThrow(
+    "Public mode needs a password for the sign-in page; give --password too",
+  );
+
+  const paths = pathsIn(dataDir);
+  const config = await readConfig(paths);
+
+  if (!config) throw new Error("set did not write a config");
+
+  expect(config).toMatchObject({ port: 4848, public: false });
+
+  await writeConfig(paths, { ...config, password: "the password's hash" });
+
+  expect(await cli(dataDir, "set", "--public")).toBe(
+    "The server opens to the internet through Tailscale Funnel from its next start.",
+  );
+  expect(await cli(dataDir, "set", "--public")).toBe("Nothing changed.");
+  expect(await cli(dataDir, "set", "--local")).toBe(
+    "The server stays on this computer from its next start.",
+  );
+  await expect(cli(dataDir, "set", "--public", "--local")).rejects.toThrow(
+    "The server is either --public or --local",
+  );
+  await expect(cli(dataDir, "set", "--port", "seven")).rejects.toThrow("seven is not a port");
+  await expect(cli(dataDir, "set", "--channel", "test")).rejects.toThrow(
+    "This command takes no --channel",
+  );
+  await expect(cli(dataDir, "set")).rejects.toThrow(
+    "artil-server set takes --public, --local, --port <port> or --password",
+  );
+});
+
 test("sets the server up on a start in a terminal until it has an agent", async () => {
   const dataDir = await mkdtemp(join(tmpdir(), "artil-server-"));
 
@@ -207,6 +245,7 @@ test("says how to use a command it does not know", async () => {
   await expect(cli(dataDir, "account", "list", "--channel", "test")).rejects.toThrow(
     "This command takes no --channel",
   );
+  await expect(cli(dataDir, "--public")).rejects.toThrow("This command takes no --public");
   expect(await cli(dataDir, "--help")).toContain("artil-server account create <name>");
 });
 

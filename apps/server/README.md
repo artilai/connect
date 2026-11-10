@@ -7,9 +7,9 @@ Tailscale Funnel for public mode.
 ## Usage
 
 `bunx @artil-ai/server` starts the server, setting it up first if it is new, and
-`artil-server --help` lists its commands. Its data and `config.json`, with the
-port among its settings, live in `~/.artil-server`, or where `ARTIL_DATA`
-points.
+`artil-server --help` lists its commands. Its data and `config.json` live in
+`~/.artil-server`, or where `ARTIL_DATA` points, and `artil-server set` changes
+the port, the mode and the sign-in page's password.
 
 Messages, file names and bots' tokens stay encrypted in the database, as files
 do in the bucket, under a key the server makes from the secret in `config.json`.
