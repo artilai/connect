@@ -34,24 +34,22 @@ function createdAt() {
     .$defaultFn(() => new Date());
 }
 
-// The tables keep the names the first migration gave them, agents and agent_id: Drizzle Kit renames
-// them by copying every table that refers to them, which can lose a server's data.
 export const accounts = sqliteTable(
-  "agents",
+  "accounts",
   {
     id: text("id").primaryKey(),
     name: text("name").notNull(),
     createdAt: createdAt(),
   },
   // The CLI picks an account by its name, in any case.
-  (table) => [uniqueIndex("agents_name_idx").on(sql`lower(${table.name})`)],
+  (table) => [uniqueIndex("accounts_name_idx").on(sql`lower(${table.name})`)],
 );
 
 export const tokens = sqliteTable(
   "tokens",
   {
     id: id(),
-    accountId: text("agent_id")
+    accountId: text("account_id")
       .notNull()
       .references(() => accounts.id, { onDelete: "cascade" }),
     hash: text("hash").notNull().unique(),
@@ -59,7 +57,7 @@ export const tokens = sqliteTable(
     name: text("name").notNull(),
     createdAt: createdAt(),
   },
-  (table) => [index("tokens_agent_id_idx").on(table.accountId)],
+  (table) => [index("tokens_account_id_idx").on(table.accountId)],
 );
 
 // A sign-in a client asked for: pending until someone picks an account on the sign-in page, then
@@ -73,7 +71,7 @@ export const signIns = sqliteTable("sign_ins", {
   redirectUri: text("redirect_uri").notNull(),
   challenge: text("challenge").notNull(),
   state: text("state"),
-  accountId: text("agent_id").references(() => accounts.id, { onDelete: "cascade" }),
+  accountId: text("account_id").references(() => accounts.id, { onDelete: "cascade" }),
   codeHash: text("code_hash").unique(),
   expiresAt: timestamp("expires_at").notNull(),
 });
@@ -84,7 +82,7 @@ export const addresses = sqliteTable(
   "addresses",
   {
     id: id(),
-    accountId: text("agent_id")
+    accountId: text("account_id")
       .notNull()
       .references(() => accounts.id, { onDelete: "cascade" }),
     channel: text("channel").notNull(),
@@ -96,14 +94,14 @@ export const addresses = sqliteTable(
     uniqueIndex("addresses_channel_value_idx")
       .on(table.channel, table.value)
       .where(sql`${table.credentials} is not null`),
-    index("addresses_agent_id_idx").on(table.accountId),
+    index("addresses_account_id_idx").on(table.accountId),
   ],
 );
 
 export const access = sqliteTable(
   "access",
   {
-    accountId: text("agent_id")
+    accountId: text("account_id")
       .notNull()
       .references(() => accounts.id, { onDelete: "cascade" }),
     channel: text("channel").notNull(),
@@ -117,7 +115,7 @@ export const messages = sqliteTable(
   "messages",
   {
     id: id(),
-    accountId: text("agent_id")
+    accountId: text("account_id")
       .notNull()
       .references(() => accounts.id, { onDelete: "cascade" }),
     addressId: text("address_id")
@@ -141,7 +139,7 @@ export const messages = sqliteTable(
     createdAt: createdAt(),
   },
   (table) => [
-    index("messages_agent_id_created_at_idx").on(table.accountId, table.createdAt),
+    index("messages_account_id_created_at_idx").on(table.accountId, table.createdAt),
     uniqueIndex("messages_address_id_external_id_idx")
       .on(table.addressId, table.direction, table.externalId)
       .where(sql`${table.externalId} is not null`),
@@ -152,7 +150,7 @@ export const files = sqliteTable(
   "files",
   {
     id: id(),
-    accountId: text("agent_id")
+    accountId: text("account_id")
       .notNull()
       .references(() => accounts.id, { onDelete: "cascade" }),
     // A message's id, or the id of a relayed message, which keeps no other row.
@@ -173,7 +171,7 @@ export const events = sqliteTable(
   "events",
   {
     id: integer("id").primaryKey({ autoIncrement: true }),
-    accountId: text("agent_id")
+    accountId: text("account_id")
       .notNull()
       .references(() => accounts.id, { onDelete: "cascade" }),
     type: text("type", { enum: ["message.received"] }).notNull(),
@@ -187,12 +185,12 @@ export const events = sqliteTable(
     client: text("client"),
     createdAt: createdAt(),
   },
-  (table) => [index("events_agent_id_id_idx").on(table.accountId, table.id)],
+  (table) => [index("events_account_id_id_idx").on(table.accountId, table.id)],
 );
 
 // The one client that hears an account's new messages.
 export const connections = sqliteTable("connections", {
-  accountId: text("agent_id")
+  accountId: text("account_id")
     .primaryKey()
     .references(() => accounts.id, { onDelete: "cascade" }),
   id: text("id").notNull(),

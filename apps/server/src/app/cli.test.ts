@@ -1,3 +1,4 @@
+import { Database } from "bun:sqlite";
 import { expect, test } from "bun:test";
 import { mkdtemp, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -147,6 +148,18 @@ test("renames an account, keeping its id", async () => {
   expect(await cli(dataDir, "account", "rename", "coder", "CODER")).toBe("Renamed Coder to CODER.");
   await expect(cli(dataDir, "account", "rename", "coder", "claude")).rejects.toThrow(
     "There is already an account claude",
+  );
+});
+
+test("says a data folder of a server before 0.3.0 starts anew", async () => {
+  const dataDir = await mkdtemp(join(tmpdir(), "artil-server-"));
+  const older = new Database(pathsIn(dataDir).database, { create: true });
+
+  older.run("create table agents (id text primary key)");
+  older.close();
+
+  await expect(cli(dataDir, "account", "list")).rejects.toThrow(
+    "holds the data of an Artil Server before 0.3.0, which this one cannot read; move its folder aside to start anew",
   );
 });
 
