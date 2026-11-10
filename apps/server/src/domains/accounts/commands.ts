@@ -49,8 +49,11 @@ export function signInGuide({ baseUrl, names }: SignInGuideOptions) {
   return [
     `Sign in as ${names.length === 1 ? "the account" : "each account"} from its client:`,
     ...names.map((name) => `  ${loginCommand(baseUrl)} --account ${shellQuoted(name)}`),
-    `MCP clients connect to ${baseUrl}/mcp and sign in on the page it opens.`,
-    "On a computer without a browser, make a token with: artil-server account token <account> <name>",
+    "",
+    `MCP clients connect to ${baseUrl}/mcp and sign in there.`,
+    "",
+    "On a computer without a browser, make a token with:",
+    "  artil-server account token <account> <name>",
   ].join("\n");
 }
 
@@ -68,8 +71,9 @@ export function createAccountCommands({
   async function createAccount(name: string) {
     const account = accounts.create(name);
 
-    out(`Created ${account.name} (${account.id}).`);
-    out(signInGuide({ baseUrl: await baseUrl(), names: [account.name] }));
+    const guide = signInGuide({ baseUrl: await baseUrl(), names: [account.name] });
+
+    out(`Created ${account.name} (${account.id}).\n${guide}`);
   }
 
   function listAccounts() {
@@ -173,12 +177,15 @@ export function createAccountCommands({
             ({ channel, value }) => [channels.get(channel).name, value] as const,
           ),
         ]),
+        "",
         "Clients:",
         ...(clientRows.length > 0
           ? toRows(clientRows)
           : [
-              `  none yet; sign one in with: ${loginCommand(serverUrl)} --account ${shellQuoted(account.name)}`,
+              "  none yet; sign one in with:",
+              `    ${loginCommand(serverUrl)} --account ${shellQuoted(account.name)}`,
             ]),
+        "",
         "Who wakes it:",
         ...toRows(wakerRows),
       ].join("\n"),
@@ -225,7 +232,9 @@ export function createAccountCommands({
 
     out(
       [
-        `A token for ${account.name}, named ${named}. Keep it secret; it signs in as the account until you revoke it.`,
+        `A token for ${account.name}, named ${named}.`,
+        "Keep it secret; it signs in as the account until you revoke it.",
+        "",
         `  ${loginCommand(await baseUrl())} --token ${token}`,
       ].join("\n"),
     );

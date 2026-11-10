@@ -78,12 +78,12 @@ test("creates accounts, lists them and makes a token to sign one in with", async
   const dataDir = await mkdtemp(join(tmpdir(), "artil-server-"));
 
   expect(await cli(dataDir, "account", "create", "Codex")).toContain(
-    "artil auth login --base-url http://localhost:4747 --account 'Codex'",
+    "artil auth login --base-url http://localhost:4747 --account Codex",
   );
 
   expect(await cli(dataDir, "account", "list")).toMatch(/^Codex {2}\w{8} · not listening$/v);
   expect(await cli(dataDir, "account", "token", "codex", "macbook")).toMatch(
-    /named macbook\..*\n.*artil auth login --base-url http:\/\/localhost:4747 --token artil_[\w\-]{43}$/v,
+    /named macbook\.\n.*\n\n {2}artil auth login --base-url http:\/\/localhost:4747 --token artil_[\w\-]{43}$/v,
   );
 });
 
@@ -240,7 +240,7 @@ test("says a running server keeps its port until it restarts", async () => {
     );
 
     expect(await cli(dataDir, "status")).toContain(
-      `  Running       yes, on port ${runningPort} until it restarts on ${newPort}`,
+      `  Running  yes, on port ${runningPort} until it restarts on ${newPort}`,
     );
   } finally {
     await running.stop();
@@ -279,26 +279,22 @@ test("says where the server is, whether it runs, and what keeps it from starting
   expect(await cli(dataDir, "status")).toBe(
     [
       "Artil Server",
-      `  Address       http://localhost:${port}, on this computer`,
-      "  Running       no; start it with: artil-server",
-      "  Files         off; turn them on with an S3 bucket in artil-server setup",
-      "  Sign-in page  asks for no password",
-      "  Channels      Test, Message URL",
-      "  Accounts      none yet; create one with: artil-server account create <name>",
+      `  Address  http://localhost:${port}, on this computer`,
+      "  Running  no; start it with: artil-server",
     ].join("\n"),
   );
 
   // A note a server left half written counts as none.
   await writeFile(pathsIn(dataDir).running, '{"pid":');
 
-  expect(await cli(dataDir, "status")).toContain("  Running       no; start it with: artil-server");
+  expect(await cli(dataDir, "status")).toContain("  Running  no; start it with: artil-server");
 
   await cli(dataDir, "account", "create", "Codex");
   await pipeInto({ dataDir, stdin: "correct horse" }, "set", "--password");
   await cli(dataDir, "set", "--public");
 
   expect(await cli(dataDir, "status")).toContain(
-    "  Accounts      Codex not listening\nProblems:\n  Public mode needs Tailscale",
+    "  Running  no; start it with: artil-server\n\nProblems:\n  Public mode needs Tailscale",
   );
 });
 
@@ -387,7 +383,7 @@ test("lets anyone, the team beside the list, or only the list wake an agent on a
   await cli(dataDir, "account", "create", "Codex");
 
   expect(await cli(dataDir, "account", "disallow", "Codex", "team", ...onTest)).toBe(
-    "Only Codex's list now wakes it on Test.\nNo one is on it yet; add someone with: artil-server account allow 'Codex' <sender> --channel test",
+    "Only Codex's list now wakes it on Test.\nNo one is on it yet; add someone with:\n  artil-server account allow Codex <sender> --channel test",
   );
   expect(await cli(dataDir, "account", "list")).toContain("woken on Test by no one");
 
@@ -526,7 +522,7 @@ test("shows an account's addresses, clients and who wakes it", async () => {
   await pipeInto({ dataDir, stdin: "hi" }, "account", "connect", "Codex", "echo");
 
   expect(await cli(dataDir, "account", "show", "Codex")).toContain(
-    "Clients:\n  none yet; sign one in with: artil auth login --base-url http://localhost:4747 --account 'Codex'",
+    "Clients:\n  none yet; sign one in with:\n    artil auth login --base-url http://localhost:4747 --account Codex",
   );
 
   await cli(dataDir, "account", "token", "Codex", "macbook");
@@ -534,6 +530,6 @@ test("shows an account's addresses, clients and who wakes it", async () => {
   await cli(dataDir, "account", "allow", "Codex", "@AdaLovelace", "--channel", "test");
 
   expect(await cli(dataDir, "account", "show", "codex")).toMatch(
-    /^Codex {2}(\w{8}) · not listening\nAddresses:\n {2}Message URL {2}http:\/\/localhost:4747\/a\/\1\n {2}Echo {9}echo:hi\nClients:\n {2}macbook {2}signed in \w{3} \d{1,2}, \d{4}\nWho wakes it:\n {2}Message URL {2}the server's accounts\n {2}Test {9}the server's accounts and @adalovelace\n {2}Echo {9}the server's accounts and ada$/v,
+    /^Codex {2}(\w{8}) · not listening\nAddresses:\n {2}Message URL {2}http:\/\/localhost:4747\/a\/\1\n {2}Echo {9}echo:hi\n\nClients:\n {2}macbook {2}signed in \w{3} \d{1,2}, \d{4}\n\nWho wakes it:\n {2}Message URL {2}the server's accounts\n {2}Test {9}the server's accounts and @adalovelace\n {2}Echo {9}the server's accounts and ada$/v,
   );
 });

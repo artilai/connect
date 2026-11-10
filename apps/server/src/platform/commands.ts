@@ -1,4 +1,6 @@
-import { confirm, isCancel, note, password } from "@clack/prompts";
+import { styleText } from "node:util";
+
+import { confirm, isCancel, log, note, password } from "@clack/prompts";
 
 import { AppError } from "@artil/errors";
 
@@ -31,6 +33,45 @@ export function toRows(pairs: readonly (readonly [string, string])[]) {
   const width = Math.max(...pairs.map(([label]) => label.length)) + 2;
 
   return pairs.map(([label, value]) => `  ${label.padEnd(width)}${value}`);
+}
+
+// A command to run, on a line of its own under what it is for, like "  artil auth login".
+const commandLine = /^( +)(artil(?:-server)? .+)$/gmv;
+
+// What a box adds to the width of its lines: a bar and padding on either side.
+const boxEdges = 6;
+
+// Shows the commands a text gives in color.
+export function highlightCommands(text: string) {
+  return text.replaceAll(
+    commandLine,
+    (_, indent: string, command: string) => `${indent}${styleText("cyan", command)}`,
+  );
+}
+
+type CreateOutOptions = {
+  // Whether a person reads what the commands say in a terminal, rather than a pipe or a script.
+  terminal: boolean;
+  columns: () => number;
+  write: (text: string) => void;
+};
+
+// Says what a command has to say, whose first line heads the rest. A terminal frames the rest in a
+// box, or beside a bar when a line is too wide for the box, which would break that line in two.
+export function createOut({ terminal, columns, write }: CreateOutOptions) {
+  if (!terminal) return write;
+
+  return (text: string) => {
+    const lines = text.split("\n");
+    const [title = "", ...body] = lines;
+    const widest = Math.max(...lines.map((line) => line.length));
+
+    if (body.length > 0 && widest + boxEdges <= columns()) {
+      note(highlightCommands(body.join("\n")), title, { withGuide: false });
+    } else {
+      log.step(highlightCommands(text), { spacing: 0 });
+    }
+  };
 }
 
 type ReadSecretOptions = {

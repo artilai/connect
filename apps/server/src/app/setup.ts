@@ -21,6 +21,7 @@ import { createAccessCommands } from "../domains/access/commands";
 import { signInGuide } from "../domains/accounts/commands";
 import { hashPassword, validatePassword } from "../domains/sign-in/password";
 import type { ArtilCli } from "../platform/artil-cli";
+import { highlightCommands } from "../platform/commands";
 import {
   type Config,
   newConfig,
@@ -396,7 +397,7 @@ export async function runSetup({
         ? await tailscale.publicUrl()
         : `http://localhost:${updatedConfig.port}`;
 
-    if (names.length > 0) note(signInGuide({ baseUrl, names }), "Sign in");
+    if (names.length > 0) note(highlightCommands(signInGuide({ baseUrl, names })), "Sign in");
 
     outro(`Saved to ${paths.config}`);
 

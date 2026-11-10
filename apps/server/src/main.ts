@@ -3,6 +3,8 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { log } from "@clack/prompts";
+
 import { AppError } from "@artil/errors";
 import { channel as telegramChannel } from "@artil/telegram-channel";
 
@@ -10,6 +12,7 @@ import { version } from "../package.json";
 import { runCli } from "./app/cli";
 import { runSetup, SetupStopped } from "./app/setup";
 import { findArtilCli } from "./platform/artil-cli";
+import { createOut } from "./platform/commands";
 import { createTailscale, findTailscale, runWith } from "./platform/tailscale";
 
 // The migrations sit beside the source in the repo and beside dist in the published package.
@@ -44,11 +47,19 @@ try {
     runSetup,
     waitForStop,
     readStdin: () => Bun.stdin.text(),
-    out: (line) => console.log(line),
+    out: createOut({
+      terminal: process.stdout.isTTY,
+      columns: () => process.stdout.columns,
+      write: (text) => console.log(text),
+    }),
   });
 } catch (cause) {
-  if (!(cause instanceof SetupStopped)) {
-    console.error(cause instanceof AppError || cause instanceof TypeError ? cause.message : cause);
+  if (cause instanceof AppError || cause instanceof TypeError) {
+    // A terminal marks what went wrong the way it frames what the commands say.
+    if (process.stderr.isTTY) log.error(cause.message, { spacing: 0, output: process.stderr });
+    else console.error(cause.message);
+  } else if (!(cause instanceof SetupStopped)) {
+    console.error(cause);
   }
 
   process.exitCode = 1;

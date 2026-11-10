@@ -9,3 +9,9 @@ test("quotes a value so the shell reads it back unchanged", async () => {
 
   expect(echoed).toBe(value);
 });
+
+test("leaves a word the shell reads as it is bare", () => {
+  expect(shellQuoted("claude")).toBe("claude");
+  expect(shellQuoted("@ada")).toBe("@ada");
+  expect(shellQuoted("école")).toBe("'école'");
+});

@@ -129,12 +129,17 @@ async function serve({ paths, config, environment }: ServeOptions) {
   });
 
   out(
-    `Artil Server is at ${server.baseUrl}${config.public ? " (public, through Tailscale Funnel)" : ""}.`,
+    [
+      `Artil Server is at ${server.baseUrl}${config.public ? " (public, through Tailscale Funnel)" : ""}.`,
+      "Sign in as an account with:",
+      `  ${loginCommand(server.baseUrl)}`,
+      "",
+      `MCP clients connect to ${server.baseUrl}/mcp`,
+      ...(environment.interactive
+        ? ["", "Keep this terminal open: the server stops with it."]
+        : []),
+    ].join("\n"),
   );
-  out(`Sign in as an account with: ${loginCommand(server.baseUrl)}`);
-  out(`MCP clients connect to ${server.baseUrl}/mcp`);
-
-  if (environment.interactive) out("Keep this terminal open: the server stops with it.");
 
   await markRunning({ paths, port: server.port });
 
