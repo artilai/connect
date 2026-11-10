@@ -4,7 +4,7 @@ import { day } from "@artil/utils/time";
 
 import type { Upload } from "../../platform/storage";
 import type { AccessService } from "../access/service";
-import type { AgentsService } from "../agents/service";
+import type { AccountsService } from "../accounts/service";
 import type { ConnectionsService } from "../connections/service";
 import type { EventsService } from "../events/service";
 import type { AttachmentInput } from "../files/schema";
@@ -23,7 +23,7 @@ function invalid(message: string) {
 }
 
 type UrlChannelOptions = {
-  agents: AgentsService;
+  accounts: AccountsService;
   access: AccessService;
   connections: ConnectionsService;
   events: EventsService;
@@ -32,7 +32,7 @@ type UrlChannelOptions = {
 
 type RelayOptions = {
   sender: { id: string; name: string };
-  // The one agent the message goes to, which the channel checks.
+  // The one account the message goes to, which the channel checks.
   to: string[];
   text: string;
   thread: string | null;
@@ -43,8 +43,8 @@ type RelayOptions = {
   uploads: readonly Upload[];
 };
 
-// The Message URL: an agent of the server writes to another, and the message goes whole to whoever
-// listens to that agent, as long as its list lets the sender wake it. It is the server's own
+// The Message URL: an account of the server writes to another, and the message goes whole to
+// whoever listens to that account, as long as its list lets the sender wake it. It is the server's own
 // channel: it extends Channel so that the commands, MCP and the setup describe it like the others,
 // and it has no provider, so it sends through the server's services and is the url domain's service.
 export class UrlChannel extends Channel<"url", UrlData> {
@@ -54,7 +54,7 @@ export class UrlChannel extends Channel<"url", UrlData> {
 
   readonly recipients = "the id of one agent from team.list";
 
-  override readonly senders = "an agent of this server, by its name or id";
+  override readonly senders = "an account of this server, by its name or id";
 
   readonly #services: UrlChannelOptions;
 
@@ -63,19 +63,19 @@ export class UrlChannel extends Channel<"url", UrlData> {
     this.#services = services;
   }
 
-  // The list keeps an agent by its id, as the sender of a message comes, which a rename leaves be.
+  // The list keeps an account by its id, as the sender of a message comes, which a rename leaves be.
   override readSender(input: string) {
-    return this.#services.agents.findByIdOrName(input)?.id ?? null;
+    return this.#services.accounts.findByIdOrName(input)?.id ?? null;
   }
 
   override showSender(sender: string) {
-    return this.#services.agents.findById(sender)?.name ?? sender;
+    return this.#services.accounts.findById(sender)?.name ?? sender;
   }
 
   // Sends what an agent writes to another's Message URL, and returns the event the other got.
   async relay({ sender, to, text, thread, toThread, client, attachments, uploads }: RelayOptions) {
     const attachedFiles = await this.#services.files.readAttachments({
-      agentId: sender.id,
+      accountId: sender.id,
       attachments,
     });
 
@@ -92,7 +92,7 @@ export class UrlChannel extends Channel<"url", UrlData> {
     return event;
   }
 
-  // Beside the message's id every channel gives, the event the agent got, which the server hands
+  // Beside the message's id every channel gives, the event the account got, which the server hands
   // back to the sender.
   async send({
     from,
@@ -101,7 +101,7 @@ export class UrlChannel extends Channel<"url", UrlData> {
     files: uploads,
     channelData = noThreads,
   }: OutboundMessage<UrlData>) {
-    const { agents, access, connections, events, files } = this.#services;
+    const { accounts, access, connections, events, files } = this.#services;
     const [recipientId, ...others] = to;
 
     if (recipientId === undefined || others.length > 0) {
@@ -116,21 +116,21 @@ export class UrlChannel extends Channel<"url", UrlData> {
       throw invalid(`A message on url carries at most ${maxUrlFiles} files`);
     }
 
-    // Without a thread, an agent writing to itself would only answer itself.
+    // Without a thread, an account writing to itself would only answer itself.
     if (from.address === recipientId && channelData.thread === null) {
       throw invalid("An agent cannot send to its own Message URL, except from a thread to another");
     }
 
-    const recipient = agents.findById(recipientId);
+    const recipient = accounts.findById(recipientId);
 
     if (!recipient) {
       throw new AppError({ code: "not_found", message: "Agent account not found" });
     }
 
-    // The sender is the agent whose token signed the request, so it is on the team and verified;
-    // an agent's own threads write to each other whatever its list says.
+    // The sender is the account whose token signed the request, so it is on the team and
+    // verified; an account's own threads write to each other whatever its list says.
     const { refusal } = access.decide({
-      agentId: recipient.id,
+      accountId: recipient.id,
       channel: this.kind,
       from: from.address,
       handle: null,
@@ -161,14 +161,14 @@ export class UrlChannel extends Channel<"url", UrlData> {
 
     // The files go in before the event, so the agent never hears of a message without them.
     await files.save({
-      agentId: recipient.id,
+      accountId: recipient.id,
       messageId,
       uploads,
       expiresAt: new Date(Date.now() + filesLifetime),
     });
 
     const event = events.relay({
-      agentId: recipient.id,
+      accountId: recipient.id,
       event: {
         type: "message.received",
         channel: this.kind,

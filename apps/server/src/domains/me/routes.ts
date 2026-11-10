@@ -16,7 +16,7 @@ const signedIn = {
 };
 
 // The shape and words are Artil Cloud's, which clients compare oneOf variants by; the member half
-// stays for them, though this server signs agents in only.
+// stays for them, though this server signs accounts in only.
 const meSchema = z
   .discriminatedUnion("kind", [
     z.object({
@@ -72,15 +72,15 @@ export function createMeRoutes({ tokens, workspace }: CreateMeRoutesOptions) {
       return c.body(null, 204);
     })
     .get("/", docs.read, (c) => {
-      const { agentId, agentName } = c.var.actor;
+      const { accountId, accountName } = c.var.actor;
 
       return c.json({
         kind: "identity",
-        identityId: agentId,
+        identityId: accountId,
         signedInBy: workspace.ownerId,
         orgId: workspace.id,
         workspace: { name: workspace.name },
-        agent: { id: agentId, name: agentName },
+        agent: { id: accountId, name: accountName },
       } satisfies Me);
     });
 }

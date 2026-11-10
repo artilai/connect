@@ -234,10 +234,10 @@ export async function createTestServer({
     return app.request(path, { ...init, headers: merged });
   }
 
-  // An agent signed in with a token of its own.
-  function agent(name: string) {
-    const created = services.agents.create(name);
-    const token = services.tokens.issue({ agentId: created.id, name: `${name}'s client` });
+  // An account signed in with a token of its own.
+  function account(name: string) {
+    const created = services.accounts.create(name);
+    const token = services.tokens.issue({ accountId: created.id, name: `${name}'s client` });
 
     return {
       ...created,
@@ -253,12 +253,12 @@ export async function createTestServer({
     };
   }
 
-  type ConnectAddressOptions = { agent: TestAgentRecord; word: string };
+  type ConnectAddressOptions = { account: TestAccountRecord; word: string };
 
-  // Connects the test channel's address @word to the agent.
-  async function connectAddress({ agent: owner, word }: ConnectAddressOptions) {
+  // Connects the test channel's address @word to the account.
+  async function connectAddress({ account: owner, word }: ConnectAddressOptions) {
     const { address } = await services.addresses.connect({
-      agentId: owner.id,
+      accountId: owner.id,
       kind: "test",
       credentials: word,
     });
@@ -286,7 +286,7 @@ export async function createTestServer({
     logs,
     app,
     call,
-    agent,
+    account,
     testChannel,
     connectAddress,
     deliverQueued,
@@ -295,11 +295,11 @@ export async function createTestServer({
   };
 }
 
-type TestAgentRecord = { id: string };
+type TestAccountRecord = { id: string };
 
 export type TestServer = Awaited<ReturnType<typeof createTestServer>>;
 
-export type TestAgent = ReturnType<TestServer["agent"]>;
+export type TestAccount = ReturnType<TestServer["account"]>;
 
 // A PKCE pair, as a client makes one for each sign-in.
 export function pkce() {
@@ -310,9 +310,9 @@ export function pkce() {
 
 type StreamedEvent = Omit<Event, "createdAt"> & { createdAt: string };
 
-// Connects a client to the agent, as one does before it listens.
-export async function connectClient(agent: TestAgent, client = "test client") {
-  const response = await agent.call(`/api/agents/${agent.id}/connection`, {
+// Connects a client to the account, as one does before it listens.
+export async function connectClient(account: TestAccount, client = "test client") {
+  const response = await account.call(`/api/agents/${account.id}/connection`, {
     method: "PUT",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ client, machine: "test machine" }),
@@ -321,11 +321,11 @@ export async function connectClient(agent: TestAgent, client = "test client") {
   return z.object({ id: z.uuid() }).parse(await response.json()).id;
 }
 
-// Opens the agent's event stream at this query, and reads its events as they come.
-export async function openStream(agent: TestAgent, query = "") {
+// Opens the account's event stream at this query, and reads its events as they come.
+export async function openStream(account: TestAccount, query = "") {
   const controller = new AbortController();
 
-  const response = await agent.call(`/api/agents/${agent.id}/events/stream${query}`, {
+  const response = await account.call(`/api/agents/${account.id}/events/stream${query}`, {
     signal: controller.signal,
   });
 
@@ -366,9 +366,9 @@ export async function openStream(agent: TestAgent, query = "") {
   };
 }
 
-// Opens the agent's event stream as a client that connected, and reads its events as they come.
-export async function listen(agent: TestAgent, client = "test client") {
-  const connectionId = await connectClient(agent, client);
+// Opens the account's event stream as a client that connected, and reads its events as they come.
+export async function listen(account: TestAccount, client = "test client") {
+  const connectionId = await connectClient(account, client);
 
-  return { ...(await openStream(agent, `?connection=${connectionId}`)), connectionId };
+  return { ...(await openStream(account, `?connection=${connectionId}`)), connectionId };
 }

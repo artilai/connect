@@ -4,9 +4,9 @@ import { z } from "zod";
 
 import { createTestServer } from "./testing";
 
-test("tells an agent who it signs in as, the way the CLI reads Artil Cloud", async () => {
+test("tells an account who it signs in as, the way the CLI reads Artil Cloud", async () => {
   const server = await createTestServer();
-  const codex = server.agent("Codex");
+  const codex = server.account("Codex");
 
   const me = await (await codex.call("/api/me")).json();
 
@@ -20,12 +20,12 @@ test("tells an agent who it signs in as, the way the CLI reads Artil Cloud", asy
   });
 });
 
-test("lists the team with each agent's addresses and whether it listens", async () => {
+test("lists the team with each account's addresses and whether it listens", async () => {
   const server = await createTestServer();
-  const codex = server.agent("Codex");
+  const codex = server.account("Codex");
 
-  server.agent("Claude");
-  await server.connectAddress({ agent: codex, word: "codex" });
+  server.account("Claude");
+  await server.connectAddress({ account: codex, word: "codex" });
 
   const team = await (await codex.call("/api/team")).json();
 
@@ -41,10 +41,10 @@ test("lists the team with each agent's addresses and whether it listens", async 
   ]);
 });
 
-test("keeps an agent's own routes to its own token", async () => {
+test("keeps an account's own routes to its own token", async () => {
   const server = await createTestServer();
-  const codex = server.agent("Codex");
-  const claude = server.agent("Claude");
+  const codex = server.account("Codex");
+  const claude = server.account("Claude");
 
   expect((await codex.call(`/api/agents/${codex.id}`)).status).toBe(200);
   expect((await codex.call(`/api/agents/${claude.id}/messages`)).status).toBe(404);
@@ -53,7 +53,7 @@ test("keeps an agent's own routes to its own token", async () => {
 
 test("signs a token out", async () => {
   const server = await createTestServer();
-  const codex = server.agent("Codex");
+  const codex = server.account("Codex");
 
   expect((await codex.call("/api/me/token", { method: "DELETE" })).status).toBe(204);
   expect((await codex.call("/api/me")).status).toBe(401);
@@ -61,7 +61,7 @@ test("signs a token out", async () => {
 
 test("reads as having no webhooks, and says the rest is in Artil Cloud", async () => {
   const server = await createTestServer();
-  const codex = server.agent("Codex");
+  const codex = server.account("Codex");
 
   expect(await (await codex.call(`/api/agents/${codex.id}/webhooks`)).json()).toEqual([]);
 

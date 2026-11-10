@@ -7,7 +7,7 @@ export type Admission = (typeof admissions)[number];
 export type Admit = (typeof admits)[number];
 
 // Who besides the list may wake the agent, named by a word of their own: anyone, or the team of the
-// server's agents.
+// server's accounts.
 export const groups = ["anyone", "team"] as const;
 
 export type Group = (typeof groups)[number];

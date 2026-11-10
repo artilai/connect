@@ -50,11 +50,11 @@ function exchange({ server, code, verifier }: ExchangeOptions) {
   });
 }
 
-test("signs the CLI in as the agent picked on the sign-in page", async () => {
+test("signs the CLI in as the account picked on the sign-in page", async () => {
   const server = await createTestServer();
-  const codex = server.services.agents.create("Codex");
+  const codex = server.services.accounts.create("Codex");
 
-  server.services.agents.create("Claude");
+  server.services.accounts.create("Claude");
 
   const { verifier, challenge } = pkce();
   const id = await askToSignIn({ server, challenge });
@@ -70,7 +70,7 @@ test("signs the CLI in as the agent picked on the sign-in page", async () => {
   expect(page).toContain(`value="${codex.id}" checked`);
   expect(page).not.toContain('type="password"');
 
-  const allowed = await decide({ server, id, fields: { decision: "allow", agent: codex.id } });
+  const allowed = await decide({ server, id, fields: { decision: "allow", account: codex.id } });
   const redirect = new URL(allowed.headers.get("location") ?? "");
 
   expect(allowed.status).toBe(303);
@@ -95,9 +95,9 @@ test("signs the CLI in as the agent picked on the sign-in page", async () => {
 
 test("refuses a code traded without the verifier the sign-in was asked with", async () => {
   const server = await createTestServer();
-  const agent = server.services.agents.create("Codex");
+  const account = server.services.accounts.create("Codex");
   const id = await askToSignIn({ server, challenge: pkce().challenge });
-  const allowed = await decide({ server, id, fields: { decision: "allow", agent: agent.id } });
+  const allowed = await decide({ server, id, fields: { decision: "allow", account: account.id } });
   const code = new URL(allowed.headers.get("location") ?? "").searchParams.get("code") ?? "";
 
   const exchangeResponse = await exchange({ server, code, verifier: pkce().verifier });
@@ -108,7 +108,7 @@ test("refuses a code traded without the verifier the sign-in was asked with", as
 test("sends a refusal back when the person denies the sign-in", async () => {
   const server = await createTestServer();
 
-  server.services.agents.create("Codex");
+  server.services.accounts.create("Codex");
 
   const id = await askToSignIn({ server, challenge: pkce().challenge });
   const denied = await decide({ server, id, fields: { decision: "deny" } });
@@ -121,13 +121,13 @@ test("sends a refusal back when the person denies the sign-in", async () => {
 
 test("takes a decision only from the sign-in page itself", async () => {
   const server = await createTestServer();
-  const agent = server.services.agents.create("Codex");
+  const account = server.services.accounts.create("Codex");
   const id = await askToSignIn({ server, challenge: pkce().challenge });
 
   const forgedDecision = await decide({
     server,
     id,
-    fields: { decision: "allow", agent: agent.id },
+    fields: { decision: "allow", account: account.id },
     from: "https://evil.test",
   });
 
@@ -137,7 +137,7 @@ test("takes a decision only from the sign-in page itself", async () => {
 test("asks for the server's password, and pauses after wrong guesses, even ones made at once", async () => {
   const publicUrl = "https://mac.tailnet.ts.net";
   const server = await createTestServer({ password: "correct horse", publicUrl });
-  const agent = server.services.agents.create("Codex");
+  const account = server.services.accounts.create("Codex");
   const id = await askToSignIn({ server, challenge: pkce().challenge });
 
   expect(await (await server.call(`/sign-in/${id}`)).text()).toContain('type="password"');
@@ -147,7 +147,7 @@ test("asks for the server's password, and pauses after wrong guesses, even ones 
       server,
       id,
       from: publicUrl,
-      fields: { decision: "allow", agent: agent.id, password },
+      fields: { decision: "allow", account: account.id, password },
     });
   }
 
@@ -165,26 +165,26 @@ test("asks for the server's password, and pauses after wrong guesses, even ones 
 
 test("lets the right password through, on a local server too", async () => {
   const server = await createTestServer({ password: "correct horse" });
-  const agent = server.services.agents.create("Codex");
+  const account = server.services.accounts.create("Codex");
   const id = await askToSignIn({ server, challenge: pkce().challenge });
 
-  const wrong = await decide({ server, id, fields: { decision: "allow", agent: agent.id } });
+  const wrong = await decide({ server, id, fields: { decision: "allow", account: account.id } });
 
   expect(wrong.status).toBe(401);
 
   const allowed = await decide({
     server,
     id,
-    fields: { decision: "allow", agent: agent.id, password: "correct horse" },
+    fields: { decision: "allow", account: account.id, password: "correct horse" },
   });
 
   expect(allowed.status).toBe(303);
   expect(new URL(allowed.headers.get("location") ?? "").searchParams.get("code")).toBeString();
 });
 
-test("signs an MCP client in with OAuth, as the agent picked on the sign-in page", async () => {
+test("signs an MCP client in with OAuth, as the account picked on the sign-in page", async () => {
   const server = await createTestServer();
-  const agent = server.services.agents.create("ChatGPT agent");
+  const account = server.services.accounts.create("ChatGPT agent");
   const callback = "https://chatgpt.com/connector/oauth/callback";
 
   const discovered = await server.call("/.well-known/oauth-authorization-server");
@@ -225,7 +225,7 @@ test("signs an MCP client in with OAuth, as the agent picked on the sign-in page
   const allowed = await decide({
     server,
     id: page.slice("/sign-in/".length),
-    fields: { decision: "allow", agent: agent.id },
+    fields: { decision: "allow", account: account.id },
   });
 
   const redirect = new URL(allowed.headers.get("location") ?? "");
@@ -251,7 +251,7 @@ test("signs an MCP client in with OAuth, as the agent picked on the sign-in page
 
   const me = await (await server.call("/api/me", { token })).json();
 
-  expect(me).toMatchObject({ identityId: agent.id });
+  expect(me).toMatchObject({ identityId: account.id });
 });
 
 test("points an MCP client without a token at where it signs in", async () => {

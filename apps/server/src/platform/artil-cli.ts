@@ -1,6 +1,6 @@
 import { $ } from "bun";
 
-// The artil CLI on this computer, which the agents' clients talk through.
+// The artil CLI on this computer, which agents talk through.
 export type ArtilCli = {
   installed: boolean;
   // Installs it for whoever uses this computer's Bun.

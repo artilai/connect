@@ -9,13 +9,13 @@ type CreateEventsServiceOptions = {
   files: FilesService;
 };
 
-type AddOptions = { agentId: string; event: NewEvent };
+type AddOptions = { accountId: string; event: NewEvent };
 
-type RelayOptions = { agentId: string; event: Relay };
+type RelayOptions = { accountId: string; event: Relay };
 
-type ListAfterOptions = { agentId: string; cursor: number };
+type ListAfterOptions = { accountId: string; cursor: number };
 
-type FindRelayOptions = { agentId: string; messageId: string };
+type FindRelayOptions = { accountId: string; messageId: string };
 
 export function createEventsService({ eventsRepository, bus, files }: CreateEventsServiceOptions) {
   // A relayed message, which names its sender, brings its files with its event, as the server
@@ -46,13 +46,13 @@ export function createEventsService({ eventsRepository, bus, files }: CreateEven
     );
   }
 
-  // Tells the agent's client a message came.
+  // Tells the account's client a message came.
   function add(options: AddOptions) {
     const [record] = toRecords([eventsRepository.add(options)]);
 
     if (!record) throw new Error("The event went missing");
 
-    bus.publish(options.agentId);
+    bus.publish(options.accountId);
 
     return record;
   }
@@ -60,7 +60,7 @@ export function createEventsService({ eventsRepository, bus, files }: CreateEven
   return {
     add,
 
-    // Hands the agent's client a message whole, as the inbox keeps no copy of it.
+    // Hands the account's client a message whole, as the inbox keeps no copy of it.
     relay(options: RelayOptions) {
       const record = add(options);
 
@@ -69,13 +69,13 @@ export function createEventsService({ eventsRepository, bus, files }: CreateEven
       return record;
     },
 
-    listLatest: (agentId: string) => toRecords(eventsRepository.listLatest(agentId)),
+    listLatest: (accountId: string) => toRecords(eventsRepository.listLatest(accountId)),
 
     listAfter: (options: ListAfterOptions) => toRecords(eventsRepository.listAfter(options)),
 
     findLastId: eventsRepository.findLastId,
 
-    // A message relayed to the agent, to answer whoever sent it.
+    // A message relayed to the account, to answer whoever sent it.
     findRelay(options: FindRelayOptions) {
       const row = eventsRepository.findRelay(options);
       const [record] = row ? toRecords([row]) : [];
@@ -83,7 +83,7 @@ export function createEventsService({ eventsRepository, bus, files }: CreateEven
       return record && isRelay(record) ? record : undefined;
     },
 
-    subscribe: (agentId: string, listener: () => void) => bus.subscribe(agentId, listener),
+    subscribe: (accountId: string, listener: () => void) => bus.subscribe(accountId, listener),
   };
 }
 

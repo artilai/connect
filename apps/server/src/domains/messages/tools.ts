@@ -5,8 +5,8 @@ import type { Channel } from "@artil/channels/contract";
 import { AppError } from "@artil/errors";
 
 import {
-  actingAgentField,
-  actingAgentId,
+  actingAccountField,
+  actingAccountId,
   readOnlyHints,
   type RunTool,
   sendingHints,
@@ -21,7 +21,7 @@ import { draftSchema, type MessageRecord } from "./schema";
 import type { MessagesService } from "./service";
 
 const listSchema = z.object({
-  ...actingAgentField,
+  ...actingAccountField,
   channel: z.string().exactOptional().describe("Keep the messages that came on this channel"),
   limit: z.number().int().min(1).max(25).default(25).describe("How many to list, from 1 to 25"),
   from: z
@@ -39,7 +39,7 @@ const listSchema = z.object({
 });
 
 const readSchema = z.object({
-  ...actingAgentField,
+  ...actingAccountField,
   id: z
     .uuid("id must be a message id")
     .describe("The message's id, from messages.list or an event"),
@@ -52,7 +52,7 @@ type DescribedChannel = Pick<Channel, "kind" | "recipients">;
 // The send tool's input, which tells agents the server's channels and whom each sends to.
 function sendSchemaFor(channels: readonly DescribedChannel[]) {
   return draftSchema.extend({
-    ...actingAgentField,
+    ...actingAccountField,
     replyTo: draftFields.replyTo.describe(
       "The id of the message to answer; the answer goes back the way it came. Answer another agent only if its message asks for an answer.",
     ),
@@ -169,7 +169,7 @@ export function registerMessageTools({
       runTool(() =>
         messages
           .list({
-            agentId: actingAgentId({ agent, signedInAgentId: actor.agentId }),
+            accountId: actingAccountId({ agent, signedInAccountId: actor.accountId }),
             filter: {
               ...filter,
               direction: "inbound",
@@ -191,7 +191,7 @@ export function registerMessageTools({
     ({ agent, id }) =>
       runTool(() => {
         const message = messages.find({
-          agentId: actingAgentId({ agent, signedInAgentId: actor.agentId }),
+          accountId: actingAccountId({ agent, signedInAccountId: actor.accountId }),
           id,
         });
 
@@ -212,8 +212,8 @@ export function registerMessageTools({
     ({ agent, ...draft }) =>
       runTool(async () => {
         const sent = await messages.sendDraft({
-          agentId: actingAgentId({ agent, signedInAgentId: actor.agentId }),
-          agentName: actor.agentName,
+          accountId: actingAccountId({ agent, signedInAccountId: actor.accountId }),
+          accountName: actor.accountName,
           client: actor.tokenName,
           draft,
           uploads: [],

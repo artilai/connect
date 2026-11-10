@@ -8,16 +8,16 @@ import type { Admit, Group } from "./schema";
 
 type CreateAccessServiceOptions = { accessRepository: AccessRepository };
 
-type SetAdmitOptions = { agentId: string; channel: ChannelKind; admit: Admit };
+type SetAdmitOptions = { accountId: string; channel: ChannelKind; admit: Admit };
 
-type GroupOptions = { agentId: string; channel: ChannelKind; group: Group };
+type GroupOptions = { accountId: string; channel: ChannelKind; group: Group };
 
 type SetGroupOptions = GroupOptions & { allowed: boolean };
 
 type AdmitAfterOptions = { current: Admit; group: Group; allowed: boolean };
 
 type DecideOptions = {
-  agentId: string;
+  accountId: string;
   channel: ChannelKind;
   from: string;
   // Another address the sender goes by on the channel, which the list can name in place of from.
@@ -26,7 +26,7 @@ type DecideOptions = {
   spam: boolean;
   fromTeam: boolean;
   fromVerified: boolean;
-  // Whether the sender counts as on the agent's list, whatever the list says.
+  // Whether the sender counts as on the account's list, whatever the list says.
   listed?: boolean;
 };
 
@@ -41,7 +41,7 @@ function admitAfter({ current, group, allowed }: AdmitAfterOptions): Admit {
 }
 
 export function createAccessService({ accessRepository }: CreateAccessServiceOptions) {
-  // Only the server's agents reach the Message URL, so it is never open to anyone.
+  // Only the server's accounts reach the Message URL, so it is never open to anyone.
   function setAdmit(options: SetAdmitOptions) {
     if (options.channel === urlKind && options.admit === "anyone") {
       throw new AppError({
@@ -55,11 +55,11 @@ export function createAccessService({ accessRepository }: CreateAccessServiceOpt
 
   // Lets anyone or the team wake the agent beside its list, or keeps them out, and returns who
   // wakes it then.
-  function setGroup({ agentId, channel, group, allowed }: SetGroupOptions) {
-    const current = accessRepository.read({ agentId, channel }).admit;
+  function setGroup({ accountId, channel, group, allowed }: SetGroupOptions) {
+    const current = accessRepository.read({ accountId, channel }).admit;
     const next = admitAfter({ current, group, allowed });
 
-    setAdmit({ agentId, channel, admit: next });
+    setAdmit({ accountId, channel, admit: next });
 
     return { admit: next, changed: next !== current };
   }
@@ -74,12 +74,12 @@ export function createAccessService({ accessRepository }: CreateAccessServiceOpt
 
     // Decides whether a message wakes the agent, by its list for the channel, and who its sender
     // is to the agent when it does.
-    decide({ agentId, channel, listed = false, ...sender }: DecideOptions) {
+    decide({ accountId, channel, listed = false, ...sender }: DecideOptions) {
       const arrival = {
         ...sender,
         access: listed
           ? { admit: "list" as const, senders: [sender.from] }
-          : accessRepository.read({ agentId, channel }),
+          : accessRepository.read({ accountId, channel }),
       };
 
       const refusal = admit(arrival);

@@ -56,7 +56,7 @@ export async function showStatus({ config, tailscale, context, out }: ShowStatus
     return `http://localhost:${config.port}`;
   });
 
-  const accounts = context.agents
+  const accounts = context.accounts
     .list()
     .map(
       ({ id, name }) =>

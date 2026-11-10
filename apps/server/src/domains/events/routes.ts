@@ -6,7 +6,7 @@ import { AppError } from "@artil/errors";
 
 import { jsonResponse } from "../../platform/http/openapi";
 import { validateQuery } from "../../platform/http/validate";
-import type { AgentEnv } from "../agents/schema";
+import type { AccountEnv } from "../accounts/schema";
 import type { ConnectionsService } from "../connections/service";
 import type { FileLinks } from "../files/schema";
 import type { TokensService } from "../tokens/service";
@@ -66,22 +66,22 @@ export function createEventRoutes({
     return toEvent(event, fileLinks);
   }
 
-  return new Hono<AgentEnv>()
+  return new Hono<AccountEnv>()
     .get("/", docs.list, validateQuery(listSchema), (c) => {
       const { after } = c.req.valid("query");
-      const agentId = c.var.agent.id;
+      const accountId = c.var.account.id;
 
       const listedEvents =
         after === undefined
-          ? events.listLatest(agentId)
-          : events.listAfter({ agentId, cursor: after });
+          ? events.listLatest(accountId)
+          : events.listAfter({ accountId, cursor: after });
 
       return c.json(listedEvents.map(toClientEvent));
     })
     .get("/stream", docs.stream, validateQuery(streamSchema), (c) => {
       const lastEventId = cursorSchema.optional().safeParse(c.req.header("last-event-id"));
       const { after, connection } = c.req.valid("query");
-      const agentId = c.var.agent.id;
+      const accountId = c.var.account.id;
 
       if (!lastEventId.success) {
         throw new AppError({ code: "invalid_input", message: "Last-Event-ID is not an event id" });
@@ -96,13 +96,13 @@ export function createEventRoutes({
           c,
           events,
           toClientEvent,
-          resumeAfter: resumeAfter ?? events.findLastId(agentId),
+          resumeAfter: resumeAfter ?? events.findLastId(accountId),
           // A stream ends once its token is revoked.
           checkIn: () => tokens.isValid(tokenHash),
         });
       }
 
-      const currentConnection = connections.findByAgent(agentId);
+      const currentConnection = connections.findByAccount(accountId);
 
       if (currentConnection?.id !== connection) {
         throw new AppError({
@@ -117,7 +117,7 @@ export function createEventRoutes({
         events,
         toClientEvent,
         resumeAfter: Math.max(resumeAfter ?? 0, currentConnection.startsAfter),
-        checkIn: (cursor) => connections.checkIn({ agentId, id: connection, cursor }),
+        checkIn: (cursor) => connections.checkIn({ accountId, id: connection, cursor }),
       });
     });
 }

@@ -9,7 +9,7 @@ import { startServer } from "../src/app/server";
 import { loadChannels } from "../src/domains/channels/load";
 import { newConfig } from "../src/platform/config";
 
-// Runs the published artil CLI against the server, the way a person sets up two agents on one
+// Runs the published artil CLI against the server, the way a person sets up two accounts on one
 // computer: both sign in with a token, one listens, and the other writes to its Message URL.
 const artil = process.argv[2] ?? Bun.which("artil");
 
@@ -35,21 +35,21 @@ const server = await startServer({
   log: (line) => console.log(`server: ${line}`),
 });
 
-type RunOptions = { agent: string; args: string[] };
+type RunOptions = { account: string; args: string[] };
 
-function environment(agent: string) {
+function environment(account: string) {
   return {
     ...process.env,
-    ARTIL_CONFIG_HOME: join(folder, agent),
+    ARTIL_CONFIG_HOME: join(folder, account),
     ARTIL_BASE_URL: server.baseUrl,
     ARTIL_ACCOUNT: "",
     ARTIL_TOKEN: "",
   };
 }
 
-async function run({ agent, args }: RunOptions) {
+async function run({ account, args }: RunOptions) {
   const child = Bun.spawn([artil ?? "artil", ...args], {
-    env: environment(agent),
+    env: environment(account),
     stdout: "pipe",
     stderr: "pipe",
   });
@@ -78,13 +78,13 @@ function within<T>(seconds: number, work: Promise<T>) {
 
 try {
   for (const name of ["claude", "codex"]) {
-    const agent = server.services.agents.create(name);
-    const token = server.services.tokens.issue({ agentId: agent.id, name: "e2e" });
+    const account = server.services.accounts.create(name);
+    const token = server.services.tokens.issue({ accountId: account.id, name: "e2e" });
 
-    await run({ agent: name, args: ["auth", "login", "--token", token] });
+    await run({ account: name, args: ["auth", "login", "--token", token] });
   }
 
-  await run({ agent: "codex", args: ["listen", "on", "--client", "pi"] });
+  await run({ account: "codex", args: ["listen", "on", "--client", "pi"] });
 
   // The Pi channel prints each new message as a JSON line, for as long as its input stays open.
   const channel = Bun.spawn([artil, "internal", "pi-channel"], {
@@ -100,7 +100,7 @@ try {
       (async () => {
         while (
           !server.services.connections.isListening(
-            server.services.agents.findByIdOrName("codex")?.id ?? "",
+            server.services.accounts.findByIdOrName("codex")?.id ?? "",
           )
         ) {
           await Bun.sleep(200);
@@ -108,7 +108,7 @@ try {
       })(),
     );
 
-    await run({ agent: "claude", args: ["url", "send", "codex", "--", "Review the release"] });
+    await run({ account: "claude", args: ["url", "send", "codex", "--", "Review the release"] });
 
     const reader = channel.stdout.pipeThrough(new TextDecoderStream()).getReader();
 
@@ -132,13 +132,15 @@ try {
     if (!heard.includes("From: claude"))
       throw new Error(`Codex heard the message without its sender: ${heard}`);
 
-    const team = await run({ agent: "claude", args: ["team", "--json"] });
+    const team = await run({ account: "claude", args: ["team", "--json"] });
 
     if (!team.includes('"listening": true') && !team.includes('"listening":true')) {
       throw new Error(`The team does not show Codex listening: ${team}`);
     }
 
-    console.log("The artil CLI signed two agents in, and one heard the other at its Message URL.");
+    console.log(
+      "The artil CLI signed in as two accounts, and one heard the other at its Message URL.",
+    );
   } finally {
     channel.kill();
   }

@@ -41,12 +41,12 @@ class FlakyChannel extends Channel<"test"> {
 
 test("starts a channel again on an address after its start fails", async () => {
   const server = await createTestServer();
-  const codex = server.agent("Codex");
+  const codex = server.account("Codex");
   const channel = new FlakyChannel();
   const lines: string[] = [];
   const { promise: handedOver, resolve } = Promise.withResolvers<void>();
 
-  await server.connectAddress({ agent: codex, word: "codex" });
+  await server.connectAddress({ account: codex, word: "codex" });
 
   const receivers = createReceivers({
     channel,
@@ -65,7 +65,7 @@ test("starts a channel again on an address after its start fails", async () => {
 
   expect(channel.starts).toBe(2);
   expect(lines).toEqual(["@codex on test: The provider is down"]);
-  expect(server.services.messages.list({ agentId: codex.id, filter: {} })).toMatchObject([
+  expect(server.services.messages.list({ accountId: codex.id, filter: {} })).toMatchObject([
     { text: "Hi" },
   ]);
 });

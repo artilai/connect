@@ -3,28 +3,28 @@ import { AppError } from "@artil/errors";
 import { shellQuoted } from "@artil/utils/shell";
 
 import { type Command, defineCommand } from "../../platform/commands";
+import type { AccountsService } from "../accounts/service";
 import type { AddressesService } from "../addresses/service";
-import type { AgentsService } from "../agents/service";
 import type { ChannelKind } from "../channels/schema";
 import type { ChannelsService } from "../channels/service";
 import { type Admit, groups } from "./schema";
 import type { AccessService } from "./service";
 
 type AccessCommandsOptions = {
-  agents: AgentsService;
+  accounts: AccountsService;
   addresses: AddressesService;
   access: AccessService;
   channels: ChannelsService;
   out: (line: string) => void;
 };
 
-type Agent = { id: string; name: string };
+type Account = { id: string; name: string };
 
 // Whom a command lets wake the account's agent or keeps out, on the channel --channel names.
 type WhoOptions = { name: string; who: string; kind: ChannelKind | undefined };
 
 type ReadChannelOptions = {
-  agent: Agent;
+  account: Account;
   kind: ChannelKind | undefined;
   addresses: AddressesService;
   channels: ChannelsService;
@@ -32,14 +32,14 @@ type ReadChannelOptions = {
 
 type ReadSenderOptions = { channel: Channel; who: string };
 
-type SayWokenOptions = { agent: Agent; channel: Channel; admit: Admit; changed: boolean };
+type SayWokenOptions = { account: Account; channel: Channel; admit: Admit; changed: boolean };
 
 // The channel --channel names, or else the one the account is connected to, as allow and
 // disallow take it and the terminal picks a sender on.
-export function readChannel({ agent, kind, addresses, channels }: ReadChannelOptions) {
+export function readChannel({ account, kind, addresses, channels }: ReadChannelOptions) {
   if (kind !== undefined) return channels.get(kind);
 
-  const connected = [...new Set(addresses.listByAgent(agent.id).map(({ channel }) => channel))];
+  const connected = [...new Set(addresses.listByAccount(account.id).map(({ channel }) => channel))];
   const [onlyKind] = connected;
 
   if (onlyKind === undefined || connected.length > 1) {
@@ -47,7 +47,7 @@ export function readChannel({ agent, kind, addresses, channels }: ReadChannelOpt
 
     throw new AppError({
       code: "invalid_input",
-      message: `${agent.name} is connected to ${named}; name one with --channel`,
+      message: `${account.name} is connected to ${named}; name one with --channel`,
     });
   }
 
@@ -55,7 +55,7 @@ export function readChannel({ agent, kind, addresses, channels }: ReadChannelOpt
 }
 
 export function createAccessCommands({
-  agents,
+  accounts,
   addresses,
   access,
   channels,
@@ -78,69 +78,69 @@ export function createAccessCommands({
   }
 
   // Says who wakes the agent once anyone or the team came in or went out.
-  function sayWoken({ agent, channel, admit, changed }: SayWokenOptions) {
+  function sayWoken({ account, channel, admit, changed }: SayWokenOptions) {
     const now = changed ? " now" : "";
 
     const woken = {
-      anyone: `Anyone${now} wakes ${agent.name} on ${channel.name}.`,
-      team: `The server's agents and ${agent.name}'s list${now} wake it on ${channel.name}.`,
-      list: `Only ${agent.name}'s list${now} wakes it on ${channel.name}.`,
+      anyone: `Anyone${now} wakes ${account.name} on ${channel.name}.`,
+      team: `The server's accounts and ${account.name}'s list${now} wake it on ${channel.name}.`,
+      list: `Only ${account.name}'s list${now} wakes it on ${channel.name}.`,
     } satisfies Record<Admit, string>;
 
     out(woken[admit]);
 
-    const { senders } = access.read({ agentId: agent.id, channel: channel.kind });
+    const { senders } = access.read({ accountId: account.id, channel: channel.kind });
 
     if (admit === "list" && senders.length === 0) {
       out(
-        `No one is on it yet; add someone with: artil-server account allow ${shellQuoted(agent.name)} <sender> --channel ${channel.kind}`,
+        `No one is on it yet; add someone with: artil-server account allow ${shellQuoted(account.name)} <sender> --channel ${channel.kind}`,
       );
     }
   }
 
   // A sender, the team or anyone wakes the agent on the channel from now on.
   function allow({ name, who, kind }: WhoOptions) {
-    const agent = agents.getByIdOrName(name);
-    const channel = readChannel({ agent, kind, addresses, channels });
+    const account = accounts.getByIdOrName(name);
+    const channel = readChannel({ account, kind, addresses, channels });
     const group = readGroup(who);
 
     if (group) {
-      const woken = access.addGroup({ agentId: agent.id, channel: channel.kind, group });
+      const woken = access.addGroup({ accountId: account.id, channel: channel.kind, group });
 
-      return sayWoken({ agent, channel, ...woken });
+      return sayWoken({ account, channel, ...woken });
     }
 
     const sender = readSender({ channel, who });
-    const added = access.addSender({ agentId: agent.id, channel: channel.kind, sender });
+    const added = access.addSender({ accountId: account.id, channel: channel.kind, sender });
     const shown = channels.showSender(channel.kind, sender);
 
     out(
       added
-        ? `${shown} now wakes ${agent.name} on ${channel.name}.`
-        : `${shown} already wakes ${agent.name}.`,
+        ? `${shown} now wakes ${account.name} on ${channel.name}.`
+        : `${shown} already wakes ${account.name}.`,
     );
   }
 
   // A sender, the team or anyone no longer wakes the agent on the channel.
   function disallow({ name, who, kind }: WhoOptions) {
-    const agent = agents.getByIdOrName(name);
-    const channel = readChannel({ agent, kind, addresses, channels });
+    const account = accounts.getByIdOrName(name);
+    const channel = readChannel({ account, kind, addresses, channels });
     const group = readGroup(who);
 
     if (group) {
-      const woken = access.removeGroup({ agentId: agent.id, channel: channel.kind, group });
+      const woken = access.removeGroup({ accountId: account.id, channel: channel.kind, group });
 
-      return sayWoken({ agent, channel, ...woken });
+      return sayWoken({ account, channel, ...woken });
     }
 
     const sender = readSender({ channel, who });
-    const removed = access.removeSender({ agentId: agent.id, channel: channel.kind, sender });
+    const removed = access.removeSender({ accountId: account.id, channel: channel.kind, sender });
     const shown = channels.showSender(channel.kind, sender);
 
     out(
       removed
-        ? `${shown} is off ${agent.name}'s list on ${channel.name}.`
-        : `${shown} was not on ${agent.name}'s list.`,
+        ? `${shown} is off ${account.name}'s list on ${channel.name}.`
+        : `${shown} was not on ${account.name}'s list.`,
     );
   }
 

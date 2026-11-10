@@ -26,8 +26,8 @@ export function createFilesRepository(db: Database) {
       return Map.groupBy(rows, ({ messageId }) => messageId);
     },
 
-    listByAgent: (agentId: string) =>
-      db.select().from(files).where(eq(files.agentId, agentId)).all(),
+    listByAccount: (accountId: string) =>
+      db.select().from(files).where(eq(files.accountId, accountId)).all(),
 
     listExpired: (now: Date) =>
       db

@@ -16,8 +16,8 @@ export function registerTeamTools({ server, runTool, team }: RegisterTeamToolsOp
     },
     () =>
       runTool(() =>
-        team.list().map(({ agent, addresses, listening }) => ({
-          ...toTeammate(agent),
+        team.list().map(({ account, addresses, listening }) => ({
+          ...toTeammate(account),
           addresses,
           listening,
         })),

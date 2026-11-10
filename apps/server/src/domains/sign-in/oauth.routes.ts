@@ -73,7 +73,7 @@ export function buildOAuthUrls(origin: string) {
 type CreateOAuthRoutesOptions = { signIns: SignInsService; hosts: Hosts };
 
 // MCP clients sign in with OAuth: they register themselves, send the person to the sign-in page,
-// and trade the code it gives them for a token of the agent the person picked.
+// and trade the code it gives them for a token of the account the person picked.
 export function createOAuthRoutes({ signIns, hosts }: CreateOAuthRoutesOptions) {
   function urlsOf(c: Context) {
     return buildOAuthUrls(hosts.requestOrigin(c.req.raw));

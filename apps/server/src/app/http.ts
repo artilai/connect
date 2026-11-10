@@ -4,9 +4,9 @@ import { secureHeaders } from "hono/secure-headers";
 
 import { AppError } from "@artil/errors";
 
+import { loadAccount } from "../domains/accounts/middleware";
+import { createAccountRoutes } from "../domains/accounts/routes";
 import { createAddressRoutes } from "../domains/addresses/routes";
-import { loadAgent } from "../domains/agents/middleware";
-import { createAgentRoutes } from "../domains/agents/routes";
 import { createChannelRoutes } from "../domains/channels/routes";
 import { createConnectionRoutes } from "../domains/connections/routes";
 import { createEventRoutes } from "../domains/events/routes";
@@ -45,24 +45,24 @@ function notFound(method: string, path: string): never {
 
 // The API the CLI calls, documented as the part of the Artil API this server answers.
 function createApi({ services, workspace }: Pick<CreateAppOptions, "services" | "workspace">) {
-  // An agent's own routes take only its own token.
+  // An account's own routes take only its own token.
   const ownRoutes = new Hono<AuthEnv>()
-    .use(loadAgent(services.agents))
+    .use(loadAccount(services.accounts))
     .route("/addresses", createAddressRoutes(services))
     .route("/connection", createConnectionRoutes(services))
     .route("/events", createEventRoutes(services))
     .route("/messages", createMessageRoutes(services))
     .route("/", createWebhookRoutes());
 
-  const agentRoutes = new Hono<AuthEnv>()
-    .route("/", createAgentRoutes(services))
-    // Any agent of the server writes to another's Message URL.
+  const accountRoutes = new Hono<AuthEnv>()
+    .route("/", createAccountRoutes(services))
+    // Any account of the server writes to another's Message URL.
     .route("/:id/url", createUrlRoutes(services))
     .route("/:id", ownRoutes);
 
   return new Hono<AuthEnv>()
     .use(requireAuth(services.tokens))
-    .route("/agents", agentRoutes)
+    .route("/agents", accountRoutes)
     .route("/team", createTeamRoutes(services))
     .route("/me", createMeRoutes({ tokens: services.tokens, workspace }));
 }
@@ -94,7 +94,7 @@ export function createApp({ services, hosts, password, workspace, log }: CreateA
       .onError(errorResponse)
       .use(hosts.check, secureHeaders())
       .route("/api", apiRoot)
-      // An agent's Message URL takes the same request as the route it stands for.
+      // An account's Message URL takes the same request as the route it stands for.
       .post("/a/:id", (c) => {
         const url = new URL(`/agents/${encodeURIComponent(c.req.param("id"))}/url`, c.req.url);
 
@@ -110,15 +110,15 @@ export function createApp({ services, hosts, password, workspace, log }: CreateA
 
         return c.redirect(`/sign-in/${encodeURIComponent(c.req.param("id"))}${query}`);
       })
-      // The CLI links an agent's page, which this server has no app for.
+      // The CLI links an account's page, which this server has no app for.
       .get("/accounts/*", (c) =>
         c.text(
-          "This server has no web app. Manage its agents with artil-server; see artil-server --help.\n",
+          "This server has no web app. Manage its accounts with artil-server; see artil-server --help.\n",
         ),
       )
       .get("/", (c) =>
         c.text(
-          `${runningGreeting} Sign an agent in with:\n\n  ${loginCommand(hosts.requestOrigin(c.req.raw))}\n`,
+          `${runningGreeting} Sign in as an account with:\n\n  ${loginCommand(hosts.requestOrigin(c.req.raw))}\n`,
         ),
       )
       .all("*", (c) => notFound(c.req.method, c.req.path))

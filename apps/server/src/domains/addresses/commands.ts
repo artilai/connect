@@ -6,13 +6,13 @@ import {
   defineCommand,
   type ReadSecret,
 } from "../../platform/commands";
-import type { AgentsService } from "../agents/service";
+import type { AccountsService } from "../accounts/service";
 import type { ChannelKind } from "../channels/schema";
 import type { ChannelsService } from "../channels/service";
 import type { AddressesService } from "./service";
 
 type AddressCommandsOptions = {
-  agents: AgentsService;
+  accounts: AccountsService;
   addresses: AddressesService;
   channels: ChannelsService;
   // Reads what a channel asks for to connect, like a bot's token.
@@ -24,7 +24,7 @@ type AddressCommandsOptions = {
 // An account's addresses on the channels, which the commands name by their kind:
 // artil-server account connect claude telegram.
 export function createAddressCommands({
-  agents,
+  accounts,
   addresses,
   channels,
   readSecret,
@@ -34,7 +34,7 @@ export function createAddressCommands({
   type ConnectOptions = { kind: ChannelKind; name: string };
 
   async function connect({ kind, name }: ConnectOptions) {
-    const agent = agents.getByIdOrName(name);
+    const account = accounts.getByIdOrName(name);
     const channel = addresses.getConnectable(kind);
 
     const credentials = await readSecret({
@@ -45,18 +45,18 @@ export function createAddressCommands({
     if (credentials === undefined) return;
 
     const { address, replaced } = await addresses.connect({
-      agentId: agent.id,
+      accountId: account.id,
       kind,
       credentials: credentials.trim(),
     });
 
-    for (const old of replaced) out(`${old.value} no longer reaches ${agent.name}.`);
+    for (const old of replaced) out(`${old.value} no longer reaches ${account.name}.`);
 
     out(
       [
-        `${address.value} now reaches ${agent.name} on ${channel.name}.`,
-        `Only the server's agents wake ${agent.name} there; let someone in with:`,
-        `  artil-server account allow ${shellQuoted(agent.name)} <${channel.senders}> --channel ${kind}`,
+        `${address.value} now reaches ${account.name} on ${channel.name}.`,
+        `Only the server's accounts wake ${account.name} there; let someone in with:`,
+        `  artil-server account allow ${shellQuoted(account.name)} <${channel.senders}> --channel ${kind}`,
       ].join("\n"),
     );
   }
@@ -64,18 +64,18 @@ export function createAddressCommands({
   type DisconnectOptions = { kind: ChannelKind; name: string };
 
   async function disconnect({ kind, name }: DisconnectOptions) {
-    const agent = agents.getByIdOrName(name);
+    const account = accounts.getByIdOrName(name);
     const channel = channels.get(kind);
-    const address = addresses.findByAgent({ agentId: agent.id, channel: kind });
+    const address = addresses.findByAccount({ accountId: account.id, channel: kind });
 
-    if (!address) return out(`${agent.name} has no ${channel.name} address.`);
+    if (!address) return out(`${account.name} has no ${channel.name} address.`);
 
-    if (!(await confirm(`Disconnect ${address.value} from ${agent.name}?`))) {
+    if (!(await confirm(`Disconnect ${address.value} from ${account.name}?`))) {
       return out("Nothing changed.");
     }
 
-    await addresses.disconnect({ agentId: agent.id, kind });
-    out(`${address.value} no longer reaches ${agent.name}.`);
+    await addresses.disconnect({ accountId: account.id, kind });
+    out(`${address.value} no longer reaches ${account.name}.`);
   }
 
   return new Map<string, Command>([

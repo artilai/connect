@@ -72,7 +72,7 @@ async function start({ dataDir, interactive }: StartOptions) {
   return setupConfigs;
 }
 
-test("creates agents, lists them and makes a token to sign one in with", async () => {
+test("creates accounts, lists them and makes a token to sign one in with", async () => {
   const dataDir = await mkdtemp(join(tmpdir(), "artil-server-"));
 
   expect(await cli(dataDir, "account", "create", "Codex")).toContain(
@@ -146,7 +146,7 @@ test("renames an account, keeping its id", async () => {
   expect(await cli(dataDir, "account", "list")).toContain(`Coder  ${id}`);
   expect(await cli(dataDir, "account", "rename", "coder", "CODER")).toBe("Renamed Coder to CODER.");
   await expect(cli(dataDir, "account", "rename", "coder", "claude")).rejects.toThrow(
-    "There is already an agent claude",
+    "There is already an account claude",
   );
 });
 
@@ -229,12 +229,12 @@ test("changes the server's mode, port and password with set", async () => {
   );
 });
 
-test("sets the server up on a start in a terminal until it has an agent", async () => {
+test("sets the server up on a start in a terminal until it has an account", async () => {
   const dataDir = await mkdtemp(join(tmpdir(), "artil-server-"));
 
   expect(await start({ dataDir, interactive: true })).toEqual([undefined]);
 
-  // A setup stopped before it made an agent has saved the config.
+  // A setup stopped before it made an account has saved the config.
   await cli(dataDir, "account", "list");
 
   const paths = pathsIn(dataDir);
@@ -254,7 +254,7 @@ test("sets the server up on a start in a terminal until it has an agent", async 
   expect(await start({ dataDir, interactive: true })).toEqual([]);
 });
 
-test("adds a sender to an agent's list on the channel it names", async () => {
+test("adds a sender to an account's list on the channel it names", async () => {
   const dataDir = await mkdtemp(join(tmpdir(), "artil-server-"));
 
   await cli(dataDir, "account", "create", "Codex");
@@ -298,7 +298,7 @@ test("lets anyone, the team beside the list, or only the list wake an agent on a
   );
   await cli(dataDir, "account", "allow", "Codex", "@AdaLovelace", ...onTest);
   expect(await cli(dataDir, "account", "disallow", "Codex", "anyone", ...onTest)).toBe(
-    "The server's agents and Codex's list now wake it on Test.",
+    "The server's accounts and Codex's list now wake it on Test.",
   );
   expect(await cli(dataDir, "account", "list")).toContain("woken on Test by @adalovelace");
   await expect(
@@ -306,7 +306,7 @@ test("lets anyone, the team beside the list, or only the list wake an agent on a
   ).rejects.toThrow("Only the team or the senders you list can wake an agent at its Message URL");
 });
 
-test("lists the server's agents by name at the Message URL", async () => {
+test("lists the server's accounts by name at the Message URL", async () => {
   const dataDir = await mkdtemp(join(tmpdir(), "artil-server-"));
   const onUrl = ["--channel", "url"];
 
@@ -319,7 +319,7 @@ test("lists the server's agents by name at the Message URL", async () => {
   );
   expect(await cli(dataDir, "account", "list")).toContain("woken on Message URL only by Claude");
   await expect(cli(dataDir, "account", "allow", "Codex", "nobody", ...onUrl)).rejects.toThrow(
-    "nobody is not an agent of this server, by its name or id",
+    "nobody is not an account of this server, by its name or id",
   );
 });
 
@@ -386,7 +386,7 @@ test("connects an account to a channel the config loads, and disconnects it", as
     "Not a terminal, so pipe it in: The address's credentials",
   );
   await expect(cli(dataDir, "account", "connect", "Codex", "url")).rejects.toThrow(
-    "Every agent has its Message URL already; there is nothing to connect",
+    "Every account has its Message URL already; there is nothing to connect",
   );
   expect(
     await pipeInto({ dataDir, stdin: "hi\n" }, "account", "connect", "Codex", "echo"),
@@ -422,6 +422,6 @@ test("shows an account's addresses, clients and who wakes it", async () => {
   await cli(dataDir, "account", "allow", "Codex", "@AdaLovelace", "--channel", "test");
 
   expect(await cli(dataDir, "account", "show", "codex")).toMatch(
-    /^Codex {2}(\w{8}) · not listening\nAddresses:\n {2}Message URL {2}http:\/\/localhost:4747\/a\/\1\n {2}Echo {9}echo:hi\nClients:\n {2}macbook {2}signed in \w{3} \d{1,2}, \d{4}\nWho wakes it:\n {2}Message URL {2}the server's agents\n {2}Test {9}the server's agents and @adalovelace\n {2}Echo {9}the server's agents and ada$/v,
+    /^Codex {2}(\w{8}) · not listening\nAddresses:\n {2}Message URL {2}http:\/\/localhost:4747\/a\/\1\n {2}Echo {9}echo:hi\nClients:\n {2}macbook {2}signed in \w{3} \d{1,2}, \d{4}\nWho wakes it:\n {2}Message URL {2}the server's accounts\n {2}Test {9}the server's accounts and @adalovelace\n {2}Echo {9}the server's accounts and ada$/v,
   );
 });

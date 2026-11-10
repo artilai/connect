@@ -4,8 +4,8 @@ import type { ChannelDefinition } from "@artil/channels/contract";
 import { AppError } from "@artil/errors";
 
 import { createAccessCommands } from "../domains/access/commands";
+import { createAccountCommands } from "../domains/accounts/commands";
 import { createAddressCommands } from "../domains/addresses/commands";
-import { createAgentCommands } from "../domains/agents/commands";
 import { loadChannels } from "../domains/channels/load";
 import { type ArtilCli, loginCommand } from "../platform/artil-cli";
 import { type Command, createConfirm, createSecretReader } from "../platform/commands";
@@ -35,7 +35,7 @@ Usage:
   artil-server set --local                             Keep the server on this computer from its next start
   artil-server set --port <port>                       Listen on another port from the server's next start
   artil-server set --password                          Set the password the sign-in page asks for, typed or piped in
-  artil-server account create <name>                   Create an agent account
+  artil-server account create <name>                   Create an account
   artil-server account list                            List the accounts
   artil-server account show <account>                  Show an account's addresses, clients and who wakes it
   artil-server account rename <account> <name>         Give an account another name
@@ -66,7 +66,7 @@ type Environment = {
   tailscale: Tailscale | undefined;
   // The artil CLI on this computer, which the setup offers when it is missing.
   artil: ArtilCli;
-  // Asks for the agents, their channels, files and mode in the terminal, and saves the config.
+  // Asks for the accounts, their channels, files and mode in the terminal, and saves the config.
   runSetup: typeof runSetup;
   // Resolves when the server should stop, like on Ctrl-C.
   waitForStop: () => Promise<void>;
@@ -104,7 +104,7 @@ async function serve({ paths, config, environment }: ServeOptions) {
   out(
     `Artil Server is at ${server.baseUrl}${config.public ? " (public, through Tailscale Funnel)" : ""}.`,
   );
-  out(`Sign an agent in with: ${loginCommand(server.baseUrl)}`);
+  out(`Sign in as an account with: ${loginCommand(server.baseUrl)}`);
   out(`MCP clients connect to ${server.baseUrl}/mcp`);
 
   await environment.waitForStop();
@@ -181,8 +181,8 @@ export async function runCli(environment: Environment) {
     return given;
   }
 
-  // A server is new until it has an agent, so a setup stopped before it made one runs again.
-  async function hasAgents(config: Config) {
+  // A server is new until it has an account, so a setup stopped before it made one runs again.
+  async function hasAccounts(config: Config) {
     const context = await openCommandContext({
       paths,
       config,
@@ -193,7 +193,7 @@ export async function runCli(environment: Environment) {
     });
 
     try {
-      return context.agents.list().length > 0;
+      return context.accounts.list().length > 0;
     } finally {
       context.close();
     }
@@ -203,7 +203,7 @@ export async function runCli(environment: Environment) {
     checkFlags([]);
 
     const config =
-      interactive && (!savedConfig || !(await hasAgents(savedConfig)))
+      interactive && (!savedConfig || !(await hasAccounts(savedConfig)))
         ? await runSetup({
             paths,
             config: savedConfig,
@@ -274,7 +274,7 @@ export async function runCli(environment: Environment) {
     }
 
     const run = new Map([
-      ...createAgentCommands({ ...context, confirm }),
+      ...createAccountCommands({ ...context, confirm }),
       ...createAddressCommands({ ...context, readSecret, confirm }),
       ...createAccessCommands(context),
     ]).get(`${command} ${subcommand}`);

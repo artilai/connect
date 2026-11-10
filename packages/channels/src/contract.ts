@@ -24,19 +24,19 @@ export type Sender = {
 };
 
 /**
- * The agent as it writes on the channel: its address there, what the provider needs to send from
+ * The account as it writes on the channel: its address there, what the provider needs to send from
  * it, like a bot's token, and its name.
  */
 export type Author = { address: string; name: string; credentials: string | null };
 
 /**
- * A message as it reached one of the agent's addresses: what every channel has, whatever else its
+ * A message as it reached one of the account's addresses: what every channel has, whatever else its
  * provider adds.
  */
 export type InboundMessage = {
   /** The channel's own id for the message, which an answer names it by. */
   externalId: string;
-  /** The agent's address the message came to. */
+  /** The account's address the message came to. */
   to: string;
   from: Sender;
   text: string;
@@ -45,7 +45,7 @@ export type InboundMessage = {
   spam?: boolean;
 };
 
-/** A message the agent sends, as the server hands it to the channel. */
+/** A message the account sends, as the server hands it to the channel. */
 export type OutboundMessage<Data = never> = {
   from: Author;
   to: string[];
@@ -139,7 +139,7 @@ export abstract class Channel<Kind extends string = string, Data = unknown> {
   }
 
   /**
-   * Shows a sender on the list as a person knows them, like an agent's name for the id the list
+   * Shows a sender on the list as a person knows them, like an account's name for the id the list
    * keeps. A channel without it shows the sender as readSender wrote it.
    */
   showSender?(sender: string): string;

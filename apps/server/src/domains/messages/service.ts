@@ -6,8 +6,8 @@ import { missingChannel, onlyInCloud } from "../../platform/cloud";
 import type { Upload } from "../../platform/storage";
 import type { Refusal } from "../access/schema";
 import type { AccessService } from "../access/service";
+import type { AccountsService } from "../accounts/service";
 import type { AddressesService } from "../addresses/service";
-import type { AgentsService } from "../agents/service";
 import type { ChannelKind } from "../channels/schema";
 import type { ChannelsService } from "../channels/service";
 import type { RelayRecord } from "../events/schema";
@@ -19,12 +19,12 @@ import type { Draft, MessageRecord, MessageRow } from "./schema";
 
 const recipientSeparator = ", ";
 
-// The refusals a person mends by putting the sender on the agent's list.
+// The refusals a person mends by putting the sender on the account's list.
 const keptOut: ReadonlySet<Refusal> = new Set(["sender", "outsider"]);
 
 type CreateMessagesServiceOptions = {
   messagesRepository: MessagesRepository;
-  agents: AgentsService;
+  accounts: AccountsService;
   files: FilesService;
   addresses: AddressesService;
   access: AccessService;
@@ -34,20 +34,20 @@ type CreateMessagesServiceOptions = {
   log: (line: string) => void;
 };
 
-type ListKeptOutOptions = { agentId: string; channel: ChannelKind };
+type ListKeptOutOptions = { accountId: string; channel: ChannelKind };
 
 type ReceiveOptions = { channel: ChannelKind; message: InboundMessage };
 
-type SendOptions = { agentId: string; agentName: string; draft: Draft; uploads: Upload[] };
+type SendOptions = { accountId: string; accountName: string; draft: Draft; uploads: Upload[] };
 
 type SendDraftOptions = SendOptions & {
   // The client the agent writes in, which a relayed message names.
   client: string | null;
 };
 
-type ListOptions = { agentId: string; filter: MessageFilter };
+type ListOptions = { accountId: string; filter: MessageFilter };
 
-type FindOptions = { agentId: string; id: string };
+type FindOptions = { accountId: string; id: string };
 
 type Recipients = {
   channel: ChannelKind;
@@ -55,8 +55,8 @@ type Recipients = {
   inReplyTo: { externalId: string } | null;
 };
 
-// What came of a message an agent wrote: the server keeps one in the agent's inbox, and relays one
-// on a channel without an inbox whole to the other agent.
+// What came of a message an agent wrote: the server keeps one in the account's inbox, and relays
+// one on a channel without an inbox whole to the other account.
 type Sent =
   | { kind: "stored"; message: MessageRecord }
   | { kind: "relayed"; event: RelayRecord; to: string[] };
@@ -82,7 +82,7 @@ function checkCarried(draft: Draft, kind: ChannelKind) {
 
 export function createMessagesService({
   messagesRepository,
-  agents,
+  accounts,
   files,
   addresses,
   access,
@@ -94,7 +94,7 @@ export function createMessagesService({
   function toRecords(rows: MessageRow[]): MessageRecord[] {
     const attachmentsByMessage = files.describeByMessages(rows.map(({ id }) => id));
 
-    return rows.map(({ agentId: _agentId, externalId: _externalId, ...message }) => ({
+    return rows.map(({ accountId: _accountId, externalId: _externalId, ...message }) => ({
       ...message,
       attachments: attachmentsByMessage.get(message.id) ?? [],
     }));
@@ -107,7 +107,7 @@ export function createMessagesService({
   }
 
   // An answer goes where its message came from, a new message where the draft says.
-  function resolveRecipients(agentId: string, draft: Draft): Recipients {
+  function resolveRecipients(accountId: string, draft: Draft): Recipients {
     if (draft.replyTo === undefined) {
       if (!draft.channel || !draft.to) {
         throw new AppError({
@@ -119,7 +119,7 @@ export function createMessagesService({
       return { channel: draft.channel, to: draft.to, inReplyTo: null };
     }
 
-    const repliedMessage = messagesRepository.find({ agentId, id: draft.replyTo });
+    const repliedMessage = messagesRepository.find({ accountId, id: draft.replyTo });
 
     if (!repliedMessage) throw new AppError({ code: "not_found", message: "Message not found" });
 
@@ -132,9 +132,9 @@ export function createMessagesService({
     };
   }
 
-  // Sends on a channel with addresses, and keeps the message among the agent's.
-  async function send({ agentId, agentName, draft, uploads }: SendOptions) {
-    const { channel: kind, to, inReplyTo } = resolveRecipients(agentId, draft);
+  // Sends on a channel with addresses, and keeps the message among the account's.
+  async function send({ accountId, accountName, draft, uploads }: SendOptions) {
+    const { channel: kind, to, inReplyTo } = resolveRecipients(accountId, draft);
 
     checkCarried(draft, kind);
 
@@ -142,17 +142,17 @@ export function createMessagesService({
 
     if (!channel) throw missingChannel(kind);
 
-    const address = addresses.findByAgent({ agentId, channel: kind });
+    const address = addresses.findByAccount({ accountId, channel: kind });
 
     if (!address) {
       throw new AppError({
         code: "invalid_input",
-        message: `${agentName} has no ${channel.name} address; connect one with: artil-server account connect ${shellQuoted(agentName)} ${kind}`,
+        message: `${accountName} has no ${channel.name} address; connect one with: artil-server account connect ${shellQuoted(accountName)} ${kind}`,
       });
     }
 
     const attachments = await files.readAttachments({
-      agentId,
+      accountId,
       attachments: draft.attachments ?? [],
     });
 
@@ -161,7 +161,7 @@ export function createMessagesService({
     if (outgoingFiles.length > 0 && !files.enabled) throw files.unavailableError();
 
     const prepared = channel.prepare({
-      from: { address: address.value, name: agentName, credentials: address.credentials },
+      from: { address: address.value, name: accountName, credentials: address.credentials },
       to,
       text: draft.text,
       files: outgoingFiles,
@@ -171,12 +171,12 @@ export function createMessagesService({
     for (const recipient of prepared.to) {
       const mustWriteFirst =
         channel.recipientWritesFirst(recipient) &&
-        !messagesRepository.hasReceivedFrom({ agentId, channel: kind, counterpart: recipient });
+        !messagesRepository.hasReceivedFrom({ accountId, channel: kind, counterpart: recipient });
 
       if (mustWriteFirst) {
         throw new AppError({
           code: "invalid_input",
-          message: `${recipient} has to write to ${address.value} before ${agentName} can write to them`,
+          message: `${recipient} has to write to ${address.value} before ${accountName} can write to them`,
         });
       }
     }
@@ -185,7 +185,7 @@ export function createMessagesService({
 
     messagesRepository.add({
       id,
-      agentId,
+      accountId,
       addressId: address.id,
       channel: kind,
       direction: "outbound",
@@ -196,7 +196,7 @@ export function createMessagesService({
     });
 
     try {
-      await files.save({ agentId, messageId: id, uploads: outgoingFiles });
+      await files.save({ accountId, messageId: id, uploads: outgoingFiles });
 
       const { externalId } = await channel.send(prepared);
 
@@ -215,40 +215,40 @@ export function createMessagesService({
           });
     }
 
-    const sent = find({ agentId, id });
+    const sent = find({ accountId, id });
 
     if (!sent) throw new Error(`Message ${id} went missing`);
 
     return sent;
   }
 
-  type LogKeptOutOptions = { agentId: string; channel: ChannelKind; message: InboundMessage };
+  type LogKeptOutOptions = { accountId: string; channel: ChannelKind; message: InboundMessage };
 
   // Lets them in by their address, which stays theirs, where a handle can pass to someone else.
-  function logKeptOut({ agentId, channel, message }: LogKeptOutOptions) {
-    const agentName = agents.findById(agentId)?.name ?? agentId;
+  function logKeptOut({ accountId, channel, message }: LogKeptOutOptions) {
+    const accountName = accounts.findById(accountId)?.name ?? accountId;
     const { address, handle, name } = message.from;
     const goesBy = handle ?? address;
     const named = name ? `${name} (${goesBy})` : goesBy;
 
     log(
-      `${named} wrote to ${agentName} on ${channels.find(channel)?.name ?? channel} but is not on its list; let them in with: artil-server account allow ${shellQuoted(agentName)} ${shellQuoted(address)} --channel ${channel}`,
+      `${named} wrote to ${accountName} on ${channels.find(channel)?.name ?? channel} but is not on its list; let them in with: artil-server account allow ${shellQuoted(accountName)} ${shellQuoted(address)} --channel ${channel}`,
     );
   }
 
   return {
     find,
 
-    // Who wrote to the agent on the channel and was kept out for being on neither its team nor
+    // Who wrote to the account on the channel and was kept out for being on neither its team nor
     // its list, the latest first.
-    listKeptOut: ({ agentId, channel }: ListKeptOutOptions) =>
-      messagesRepository.listRefusedSenders({ agentId, channel, refusals: [...keptOut] }),
+    listKeptOut: ({ accountId, channel }: ListKeptOutOptions) =>
+      messagesRepository.listRefusedSenders({ accountId, channel, refusals: [...keptOut] }),
 
-    list: ({ agentId, filter }: ListOptions) =>
-      toRecords(messagesRepository.list({ agentId, filter })),
+    list: ({ accountId, filter }: ListOptions) =>
+      toRecords(messagesRepository.list({ accountId, filter })),
 
-    // Takes a message a channel brought: it wakes the agent the address belongs to when its
-    // senders may, and stays in the agent's messages either way.
+    // Takes a message a channel brought: it wakes the agent of the account the address belongs to
+    // when its senders may, and stays in the account's messages either way.
     receive: async ({ channel, message }: ReceiveOptions) => {
       const address = addresses.findByValue({ channel, value: message.to });
 
@@ -259,17 +259,17 @@ export function createMessagesService({
         return;
       }
 
-      const agentId = address.agentId;
+      const accountId = address.accountId;
       const sender = addresses.findByValue({ channel, value: message.from.address });
 
       const { refusal, admission } = access.decide({
-        agentId,
+        accountId,
         channel,
         from: message.from.address,
         handle: message.from.handle,
-        fromSelf: sender?.agentId === agentId,
+        fromSelf: sender?.accountId === accountId,
         spam: message.spam ?? false,
-        // Another agent's address on the server is the team's.
+        // Another account's address on the server is the team's.
         fromTeam: sender !== undefined,
         fromVerified: message.from.verified,
       });
@@ -278,8 +278,8 @@ export function createMessagesService({
       if (refusal && keptOut.has(refusal)) {
         const counterpart = message.from.address;
 
-        if (!messagesRepository.hasReceivedFrom({ agentId, channel, counterpart })) {
-          logKeptOut({ agentId, channel, message });
+        if (!messagesRepository.hasReceivedFrom({ accountId, channel, counterpart })) {
+          logKeptOut({ accountId, channel, message });
         }
       }
 
@@ -288,7 +288,7 @@ export function createMessagesService({
       // Stored before anything waits, so a message delivered twice at once is taken once.
       messagesRepository.add({
         id,
-        agentId,
+        accountId,
         addressId: address.id,
         channel,
         direction: "inbound",
@@ -302,21 +302,21 @@ export function createMessagesService({
         admission,
       });
 
-      await files.save({ agentId, messageId: id, uploads: message.files });
+      await files.save({ accountId, messageId: id, uploads: message.files });
 
       if (!refusal) {
-        events.add({ agentId, event: { type: "message.received", channel, messageId: id } });
+        events.add({ accountId, event: { type: "message.received", channel, messageId: id } });
       }
     },
 
     send,
 
     // Sends what an agent writes. An answer goes back the way its message came. The channel the
-    // server carries itself has no inbox, so a message on it goes whole to the other agent; the
+    // server carries itself has no inbox, so a message on it goes whole to the other account; the
     // server keeps one on any other channel.
     async sendDraft({
-      agentId,
-      agentName,
+      accountId,
+      accountName,
       client,
       draft,
       uploads,
@@ -324,7 +324,7 @@ export function createMessagesService({
       const relayed =
         draft.replyTo === undefined
           ? undefined
-          : events.findRelay({ agentId, messageId: draft.replyTo });
+          : events.findRelay({ accountId, messageId: draft.replyTo });
 
       const relayTo = relayed
         ? { to: [relayed.sender.id], toThread: relayed.thread }
@@ -333,13 +333,13 @@ export function createMessagesService({
           : undefined;
 
       if (!relayTo) {
-        return { kind: "stored", message: await send({ agentId, agentName, draft, uploads }) };
+        return { kind: "stored", message: await send({ accountId, accountName, draft, uploads }) };
       }
 
       checkCarried(draft, url.kind);
 
       const event = await url.relay({
-        sender: { id: agentId, name: agentName },
+        sender: { id: accountId, name: accountName },
         to: relayTo.to,
         text: draft.text,
         thread: null,

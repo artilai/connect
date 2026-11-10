@@ -11,11 +11,11 @@ import {
 } from "@modelcontextprotocol/client";
 import { z } from "zod";
 
-import { createTestServer, listen, origin, type TestAgent, type TestServer } from "./testing";
+import { createTestServer, listen, origin, type TestAccount, type TestServer } from "./testing";
 
-type ConnectOptions = { server: TestServer; agent: TestAgent };
+type ConnectOptions = { server: TestServer; account: TestAccount };
 
-async function connect({ server, agent }: ConnectOptions) {
+async function connect({ server, account }: ConnectOptions) {
   const client = new Client(
     { name: "chatgpt", version: "0.0.0" },
     { versionNegotiation: { mode: "auto" } },
@@ -25,7 +25,7 @@ async function connect({ server, agent }: ConnectOptions) {
     fetch: async (url, init) => {
       const headers = new Headers(init?.headers);
 
-      headers.set("authorization", `Bearer ${agent.token}`);
+      headers.set("authorization", `Bearer ${account.token}`);
 
       return server.call(new URL(url).pathname, { ...init, headers });
     },
@@ -50,9 +50,9 @@ async function call({ client, name, args = {} }: CallOptions) {
   return { isError: result.isError ?? false, text, json: () => JSON.parse(text) };
 }
 
-test("lists its tools for the agent the token signs in as", async () => {
+test("lists its tools for the account the token signs in as", async () => {
   const server = await createTestServer();
-  const client = await connect({ server, agent: server.agent("Codex") });
+  const client = await connect({ server, account: server.account("Codex") });
 
   const { tools } = await client.listTools();
 
@@ -65,12 +65,12 @@ test("lists its tools for the agent the token signs in as", async () => {
   ]);
 });
 
-test("shows the agent and its team", async () => {
+test("shows the account and its team", async () => {
   const server = await createTestServer();
-  const codex = server.agent("Codex");
-  const client = await connect({ server, agent: codex });
+  const codex = server.account("Codex");
+  const client = await connect({ server, account: codex });
 
-  server.agent("Claude");
+  server.account("Claude");
 
   expect((await call({ client, name: "status" })).json()).toEqual({
     agent: { id: codex.id, name: "Codex" },
@@ -84,12 +84,12 @@ test("shows the agent and its team", async () => {
   ]);
 });
 
-test("sends to another agent's Message URL and answers what came there", async () => {
+test("sends to another account's Message URL and answers what came there", async () => {
   const server = await createTestServer();
-  const chatgpt = server.agent("ChatGPT");
-  const codex = server.agent("Codex");
+  const chatgpt = server.account("ChatGPT");
+  const codex = server.account("Codex");
   const codexStream = await listen(codex);
-  const client = await connect({ server, agent: chatgpt });
+  const client = await connect({ server, account: chatgpt });
 
   const sent = await call({
     client,
@@ -123,11 +123,11 @@ test("sends to another agent's Message URL and answers what came there", async (
   chatgptStream.close();
 });
 
-test("sends on the Message URL to one agent, copying no one, in up to 2000 characters", async () => {
+test("sends on the Message URL to one account, copying no one, in up to 2000 characters", async () => {
   const server = await createTestServer();
-  const claude = server.agent("Claude");
-  const codex = server.agent("Codex");
-  const client = await connect({ server, agent: server.agent("ChatGPT") });
+  const claude = server.account("Claude");
+  const codex = server.account("Codex");
+  const client = await connect({ server, account: server.account("ChatGPT") });
 
   async function send(draft: CallToolRequest["params"]["arguments"]) {
     return (await call({ client, name: "messages.send", args: { channel: "url", ...draft } })).text;
@@ -144,16 +144,16 @@ test("sends on the Message URL to one agent, copying no one, in up to 2000 chara
   );
 });
 
-test("acts as its own agent only", async () => {
+test("acts as its own account only", async () => {
   const server = await createTestServer();
-  const client = await connect({ server, agent: server.agent("Codex") });
-  const claude = server.agent("Claude");
+  const client = await connect({ server, account: server.account("Codex") });
+  const claude = server.account("Claude");
 
   const result = await call({ client, name: "messages.list", args: { agent: claude.id } });
 
   expect(result).toMatchObject({
     isError: true,
-    text: "These tools act as one agent account only",
+    text: "These tools act as one account only",
   });
 });
 
@@ -189,7 +189,7 @@ function memoryProvider(redirectUrl: string) {
 
 test("signs a client in the way the MCP SDK does, from discovery to a token", async () => {
   const server = await createTestServer();
-  const agent = server.services.agents.create("Claude");
+  const account = server.services.accounts.create("Claude");
   const memory = memoryProvider("http://127.0.0.1:33418/callback");
 
   async function fetchFn(url: string | URL, init?: RequestInit) {
@@ -208,7 +208,7 @@ test("signs a client in the way the MCP SDK does, from discovery to a token", as
   const allowed = await server.call(page, {
     method: "POST",
     headers: { origin, "content-type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({ decision: "allow", agent: agent.id }).toString(),
+    body: new URLSearchParams({ decision: "allow", account: account.id }).toString(),
   });
 
   const redirect = new URL(allowed.headers.get("location") ?? "");
@@ -225,6 +225,6 @@ test("signs a client in the way the MCP SDK does, from discovery to a token", as
   const token = memory.tokens()?.access_token ?? "";
 
   expect(await (await server.call("/api/me", { token })).json()).toMatchObject({
-    identityId: agent.id,
+    identityId: account.id,
   });
 });

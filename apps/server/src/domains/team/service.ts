@@ -1,24 +1,24 @@
+import type { AccountsService } from "../accounts/service";
 import type { AddressesService } from "../addresses/service";
-import type { AgentsService } from "../agents/service";
 import type { ConnectionsService } from "../connections/service";
 import type { TeamMember } from "./schema";
 
 type CreateTeamServiceOptions = {
-  agents: AgentsService;
+  accounts: AccountsService;
   addresses: AddressesService;
   connections: ConnectionsService;
 };
 
-export function createTeamService({ agents, addresses, connections }: CreateTeamServiceOptions) {
+export function createTeamService({ accounts, addresses, connections }: CreateTeamServiceOptions) {
   return {
-    // The server's agents, which are its whole team, in the order they were made.
+    // The server's accounts, which are its whole team, in the order they were made.
     list: (): TeamMember[] =>
-      agents.list().map((agent) => ({
-        agent,
+      accounts.list().map((account) => ({
+        account,
         addresses: addresses
-          .listByAgent(agent.id)
+          .listByAccount(account.id)
           .map(({ channel, value }) => ({ channel, value })),
-        listening: connections.isListening(agent.id),
+        listening: connections.isListening(account.id),
       })),
   };
 }

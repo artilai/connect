@@ -27,7 +27,7 @@ export class TelegramChannel extends Channel<"telegram"> {
   readonly name = "Telegram";
 
   readonly recipients =
-    "the id of someone who wrote to the agent's bot first, or a bot's @username";
+    "the id of someone who wrote to the account's bot first, or a bot's @username";
 
   override readonly senders = "a person's @username or Telegram user id, or a bot's @username";
 

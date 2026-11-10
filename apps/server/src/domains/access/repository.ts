@@ -5,18 +5,18 @@ import { access } from "../../platform/db/schema";
 import type { ChannelKind } from "../channels/schema";
 import { type Access, type Admit, defaultAccess } from "./schema";
 
-type ChannelOptions = { agentId: string; channel: ChannelKind };
+type ChannelOptions = { accountId: string; channel: ChannelKind };
 
 type SetAdmitOptions = ChannelOptions & { admit: Admit };
 
 type SenderOptions = ChannelOptions & { sender: string };
 
 export function createAccessRepository(db: Database) {
-  function read({ agentId, channel }: ChannelOptions): Access {
+  function read({ accountId, channel }: ChannelOptions): Access {
     const row = db
       .select({ admit: access.admit, senders: access.senders })
       .from(access)
-      .where(and(eq(access.agentId, agentId), eq(access.channel, channel)))
+      .where(and(eq(access.accountId, accountId), eq(access.channel, channel)))
       .get();
 
     return row ?? defaultAccess;
@@ -25,7 +25,7 @@ export function createAccessRepository(db: Database) {
   function write(options: ChannelOptions, { admit, senders }: Access) {
     db.insert(access)
       .values({ ...options, admit, senders })
-      .onConflictDoUpdate({ target: [access.agentId, access.channel], set: { admit, senders } })
+      .onConflictDoUpdate({ target: [access.accountId, access.channel], set: { admit, senders } })
       .run();
   }
 
@@ -38,7 +38,7 @@ export function createAccessRepository(db: Database) {
       db
         .insert(access)
         .values({ ...options, admit, senders: defaultAccess.senders })
-        .onConflictDoUpdate({ target: [access.agentId, access.channel], set: { admit } })
+        .onConflictDoUpdate({ target: [access.accountId, access.channel], set: { admit } })
         .run(),
 
     // A sender on the list wakes the agent whoever else does.

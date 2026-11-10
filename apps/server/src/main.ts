@@ -15,7 +15,7 @@ import { createTailscale, findTailscale, runWith } from "./platform/tailscale";
 // The migrations sit beside the source in the repo and beside dist in the published package.
 const migrationsFolder = fileURLToPath(new URL("../migrations", import.meta.url));
 
-// Everything the server writes holds its secrets or the agents' messages, so only its owner reads it.
+// Everything the server writes holds its secrets or the accounts' messages, so only its owner reads it.
 process.umask(0o077);
 
 const binary = findTailscale(process.platform);

@@ -34,14 +34,16 @@ function createdAt() {
     .$defaultFn(() => new Date());
 }
 
-export const agents = sqliteTable(
+// The tables keep the names the first migration gave them, agents and agent_id: Drizzle Kit renames
+// them by copying every table that refers to them, which can lose a server's data.
+export const accounts = sqliteTable(
   "agents",
   {
     id: text("id").primaryKey(),
     name: text("name").notNull(),
     createdAt: createdAt(),
   },
-  // The CLI picks an agent by its name, in any case.
+  // The CLI picks an account by its name, in any case.
   (table) => [uniqueIndex("agents_name_idx").on(sql`lower(${table.name})`)],
 );
 
@@ -49,18 +51,18 @@ export const tokens = sqliteTable(
   "tokens",
   {
     id: id(),
-    agentId: text("agent_id")
+    accountId: text("agent_id")
       .notNull()
-      .references(() => agents.id, { onDelete: "cascade" }),
+      .references(() => accounts.id, { onDelete: "cascade" }),
     hash: text("hash").notNull().unique(),
     // Whom the token was issued to, like "artil on MacBook" or an MCP client's name.
     name: text("name").notNull(),
     createdAt: createdAt(),
   },
-  (table) => [index("tokens_agent_id_idx").on(table.agentId)],
+  (table) => [index("tokens_agent_id_idx").on(table.accountId)],
 );
 
-// A sign-in a client asked for: pending until someone picks an agent on the sign-in page, then
+// A sign-in a client asked for: pending until someone picks an account on the sign-in page, then
 // holding the code the client trades for a token, once.
 export const signIns = sqliteTable("sign_ins", {
   id: id(),
@@ -71,20 +73,20 @@ export const signIns = sqliteTable("sign_ins", {
   redirectUri: text("redirect_uri").notNull(),
   challenge: text("challenge").notNull(),
   state: text("state"),
-  agentId: text("agent_id").references(() => agents.id, { onDelete: "cascade" }),
+  accountId: text("agent_id").references(() => accounts.id, { onDelete: "cascade" }),
   codeHash: text("code_hash").unique(),
   expiresAt: timestamp("expires_at").notNull(),
 });
 
 // A bot keeps its row once disconnected, without its token, so the messages it carried stay; one
-// agent at a time holds it.
+// account at a time holds it.
 export const addresses = sqliteTable(
   "addresses",
   {
     id: id(),
-    agentId: text("agent_id")
+    accountId: text("agent_id")
       .notNull()
-      .references(() => agents.id, { onDelete: "cascade" }),
+      .references(() => accounts.id, { onDelete: "cascade" }),
     channel: text("channel").notNull(),
     value: text("value").notNull(),
     credentials: encryptedText("addresses", "credentials"),
@@ -94,30 +96,30 @@ export const addresses = sqliteTable(
     uniqueIndex("addresses_channel_value_idx")
       .on(table.channel, table.value)
       .where(sql`${table.credentials} is not null`),
-    index("addresses_agent_id_idx").on(table.agentId),
+    index("addresses_agent_id_idx").on(table.accountId),
   ],
 );
 
 export const access = sqliteTable(
   "access",
   {
-    agentId: text("agent_id")
+    accountId: text("agent_id")
       .notNull()
-      .references(() => agents.id, { onDelete: "cascade" }),
+      .references(() => accounts.id, { onDelete: "cascade" }),
     channel: text("channel").notNull(),
     admit: text("admit", { enum: admits }).notNull(),
     senders: text("senders", { mode: "json" }).$type<string[]>().notNull(),
   },
-  (table) => [primaryKey({ columns: [table.agentId, table.channel] })],
+  (table) => [primaryKey({ columns: [table.accountId, table.channel] })],
 );
 
 export const messages = sqliteTable(
   "messages",
   {
     id: id(),
-    agentId: text("agent_id")
+    accountId: text("agent_id")
       .notNull()
-      .references(() => agents.id, { onDelete: "cascade" }),
+      .references(() => accounts.id, { onDelete: "cascade" }),
     addressId: text("address_id")
       .notNull()
       .references(() => addresses.id, { onDelete: "cascade" }),
@@ -139,7 +141,7 @@ export const messages = sqliteTable(
     createdAt: createdAt(),
   },
   (table) => [
-    index("messages_agent_id_created_at_idx").on(table.agentId, table.createdAt),
+    index("messages_agent_id_created_at_idx").on(table.accountId, table.createdAt),
     uniqueIndex("messages_address_id_external_id_idx")
       .on(table.addressId, table.direction, table.externalId)
       .where(sql`${table.externalId} is not null`),
@@ -150,9 +152,9 @@ export const files = sqliteTable(
   "files",
   {
     id: id(),
-    agentId: text("agent_id")
+    accountId: text("agent_id")
       .notNull()
-      .references(() => agents.id, { onDelete: "cascade" }),
+      .references(() => accounts.id, { onDelete: "cascade" }),
     // A message's id, or the id of a relayed message, which keeps no other row.
     messageId: text("message_id").notNull(),
     name: encryptedText("files", "name").notNull(),
@@ -171,9 +173,9 @@ export const events = sqliteTable(
   "events",
   {
     id: integer("id").primaryKey({ autoIncrement: true }),
-    agentId: text("agent_id")
+    accountId: text("agent_id")
       .notNull()
-      .references(() => agents.id, { onDelete: "cascade" }),
+      .references(() => accounts.id, { onDelete: "cascade" }),
     type: text("type", { enum: ["message.received"] }).notNull(),
     channel: text("channel").notNull(),
     messageId: text("message_id").notNull(),
@@ -185,14 +187,14 @@ export const events = sqliteTable(
     client: text("client"),
     createdAt: createdAt(),
   },
-  (table) => [index("events_agent_id_id_idx").on(table.agentId, table.id)],
+  (table) => [index("events_agent_id_id_idx").on(table.accountId, table.id)],
 );
 
-// The one client that hears an agent's new messages.
+// The one client that hears an account's new messages.
 export const connections = sqliteTable("connections", {
-  agentId: text("agent_id")
+  accountId: text("agent_id")
     .primaryKey()
-    .references(() => agents.id, { onDelete: "cascade" }),
+    .references(() => accounts.id, { onDelete: "cascade" }),
   id: text("id").notNull(),
   tokenHash: text("token_hash")
     .notNull()

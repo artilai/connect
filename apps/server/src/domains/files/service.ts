@@ -17,16 +17,16 @@ type CreateFilesServiceOptions = {
 };
 
 type SaveOptions = {
-  agentId: string;
+  accountId: string;
   messageId: string;
   // A file the channel handed over without its bytes is saved by its description.
   uploads: readonly InboundFile[];
   expiresAt?: Date;
 };
 
-type ReadForSendingOptions = { agentId: string; fileId: string };
+type ReadForSendingOptions = { accountId: string; fileId: string };
 
-type ReadAttachmentsOptions = { agentId: string; attachments: readonly AttachmentInput[] };
+type ReadAttachmentsOptions = { accountId: string; attachments: readonly AttachmentInput[] };
 
 const encoder = new TextEncoder();
 
@@ -79,12 +79,12 @@ export function createFilesService({ filesRepository, store, log }: CreateFilesS
     }
   }
 
-  // A file the agent received or sent, to send on.
-  async function readForSending({ agentId, fileId }: ReadForSendingOptions): Promise<Upload> {
+  // A file the account received or sent, to send on.
+  async function readForSending({ accountId, fileId }: ReadForSendingOptions): Promise<Upload> {
     if (!store) throw unavailableError();
 
     const file = filesRepository.findById(fileId);
-    const content = file?.agentId === agentId ? await readContent(file) : undefined;
+    const content = file?.accountId === accountId ? await readContent(file) : undefined;
 
     if (!file || !content) {
       throw new AppError({
@@ -101,12 +101,12 @@ export function createFilesService({ filesRepository, store, log }: CreateFilesS
 
     readForSending,
 
-    // Reads the files a message to send names, with their bytes: ones the agent has, and text
+    // Reads the files a message to send names, with their bytes: ones the account has, and text
     // files written for it.
-    readAttachments: ({ agentId, attachments }: ReadAttachmentsOptions): Promise<Upload[]> =>
+    readAttachments: ({ accountId, attachments }: ReadAttachmentsOptions): Promise<Upload[]> =>
       Promise.all(
         attachments.map(async (file) => {
-          if ("id" in file) return readForSending({ agentId, fileId: file.id });
+          if ("id" in file) return readForSending({ accountId, fileId: file.id });
 
           const content = encoder.encode(file.text);
 
@@ -125,16 +125,16 @@ export function createFilesService({ filesRepository, store, log }: CreateFilesS
 
     // Saves a message's files: their bytes when the server has a bucket, and their description
     // either way.
-    save: ({ agentId, messageId, uploads, expiresAt }: SaveOptions) =>
+    save: ({ accountId, messageId, uploads, expiresAt }: SaveOptions) =>
       Promise.all(
         uploads.map(async ({ name, type, size, content }) => {
           const id = crypto.randomUUID();
-          const key = `${agentId}/${id}`;
+          const key = `${accountId}/${id}`;
           const stored = content !== null && (await putInStore({ key, bytes: content, type }));
 
           return filesRepository.add({
             id,
-            agentId,
+            accountId,
             messageId,
             name,
             type,
@@ -155,8 +155,8 @@ export function createFilesService({ filesRepository, store, log }: CreateFilesS
     // Removes the expired files, such as a relayed message's.
     removeExpired: (now = new Date()) => removeFiles(filesRepository.listExpired(now)),
 
-    // Removes the bytes of an agent's files, before the agent's removal deletes their rows.
-    removeByAgent: (agentId: string) => removeFiles(filesRepository.listByAgent(agentId)),
+    // Removes the bytes of an account's files, before the account's removal deletes their rows.
+    removeByAccount: (accountId: string) => removeFiles(filesRepository.listByAccount(accountId)),
 
     unavailableError,
   };

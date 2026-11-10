@@ -4,7 +4,7 @@ import { z } from "zod";
 
 import { jsonResponse } from "../../platform/http/openapi";
 import { labelSchema, validateJson } from "../../platform/http/validate";
-import type { AgentEnv } from "../agents/schema";
+import type { AccountEnv } from "../accounts/schema";
 import { connectionSchema, toConnection } from "./schema";
 import type { ConnectionsService } from "./service";
 
@@ -36,9 +36,9 @@ const docs = {
 type CreateConnectionRoutesOptions = { connections: ConnectionsService };
 
 export function createConnectionRoutes({ connections }: CreateConnectionRoutesOptions) {
-  return new Hono<AgentEnv>()
+  return new Hono<AccountEnv>()
     .get("/", docs.read, (c) => {
-      const connection = connections.findByAgent(c.var.agent.id);
+      const connection = connections.findByAccount(c.var.account.id);
 
       return c.json(connection ? toConnection(connection) : null);
     })
@@ -46,7 +46,7 @@ export function createConnectionRoutes({ connections }: CreateConnectionRoutesOp
       const { client, machine = null } = c.req.valid("json");
 
       const connected = connections.connect({
-        agentId: c.var.agent.id,
+        accountId: c.var.account.id,
         tokenHash: c.var.actor.tokenHash,
         client,
         machine,

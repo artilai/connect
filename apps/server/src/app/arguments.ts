@@ -4,7 +4,7 @@ import { AppError } from "@artil/errors";
 import { shellQuoted } from "@artil/utils/shell";
 
 import { readChannel } from "../domains/access/commands";
-import { everyClient } from "../domains/agents/commands";
+import { everyClient } from "../domains/accounts/commands";
 import type { CommandContext } from "./context";
 
 type Choice = { value: string; label: string };
@@ -43,7 +43,7 @@ type Chooser = (options: ChooserOptions) => Promise<string | undefined>;
 // server's accounts, the channels an account connects to, the clients it is signed in to, and who
 // wrote to it and was kept out. A name stays for the command line to give.
 export function createArgumentChoosers({
-  agents,
+  accounts,
   channels,
   tokens,
   addresses,
@@ -56,7 +56,7 @@ export function createArgumentChoosers({
       () =>
         choose({
           message: "Which account?",
-          choices: agents.list().map(({ name }) => toChoice(name)),
+          choices: accounts.list().map(({ name }) => toChoice(name)),
           none: "No accounts yet. Create one with: artil-server account create <name>",
         }),
     ],
@@ -74,25 +74,28 @@ export function createArgumentChoosers({
     [
       "client",
       ({ given }) => {
-        const agent = agents.getByIdOrName(given.get("account") ?? "");
-        const clients = tokens.listByAgent(agent.id).map(({ name }) => toChoice(name));
+        const account = accounts.getByIdOrName(given.get("account") ?? "");
+        const clients = tokens.listByAccount(account.id).map(({ name }) => toChoice(name));
 
         return choose({
-          message: `Sign ${agent.name} out of which client?`,
+          message: `Sign ${account.name} out of which client?`,
           choices: clients.length > 0 ? [...clients, toChoice(everyClient)] : [],
-          none: `${agent.name} is signed in to no client`,
+          none: `${account.name} is signed in to no client`,
         });
       },
     ],
     [
       "who",
       ({ given, channel: kind }) => {
-        const agent = agents.getByIdOrName(given.get("account") ?? "");
-        const channel = readChannel({ agent, kind, addresses, channels });
-        const listed = new Set(access.read({ agentId: agent.id, channel: channel.kind }).senders);
+        const account = accounts.getByIdOrName(given.get("account") ?? "");
+        const channel = readChannel({ account, kind, addresses, channels });
+
+        const listed = new Set(
+          access.read({ accountId: account.id, channel: channel.kind }).senders,
+        );
 
         const keptOut = messages
-          .listKeptOut({ agentId: agent.id, channel: channel.kind })
+          .listKeptOut({ accountId: account.id, channel: channel.kind })
           .flatMap(({ sender, name }) =>
             listed.has(sender)
               ? []
@@ -100,9 +103,9 @@ export function createArgumentChoosers({
           );
 
         return choose({
-          message: `Who of those who wrote to ${agent.name} on ${channel.name} may wake it?`,
+          message: `Who of those who wrote to ${account.name} on ${channel.name} may wake it?`,
           choices: keptOut,
-          none: `No one ${agent.name}'s list keeps out has written to it on ${channel.name}; name the sender with: artil-server account allow ${shellQuoted(agent.name)} <${channel.senders}>`,
+          none: `No one ${account.name}'s list keeps out has written to it on ${channel.name}; name the sender with: artil-server account allow ${shellQuoted(account.name)} <${channel.senders}>`,
         });
       },
     ],
