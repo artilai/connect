@@ -167,6 +167,16 @@ export const testChannelDefinition = {
   create: ({ secret }) => new TestChannel(secret),
 } satisfies ChannelDefinition<"test">;
 
+// A port nothing listens on now, for a test that starts the server on a port of its own.
+export async function findFreePort() {
+  const probe = Bun.serve({ hostname: "127.0.0.1", port: 0, fetch: () => new Response() });
+  const port = probe.port ?? 0;
+
+  await probe.stop(true);
+
+  return port;
+}
+
 type CreateTestServerOptions = {
   // The password the sign-in page asks for.
   password?: string;

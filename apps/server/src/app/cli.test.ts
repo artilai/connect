@@ -4,28 +4,63 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { pathsIn, readConfig, writeConfig } from "../platform/config";
+import { type Config, newConfig, pathsIn, readConfig, writeConfig } from "../platform/config";
 import { runCli } from "./cli";
-import { channelModule, testChannelDefinition } from "./testing";
+import { channelModule, findFreePort, testChannelDefinition } from "./testing";
 
 const migrationsFolder = fileURLToPath(new URL("../../migrations", import.meta.url));
+
+// What each run of artil-server here has: the test channel, and an artil CLI that is installed.
+const environment = {
+  version: "0.0.0",
+  builtInChannels: [testChannelDefinition],
+  migrationsFolder,
+  tailscale: undefined,
+  artil: { installed: true, install: async () => {} },
+};
+
+async function refuseSetup(): Promise<Config> {
+  throw new Error("A command ran the setup");
+}
 
 async function cli(dataDir: string, ...argv: string[]) {
   const lines: string[] = [];
 
   await runCli({
+    ...environment,
     argv,
     dataDir,
-    version: "0.0.0",
     interactive: false,
-    builtInChannels: [testChannelDefinition],
-    migrationsFolder,
-    tailscale: undefined,
-    artil: { installed: true, install: async () => {} },
+    runSetup: refuseSetup,
+    waitForStop: async () => {},
     out: (line) => lines.push(line),
   });
 
   return lines.join("\n");
+}
+
+type StartOptions = { dataDir: string; interactive: boolean };
+
+// Starts the server, which stops as soon as it runs, and returns the config the setup began from
+// each time it ran.
+async function start({ dataDir, interactive }: StartOptions) {
+  const setupConfigs: (Config | undefined)[] = [];
+
+  await runCli({
+    ...environment,
+    argv: [],
+    dataDir,
+    interactive,
+    runSetup: async ({ config }) => {
+      setupConfigs.push(config);
+
+      return { ...(config ?? newConfig({ channels: [] })), port: 0 };
+    },
+    waitForStop: async () => {},
+    out: () => {},
+  });
+
+  return setupConfigs;
 }
 
 test("creates agents, lists them and makes a token to sign one in with", async () => {
@@ -57,6 +92,31 @@ test("keeps its config and data where only its owner reads them", async () => {
     public: false,
     password: null,
   });
+});
+
+test("sets the server up on a start in a terminal until it has an agent", async () => {
+  const dataDir = await mkdtemp(join(tmpdir(), "artil-server-"));
+
+  expect(await start({ dataDir, interactive: true })).toEqual([undefined]);
+
+  // A setup stopped before it made an agent has saved the config.
+  await cli(dataDir, "account", "list");
+
+  const paths = pathsIn(dataDir);
+  const savedConfig = await readConfig(paths);
+
+  if (!savedConfig) throw new Error("The first command did not write a config");
+
+  const config = { ...savedConfig, port: await findFreePort() };
+
+  await writeConfig(paths, config);
+
+  expect(await start({ dataDir, interactive: false })).toEqual([]);
+  expect(await start({ dataDir, interactive: true })).toEqual([config]);
+
+  await cli(dataDir, "account", "create", "Codex");
+
+  expect(await start({ dataDir, interactive: true })).toEqual([]);
 });
 
 test("adds a sender to an agent's list on a channel", async () => {

@@ -48,7 +48,13 @@ export async function startServer({
   store = config.s3 ? createS3Store(config.s3) : undefined,
   fetch,
 }: StartServerOptions) {
+  // What the server opens closes in reverse when it stops, or at once when starting it fails, so a
+  // server that did not start lets go of its port.
+  await using startup = new AsyncDisposableStack();
+
   const database = openDatabase({ path: databasePath, migrationsFolder, secret: config.secret });
+
+  startup.defer(() => database.close());
 
   // The server takes its port first, so a test can ask for any free one; it answers once ready.
   let handleRequest: (request: Request) => Response | Promise<Response> = startingResponse;
@@ -61,17 +67,13 @@ export async function startServer({
     idleTimeout: 60,
   });
 
+  startup.defer(() => server.stop(true));
+
   const port = server.port ?? config.port;
 
-  const publicUrl =
-    config.public && tailscale
-      ? await tailscale.open(port).catch(async (cause: unknown) => {
-          await server.stop(true);
-          database.close();
+  const publicUrl = config.public && tailscale ? await tailscale.open(port) : undefined;
 
-          throw cause;
-        })
-      : undefined;
+  if (publicUrl) startup.defer(() => tailscale?.close());
 
   const baseUrl = publicUrl ?? `http://localhost:${port}`;
 
@@ -118,6 +120,10 @@ export async function startServer({
     for (const channelReceivers of receivers) channelReceivers.sync();
   }
 
+  startup.defer(() => {
+    for (const channelReceivers of receivers) channelReceivers.stop();
+  });
+
   syncReceivers();
 
   // A command that changes the database changes its data version, and the receivers follow.
@@ -132,6 +138,8 @@ export async function startServer({
     }
   }, 2 * second);
 
+  startup.defer(() => clearInterval(databaseWatcher));
+
   function removeExpiredFiles() {
     services.files
       .removeExpired()
@@ -145,21 +153,16 @@ export async function startServer({
 
   const expiredFilesTimer = setInterval(removeExpiredFiles, hour);
 
+  startup.defer(() => clearInterval(expiredFilesTimer));
+
+  // Started: the server keeps what it opened until it stops.
+  const resources = startup.move();
+
   return {
     baseUrl,
     port,
     services,
 
-    async stop() {
-      clearInterval(databaseWatcher);
-      clearInterval(expiredFilesTimer);
-
-      for (const channelReceivers of receivers) channelReceivers.stop();
-      await server.stop(true);
-
-      if (publicUrl) await tailscale?.close();
-
-      database.close();
-    },
+    stop: () => resources.disposeAsync(),
   };
 }
