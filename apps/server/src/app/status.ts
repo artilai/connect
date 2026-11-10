@@ -46,7 +46,7 @@ async function isRunning(port: number) {
   }
 }
 
-// Where the server is and whether it runs, what it has, and what keeps it from starting.
+// Where the server is, whether it runs, and what keeps it from starting.
 export async function showStatus({ config, tailscale, context, out }: ShowStatusOptions) {
   const problems = findStartProblems({ config, tailscale });
 
@@ -65,13 +65,6 @@ export async function showStatus({ config, tailscale, context, out }: ShowStatus
       ? ""
       : `, on port ${runningPort} until it restarts on ${config.port}`;
 
-  const accounts = context.accounts
-    .list()
-    .map(
-      ({ id, name }) =>
-        `${name} ${context.connections.isListening(id) ? "listening" : "not listening"}`,
-    );
-
   out(
     [
       "Artil Server",
@@ -83,26 +76,6 @@ export async function showStatus({ config, tailscale, context, out }: ShowStatus
         [
           "Running",
           (await isRunning(runningPort)) ? `yes${restart}` : "no; start it with: artil-server",
-        ],
-        [
-          "Files",
-          config.s3
-            ? `on, in the bucket ${config.s3.bucket}`
-            : "off; turn them on with an S3 bucket in artil-server setup",
-        ],
-        ["Sign-in page", config.password === null ? "asks for no password" : "asks for a password"],
-        [
-          "Channels",
-          context.channels
-            .list()
-            .map(({ name }) => name)
-            .join(", "),
-        ],
-        [
-          "Accounts",
-          accounts.length > 0
-            ? accounts.join(", ")
-            : "none yet; create one with: artil-server account create <name>",
         ],
       ]),
       ...(problems.length > 0
