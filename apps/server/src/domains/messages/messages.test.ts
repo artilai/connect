@@ -30,6 +30,8 @@ test("wakes the agent with a message from a sender on its list", async () => {
     channel: "test",
     direction: "inbound",
     counterpart: "ada",
+    author: null,
+    authorName: null,
     text: "Deploy it",
     status: "received",
     admission: "listed",
