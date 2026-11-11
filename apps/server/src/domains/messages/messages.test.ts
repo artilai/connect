@@ -294,35 +294,6 @@ test("writes first only to someone the channel lets it", async () => {
   });
 });
 
-test("refuses a message its channel cannot carry, before it keeps one", async () => {
-  const server = await createTestServer();
-  const codex = server.account("Codex");
-
-  await server.connectAddress({ account: codex, word: "codex" });
-
-  type SendOptions = { to: string[]; text: string };
-
-  async function send(draft: SendOptions) {
-    return server.services.messages
-      .sendDraft({
-        accountId: codex.id,
-        accountName: "Codex",
-        client: null,
-        draft: { channel: "test", ...draft },
-        uploads: [],
-      })
-      .catch((cause: unknown) => cause);
-  }
-
-  expect(await send({ to: ["@ada", "@eve"], text: "Hi" })).toMatchObject({
-    message: "A Test message goes to one recipient",
-  });
-  expect(await send({ to: ["not a recipient!"], text: "Hi" })).toMatchObject({
-    message: "not a recipient! is not a Test name, @handle or -group",
-  });
-  expect(server.services.messages.list({ accountId: codex.id, filter: {} })).toEqual([]);
-});
-
 test("keeps the files a message brings, behind a link", async () => {
   const server = await createTestServer();
   const codex = server.account("Codex");

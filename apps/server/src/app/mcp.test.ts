@@ -154,6 +154,41 @@ test("sends on the Message URL to one account, copying no one, in up to 2000 cha
   );
 });
 
+test("refuses a message its channel cannot carry, before it keeps one", async () => {
+  const server = await createTestServer();
+  const codex = server.account("Codex");
+  const client = await connect({ server, account: codex });
+
+  await server.connectAddress({ account: codex, word: "codex" });
+
+  async function send(draft: CallToolRequest["params"]["arguments"]) {
+    const args = { channel: "test", to: ["@ada"], text: "Hi", ...draft };
+
+    return (await call({ client, name: "messages.send", args })).text;
+  }
+
+  type NoteOptions = { name: string; text: string };
+
+  function note({ name, text }: NoteOptions) {
+    return { name, type: "text/plain", text };
+  }
+
+  expect(await send({ to: ["@ada", "@eve"] })).toBe("A Test message goes to one recipient");
+  expect(await send({ to: ["not a recipient!"] })).toBe(
+    "not a recipient! is not a Test name, @handle or -group",
+  );
+  expect(await send({ text: "a".repeat(101) })).toBe("A Test message holds at most 100 characters");
+  expect(
+    await send({
+      attachments: ["a", "b", "c"].map((name) => note({ name: `${name}.txt`, text: name })),
+    }),
+  ).toBe("A Test message carries up to 2 files");
+  expect(await send({ attachments: [note({ name: "a.txt", text: "a".repeat(11) })] })).toBe(
+    "a.txt is 11 B; Test takes files of up to 10 B",
+  );
+  expect(server.services.messages.list({ accountId: codex.id, filter: {} })).toEqual([]);
+});
+
 test("acts as its own account only", async () => {
   const server = await createTestServer();
   const client = await connect({ server, account: server.account("Codex") });

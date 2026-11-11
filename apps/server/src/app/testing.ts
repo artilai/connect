@@ -62,6 +62,9 @@ class TestChannel extends Channel<"test"> {
     token: "word, which names the address @word",
   };
 
+  // Small, so a test reaches each of them.
+  override readonly limits = { recipients: 1, text: 100, files: 2, fileSize: 10 };
+
   readonly sent: SendOptions[] = [];
 
   // What the server started on, which a test waits for.
