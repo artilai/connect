@@ -1,8 +1,8 @@
 {
+  "id": "b67d5e11-5a2b-4188-b030-3c544f21c9b9",
+  "prevId": "71af15d9-a173-440b-97d8-76f71448dde6",
   "version": "6",
   "dialect": "sqlite",
-  "id": "122ded23-1122-49fe-b669-25f6336f469f",
-  "prevId": "71af15d9-a173-440b-97d8-76f71448dde6",
   "tables": {
     "access": {
       "name": "access",
@@ -41,15 +41,15 @@
         "access_account_id_accounts_id_fk": {
           "name": "access_account_id_accounts_id_fk",
           "tableFrom": "access",
-          "tableTo": "accounts",
           "columnsFrom": [
             "account_id"
           ],
+          "tableTo": "accounts",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         }
       },
       "compositePrimaryKeys": {
@@ -156,8 +156,8 @@
             "channel",
             "value"
           ],
-          "isUnique": true,
-          "where": "\"addresses\".\"credentials\" is not null"
+          "where": "\"addresses\".\"credentials\" is not null",
+          "isUnique": true
         },
         "addresses_account_id_idx": {
           "name": "addresses_account_id_idx",
@@ -171,15 +171,15 @@
         "addresses_account_id_accounts_id_fk": {
           "name": "addresses_account_id_accounts_id_fk",
           "tableFrom": "addresses",
-          "tableTo": "accounts",
           "columnsFrom": [
             "account_id"
           ],
+          "tableTo": "accounts",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         }
       },
       "compositePrimaryKeys": {},
@@ -244,28 +244,28 @@
         "connections_account_id_accounts_id_fk": {
           "name": "connections_account_id_accounts_id_fk",
           "tableFrom": "connections",
-          "tableTo": "accounts",
           "columnsFrom": [
             "account_id"
           ],
+          "tableTo": "accounts",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         },
         "connections_token_hash_tokens_hash_fk": {
           "name": "connections_token_hash_tokens_hash_fk",
           "tableFrom": "connections",
-          "tableTo": "tokens",
           "columnsFrom": [
             "token_hash"
           ],
+          "tableTo": "tokens",
           "columnsTo": [
             "hash"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         }
       },
       "compositePrimaryKeys": {},
@@ -310,8 +310,36 @@
           "notNull": true,
           "autoincrement": false
         },
+        "text": {
+          "name": "text",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "sender": {
+          "name": "sender",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "thread": {
+          "name": "thread",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
         "to_thread": {
           "name": "to_thread",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "client": {
+          "name": "client",
           "type": "text",
           "primaryKey": false,
           "notNull": false,
@@ -339,15 +367,15 @@
         "events_account_id_accounts_id_fk": {
           "name": "events_account_id_accounts_id_fk",
           "tableFrom": "events",
-          "tableTo": "accounts",
           "columnsFrom": [
             "account_id"
           ],
+          "tableTo": "accounts",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         }
       },
       "compositePrimaryKeys": {},
@@ -434,15 +462,15 @@
         "files_account_id_accounts_id_fk": {
           "name": "files_account_id_accounts_id_fk",
           "tableFrom": "files",
-          "tableTo": "accounts",
           "columnsFrom": [
             "account_id"
           ],
+          "tableTo": "accounts",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         }
       },
       "compositePrimaryKeys": {},
@@ -595,36 +623,36 @@
             "direction",
             "external_id"
           ],
-          "isUnique": true,
-          "where": "\"messages\".\"external_id\" is not null"
+          "where": "\"messages\".\"external_id\" is not null",
+          "isUnique": true
         }
       },
       "foreignKeys": {
         "messages_account_id_accounts_id_fk": {
           "name": "messages_account_id_accounts_id_fk",
           "tableFrom": "messages",
-          "tableTo": "accounts",
           "columnsFrom": [
             "account_id"
           ],
+          "tableTo": "accounts",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         },
         "messages_address_id_addresses_id_fk": {
           "name": "messages_address_id_addresses_id_fk",
           "tableFrom": "messages",
-          "tableTo": "addresses",
           "columnsFrom": [
             "address_id"
           ],
+          "tableTo": "addresses",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         }
       },
       "compositePrimaryKeys": {},
@@ -718,15 +746,15 @@
         "sign_ins_account_id_accounts_id_fk": {
           "name": "sign_ins_account_id_accounts_id_fk",
           "tableFrom": "sign_ins",
-          "tableTo": "accounts",
           "columnsFrom": [
             "account_id"
           ],
+          "tableTo": "accounts",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         }
       },
       "compositePrimaryKeys": {},
@@ -792,15 +820,15 @@
         "tokens_account_id_accounts_id_fk": {
           "name": "tokens_account_id_accounts_id_fk",
           "tableFrom": "tokens",
-          "tableTo": "accounts",
           "columnsFrom": [
             "account_id"
           ],
+          "tableTo": "accounts",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         }
       },
       "compositePrimaryKeys": {},
@@ -811,9 +839,9 @@
   "views": {},
   "enums": {},
   "_meta": {
+    "columns": {},
     "schemas": {},
-    "tables": {},
-    "columns": {}
+    "tables": {}
   },
   "internal": {
     "indexes": {
