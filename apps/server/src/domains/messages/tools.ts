@@ -21,7 +21,12 @@ import type { MessagesService } from "./service";
 
 const listSchema = z.object({
   ...actingAccountField,
-  channel: z.string().exactOptional().describe("Keep the messages that came on this channel"),
+  channel: z
+    .string()
+    .trim()
+    .min(1)
+    .exactOptional()
+    .describe("Keep the messages that came on this channel"),
   limit: z.number().int().min(1).max(25).default(25).describe("How many to list, from 1 to 25"),
   from: z
     .string()
