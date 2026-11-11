@@ -12,7 +12,7 @@ type CreateHostsOptions = {
 // The server answers only at its own addresses, so a site whose name a browser resolves to this
 // machine cannot pose as it.
 export function createHosts({ publicUrl }: CreateHostsOptions) {
-  const parsedPublicUrl = publicUrl === undefined ? undefined : new URL(publicUrl);
+  const parsedPublicUrl = publicUrl ? new URL(publicUrl) : undefined;
 
   function requestOrigin(request: Request) {
     const host = request.headers.get("host") ?? "";

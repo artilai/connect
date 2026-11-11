@@ -297,13 +297,13 @@ const noInlineParamTypesRule = defineRule({
   },
 });
 
-const layers = new Map([
-  ["errors", 0],
-  ["utils", 0],
-  ["channels", 1],
-  ["telegram-channel", 2],
-  ["server", 3],
-]);
+// The workspaces from the bottom layer up; a workspace imports only from layers below its own.
+const layers = [["errors", "utils"], ["channels"], ["telegram-channel"], ["server"]];
+
+// A workspace's layer, or -1 for one without a layer.
+function layerOf(workspace: string) {
+  return layers.findIndex((names) => names.includes(workspace));
+}
 
 function workspaceOf(filename: string) {
   return /\/(?:apps|packages)\/([^\/]+)\//v.exec(filename)?.[1];
@@ -329,15 +329,11 @@ const layeredImportsRule = defineRule({
 
       if (!from || !to || from === to) return;
 
-      const fromLayer = layers.get(from);
-      const toLayer = layers.get(to);
+      const fromLayer = layerOf(from);
+      const toLayer = layerOf(to);
 
-      if (fromLayer === undefined || toLayer === undefined) {
-        context.report({
-          node,
-          messageId: "unknown",
-          data: { name: toLayer === undefined ? to : from },
-        });
+      if (fromLayer < 0 || toLayer < 0) {
+        context.report({ node, messageId: "unknown", data: { name: toLayer < 0 ? to : from } });
 
         return;
       }
@@ -470,6 +466,34 @@ const serverArchitectureRule = defineRule({
   },
 });
 
+const equalityOperators = new Set(["===", "!==", "==", "!="]);
+
+function isUndefined(node: ESTree.Node) {
+  return node.type === "Identifier" && node.name === "undefined";
+}
+
+const noUndefinedComparisonRule = defineRule({
+  meta: {
+    type: "suggestion",
+    docs: { description: "Disallow comparing a value with undefined." },
+    messages: {
+      undefinedComparison:
+        "Say whether a value is there with the value itself, ?. or ??, not by comparing it with undefined.",
+    },
+  },
+  createOnce(context) {
+    return {
+      BinaryExpression(node) {
+        if (!equalityOperators.has(node.operator)) return;
+
+        if (isUndefined(node.left) || isUndefined(node.right)) {
+          context.report({ node, messageId: "undefinedComparison" });
+        }
+      },
+    };
+  },
+});
+
 export default eslintCompatPlugin({
   meta: { name: "artil" },
   rules: {
@@ -479,5 +503,6 @@ export default eslintCompatPlugin({
     "server-architecture": serverArchitectureRule,
     "no-inline-param-types": noInlineParamTypesRule,
     "prefer-object-params": preferObjectParamsRule,
+    "no-undefined-comparison": noUndefinedComparisonRule,
   },
 });

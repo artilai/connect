@@ -99,16 +99,18 @@ export function createConnectionsRepository(db: Database) {
         .all().length > 0,
 
     isListening: (accountId: string) =>
-      db
-        .select({ id: connections.id })
-        .from(connections)
-        .where(
-          and(
-            eq(connections.accountId, accountId),
-            gt(connections.listenedAt, new Date(Date.now() - listenWindow)),
-          ),
-        )
-        .get() !== undefined,
+      Boolean(
+        db
+          .select({ id: connections.id })
+          .from(connections)
+          .where(
+            and(
+              eq(connections.accountId, accountId),
+              gt(connections.listenedAt, new Date(Date.now() - listenWindow)),
+            ),
+          )
+          .get(),
+      ),
   };
 }
 

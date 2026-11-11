@@ -101,7 +101,7 @@ export class UrlChannel extends Channel<"url", UrlData> {
     const { accounts, access, connections, files, receiveRelay } = this.#services;
     const [recipientId, ...others] = to;
 
-    if (recipientId === undefined || others.length > 0) {
+    if (!recipientId || others.length > 0) {
       throw invalid("Put the id of the one agent to send to in to");
     }
 

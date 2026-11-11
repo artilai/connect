@@ -155,6 +155,7 @@
     "artil/no-inline-param-types": "error",
     "artil/no-re-exports": "error",
     "artil/prefer-object-params": "error",
+    "artil/no-undefined-comparison": "error",
     "oxc/no-accumulating-spread": "error",
     "anti-slop/no-array-filter-map": "error",
     "anti-slop/no-reduce-accumulator-copy": "error",

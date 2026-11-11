@@ -176,7 +176,7 @@ export function registerMessageTools({
             filter: {
               ...filter,
               direction: "inbound",
-              ...(from !== undefined && { counterpart: from }),
+              ...(from && { counterpart: from }),
             },
           })
           .map(toMessageSummary),

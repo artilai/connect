@@ -71,7 +71,7 @@ function replyRecipients(message: MessageRow): string[] {
 // What no channel of this server carries: forwarding, copies and subjects are email's, in Artil
 // Cloud.
 function checkCarried(draft: Draft, kind: ChannelKind) {
-  if (draft.forward !== undefined) throw onlyInCloud("Forwarding a message");
+  if (draft.forward) throw onlyInCloud("Forwarding a message");
 
   if ((draft.cc ?? []).length > 0) {
     throw new AppError({ code: "invalid_input", message: `A message on ${kind} copies no one` });
@@ -110,7 +110,7 @@ export function createMessagesService({
 
   // An answer goes where its message came from, a new message where the draft says.
   function resolveRecipients(accountId: string, draft: Draft): Recipients {
-    if (draft.replyTo === undefined) {
+    if (!draft.replyTo) {
       if (!draft.channel || !draft.to) {
         throw new AppError({
           code: "invalid_input",
@@ -153,9 +153,9 @@ export function createMessagesService({
 
     // Both copies hold the id of the received one, which its event goes by.
     const recipientEvent =
-      recipientId === undefined || sent.externalId === null
-        ? undefined
-        : events.findRelay({ accountId: recipientId, messageId: sent.externalId });
+      recipientId && sent.externalId
+        ? events.findRelay({ accountId: recipientId, messageId: sent.externalId })
+        : undefined;
 
     return { to: sent.to, toThread: recipientEvent?.toThread ?? null };
   }
@@ -296,7 +296,7 @@ export function createMessagesService({
       group: group?.address ?? null,
       fromSelf: sender?.accountId === accountId,
       // Another account's address on the server is the team's.
-      fromTeam: sender !== undefined,
+      fromTeam: Boolean(sender),
       fromVerified: from.verified,
     });
 
@@ -434,8 +434,7 @@ export function createMessagesService({
       draft,
       uploads,
     }: SendDraftOptions): Promise<MessageRecord> {
-      const urlAnswer =
-        draft.replyTo === undefined ? undefined : findUrlAnswer({ accountId, id: draft.replyTo });
+      const urlAnswer = draft.replyTo ? findUrlAnswer({ accountId, id: draft.replyTo }) : undefined;
 
       const recipients = urlAnswer
         ? { channel: url.kind, to: urlAnswer.to }

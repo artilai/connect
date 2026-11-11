@@ -33,7 +33,7 @@ export const actingAccountField = {
 type ActingAccountOptions = { agent: string | undefined; signedInAccountId: string };
 
 export function actingAccountId({ agent, signedInAccountId }: ActingAccountOptions) {
-  if (agent !== undefined && agent !== signedInAccountId) {
+  if ((agent ?? signedInAccountId) !== signedInAccountId) {
     throw new AppError({ code: "forbidden", message: "These tools act as one account only" });
   }
 

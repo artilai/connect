@@ -42,7 +42,7 @@ async function readNewPassword(readSecret: ReadSecret) {
     validate: validatePassword,
   });
 
-  return newPassword === undefined ? undefined : hashPassword(newPassword);
+  return newPassword ? hashPassword(newPassword) : undefined;
 }
 
 // Saves the settings the flags change and says what changed. The sign-in page asks for a new
@@ -56,16 +56,23 @@ export async function changeSettings({
 }: ChangeSettingsOptions) {
   if (change.public && change.local) throw invalid("The server is either --public or --local");
 
-  const port = change.port === undefined ? config.port : readPort(change.port);
+  const port = change.port ? readPort(change.port) : config.port;
   const isPublic = change.public || (!change.local && config.public);
 
   if (isPublic && config.password === null && !change.password) {
     throw invalid("Public mode needs a password for the sign-in page; give --password too");
   }
 
-  const passwordHash = change.password ? await readNewPassword(readSecret) : config.password;
+  let passwordHash = config.password;
 
-  if (passwordHash === undefined) return;
+  if (change.password) {
+    const newPasswordHash = await readNewPassword(readSecret);
+
+    // The person stopped before giving one.
+    if (!newPasswordHash) return;
+
+    passwordHash = newPasswordHash;
+  }
 
   const changed = { ...config, public: isPublic, port, password: passwordHash };
 

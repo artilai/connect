@@ -111,7 +111,7 @@ export class TelegramChannel extends Channel<"telegram"> {
 function onlyChat(to: string[]) {
   const [chat, ...others] = to;
 
-  if (chat === undefined || others.length > 0) {
+  if (!chat || others.length > 0) {
     throw new AppError({ code: "invalid_input", message: "A Telegram message goes to one chat" });
   }
 

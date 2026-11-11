@@ -105,7 +105,7 @@ export function createOAuthRoutes({ signIns, hosts }: CreateOAuthRoutesOptions) 
       const query = c.req.valid("query");
       const urls = urlsOf(c);
 
-      if (query.resource !== undefined && query.resource !== urls.resource) {
+      if ((query.resource ?? urls.resource) !== urls.resource) {
         throw new AppError({ code: "invalid_input", message: `resource must be ${urls.resource}` });
       }
 
@@ -134,7 +134,7 @@ export function createOAuthRoutes({ signIns, hosts }: CreateOAuthRoutesOptions) 
       const request = c.req.valid("form");
       const { resource } = urlsOf(c);
 
-      if (request.resource !== undefined && request.resource !== resource) {
+      if ((request.resource ?? resource) !== resource) {
         return c.json(oauthError("invalid_target", `resource must be ${resource}`), 400);
       }
 

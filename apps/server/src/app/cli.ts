@@ -210,7 +210,7 @@ export async function runCli(environment: Environment) {
 
       const choice = await chooser({ given, channel: values.channel });
 
-      if (choice === undefined) return undefined;
+      if (!choice) return undefined;
 
       given.set(name, choice);
     }
@@ -328,7 +328,7 @@ export async function runCli(environment: Environment) {
 
     await run.run({
       ...Object.fromEntries(given),
-      ...(values.channel !== undefined && { channel: values.channel }),
+      ...(values.channel && { channel: values.channel }),
     });
   } finally {
     context.close();

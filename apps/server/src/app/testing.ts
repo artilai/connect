@@ -205,7 +205,7 @@ export async function createTestServer({
   const testChannel = new TestChannel("webhook-secret");
   const memory = createMemoryStore();
   const baseUrl = publicUrl ?? origin;
-  const hashed = password === undefined ? null : await hashPassword(password);
+  const hashed = password ? await hashPassword(password) : null;
 
   const channels = new Map<ChannelKind, Channel>([["test", testChannel]]);
   // What the server logs, as its terminal shows it.
@@ -359,7 +359,7 @@ export async function openStream(account: TestAccount, query = "") {
       ?.slice("data: ".length);
 
     // SAFETY: the server writes each event's data as an Event in JSON, with its date as a string.
-    return data === undefined ? next() : (JSON.parse(data) as StreamedEvent);
+    return data ? (JSON.parse(data) as StreamedEvent) : next();
   }
 
   return {

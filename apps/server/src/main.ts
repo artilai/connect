@@ -42,7 +42,7 @@ try {
     // The channels the published server comes with, and the one place that names them.
     builtInChannels: [telegramChannel],
     migrationsFolder,
-    tailscale: binary === undefined ? undefined : createTailscale({ run: runWith(binary) }),
+    tailscale: binary ? createTailscale({ run: runWith(binary) }) : undefined,
     artil: findArtilCli(),
     runSetup,
     waitForStop,
