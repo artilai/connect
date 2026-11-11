@@ -71,7 +71,7 @@ export const eventSchema = z
       .string()
       .nullable()
       .describe(
-        "The thread of the agent's client the message is for: the one that wrote what it answers, or else the last one that wrote to its sender",
+        "The thread of the agent's client the message is for: the one that wrote what it answers, or else the last one whose message reached its sender",
       ),
     client: z
       .string()

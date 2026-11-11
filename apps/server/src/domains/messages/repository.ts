@@ -94,7 +94,8 @@ export function createMessagesRepository(db: Database) {
         )
         .get(),
 
-    // The thread of the client that last wrote to someone from the address, of those that named one.
+    // The thread of the client whose message from the address last reached someone, of those that
+    // named one.
     findLastClientThread: ({ addressId, counterpart }: FindLastClientThreadOptions) =>
       db
         .select({ clientThread: messages.clientThread })
@@ -104,6 +105,7 @@ export function createMessagesRepository(db: Database) {
             eq(messages.addressId, addressId),
             eq(messages.direction, "outbound"),
             eq(messages.counterpart, counterpart),
+            eq(messages.status, "sent"),
             isNotNull(messages.clientThread),
           ),
         )

@@ -68,6 +68,9 @@ class TestChannel extends Channel {
 
   readonly sent: SendOptions[] = [];
 
+  // Whether the provider is down, so that what the server sends fails.
+  down = false;
+
   // What the server started on, which a test waits for.
   readonly started: Promise<void>[] = [];
 
@@ -117,6 +120,8 @@ class TestChannel extends Channel {
   }
 
   async send(options: SendOptions) {
+    if (this.down) throw new Error("The provider is down");
+
     this.sent.push(options);
 
     return { id: `out-${this.sent.length}` };

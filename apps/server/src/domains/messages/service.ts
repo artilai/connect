@@ -290,7 +290,7 @@ export function createMessagesService({
   type FindThreadToWakeOptions = { addressId: string; counterpart: string; replyTo?: string };
 
   // The thread of the account's client a message is for: the one that wrote what it answers, or
-  // else the last one that wrote to whoever sent it, or to the group it came in.
+  // else the last one whose message reached whoever sent it, or the group it came in.
   function findThreadToWake({ addressId, counterpart, replyTo }: FindThreadToWakeOptions) {
     const answered = replyTo
       ? messagesRepository.findByExternalId({
