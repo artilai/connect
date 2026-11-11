@@ -10,29 +10,6 @@ function invalid(message: string) {
   return new AppError({ code: "invalid_input", message });
 }
 
-type ReadRecipientsOptions = { channel: Channel; to: readonly string[] };
-
-// Whom a message goes to, as the channel writes them.
-export function readRecipients({ channel, to }: ReadRecipientsOptions) {
-  const { name, labels, limits } = channel;
-
-  if (to.length > limits.recipients) {
-    throw invalid(
-      limits.recipients === 1
-        ? `A ${name} message goes to one recipient`
-        : `A ${name} message goes to at most ${limits.recipients} recipients`,
-    );
-  }
-
-  return to.map((recipient) => {
-    const read = channel.parseRecipient(recipient);
-
-    if (!read) throw invalid(`${recipient} is not a ${name} ${labels.contact}`);
-
-    return read;
-  });
-}
-
 type CheckLimitsOptions = {
   channel: Channel;
   text: string;

@@ -17,11 +17,12 @@
     },
     "apps/server": {
       "name": "@artil-ai/server",
-      "version": "0.1.0",
+      "version": "0.3.0",
       "devDependencies": {
         "@artil/channels": "workspace:*",
         "@artil/errors": "workspace:*",
         "@artil/telegram-channel": "workspace:*",
+        "@artil/url-channel": "workspace:*",
         "@artil/utils": "workspace:*",
         "@clack/prompts": "^1.8.1",
         "@hono/zod-validator": "^0.9.1",
@@ -52,6 +53,12 @@
         "zod": "^4.6.7",
       },
     },
+    "packages/url-channel": {
+      "name": "@artil/url-channel",
+      "dependencies": {
+        "@artil/channels": "workspace:*",
+      },
+    },
     "packages/utils": {
       "name": "@artil/utils",
     },
@@ -64,6 +71,8 @@
     "@artil/errors": ["@artil/errors@workspace:packages/errors"],
 
     "@artil/telegram-channel": ["@artil/telegram-channel@workspace:packages/telegram-channel"],
+
+    "@artil/url-channel": ["@artil/url-channel@workspace:packages/url-channel"],
 
     "@artil/utils": ["@artil/utils@workspace:packages/utils"],
 

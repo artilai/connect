@@ -13,6 +13,7 @@ import { createConnectionRoutes } from "../domains/connections/routes";
 import { createEventRoutes } from "../domains/events/routes";
 import { createFileRoutes } from "../domains/files/routes";
 import { createMeRoutes } from "../domains/me/routes";
+import { createMessageUrlRoutes } from "../domains/messages/message-url.routes";
 import { createMessageRoutes } from "../domains/messages/routes";
 import { createCliSignInRoutes } from "../domains/sign-in/cli.routes";
 import { createOAuthMetadataRoutes, createOAuthRoutes } from "../domains/sign-in/oauth.routes";
@@ -21,7 +22,6 @@ import type { PasswordCheck } from "../domains/sign-in/password";
 import { createTeamRoutes } from "../domains/team/routes";
 import { requireAuth } from "../domains/tokens/middleware";
 import type { AuthEnv } from "../domains/tokens/schema";
-import { createUrlRoutes } from "../domains/url/routes";
 import { createWebhookRoutes } from "../domains/webhooks/routes";
 import { loginCommand } from "../platform/artil-cli";
 import type { Hosts } from "../platform/http/hosts";
@@ -58,8 +58,6 @@ function createApi({ services, workspace }: Pick<CreateAppOptions, "services" | 
 
   const accountRoutes = new Hono<AuthEnv>()
     .route("/", createAccountRoutes(services))
-    // Any account of the server writes to another's Message URL.
-    .route("/:id/url", createUrlRoutes(services))
     .route("/:id", ownRoutes);
 
   return new Hono<AuthEnv>()
@@ -96,12 +94,7 @@ export function createApp({ services, hosts, password, workspace, log }: CreateA
       .onError(errorResponse)
       .use(hosts.check, secureHeaders())
       .route("/api", apiRoot)
-      // An account's Message URL takes the same request as the route it stands for.
-      .post("/a/:id", (c) => {
-        const url = new URL(`/agents/${encodeURIComponent(c.req.param("id"))}/url`, c.req.url);
-
-        return apiRoot.fetch(new Request(url.href, c.req.raw));
-      })
+      .route("/a", createMessageUrlRoutes({ ...services, auth: requireAuth(services.tokens) }))
       .route("/mcp", createMcpRoutes({ services, auth: requireAuth(services.tokens), hosts, log }))
       .route("/.well-known", createOAuthMetadataRoutes({ hosts }))
       .route("/oauth", createOAuthRoutes({ signIns: services.signIns, hosts }))

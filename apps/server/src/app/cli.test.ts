@@ -497,7 +497,7 @@ test("connects an account to a channel the config loads, and disconnects it", as
     "Not a terminal, so pipe it in: Echo token",
   );
   await expect(cli(dataDir, "account", "connect", "Codex", "url")).rejects.toThrow(
-    "Every account has its Message URL already; there is nothing to connect",
+    "Every account has its Message URL already; there is nothing to connect or disconnect",
   );
   expect(
     await pipeInto({ dataDir, stdin: "hi\n" }, "account", "connect", "Codex", "echo"),

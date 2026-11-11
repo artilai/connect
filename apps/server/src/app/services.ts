@@ -1,4 +1,5 @@
 import type { Channel } from "@artil/channels/contract";
+import { channel as urlChannel } from "@artil/url-channel";
 
 import { createAccessRepository } from "../domains/access/repository";
 import { createAccessService } from "../domains/access/service";
@@ -23,7 +24,6 @@ import { createSignInsService } from "../domains/sign-in/service";
 import { createTeamService } from "../domains/team/service";
 import { createTokensRepository } from "../domains/tokens/repository";
 import { createTokensService } from "../domains/tokens/service";
-import { UrlChannel } from "../domains/url/service";
 import type { Database } from "../platform/db/connection";
 import type { FileStore } from "../platform/storage";
 
@@ -67,7 +67,6 @@ export function createServices({
   const events = createEventsService({
     eventsRepository: createEventsRepository(db),
     bus: createEventBus(),
-    files,
   });
 
   const connections = createConnectionsService({
@@ -75,25 +74,16 @@ export function createServices({
     events,
   });
 
-  // The Message URL hands what it carries to the messages, which send on it in turn, so it reaches
-  // them once they are made.
-  const url = new UrlChannel({
-    accounts,
-    access,
-    connections,
-    files,
-    receiveRelay: async (delivery) => messages.receiveRelay(delivery),
-  });
-
   // Every channel behind the one interface, whatever carries its messages.
   const channels = createChannelsService({
-    channels: new Map<ChannelKind, Channel>([...loadedChannels, [url.kind, url]]),
+    channels: new Map<ChannelKind, Channel>([...loadedChannels, [urlChannel.kind, urlChannel]]),
     publicUrl,
     secret,
   });
 
   const addresses = createAddressesService({
     addressesRepository: createAddressesRepository(db),
+    accounts,
     channels,
   });
 
@@ -105,7 +95,6 @@ export function createServices({
     access,
     events,
     channels,
-    url,
     log,
   });
 
@@ -121,7 +110,6 @@ export function createServices({
     files,
     fileLinks,
     channels,
-    url,
     team: createTeamService({ accounts, addresses, connections }),
   };
 }

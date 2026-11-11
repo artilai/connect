@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gt, isNotNull } from "drizzle-orm";
+import { and, asc, desc, eq, gt } from "drizzle-orm";
 
 import type { Database } from "../../platform/db/connection";
 import { events } from "../../platform/db/schema";
@@ -12,16 +12,13 @@ type AddOptions = { accountId: string; event: NewEvent };
 
 type ListAfterOptions = { accountId: string; cursor: number };
 
-type FindRelayOptions = { accountId: string; messageId: string };
-
 export function createEventsRepository(db: Database) {
   return {
     add: ({ accountId, event }: AddOptions) =>
       db
         .insert(events)
         .values({ accountId, ...event })
-        .returning()
-        .get(),
+        .run(),
 
     // The newest events, newest first.
     listLatest: (accountId: string) =>
@@ -51,20 +48,6 @@ export function createEventsRepository(db: Database) {
         .orderBy(desc(events.id))
         .limit(1)
         .get()?.id ?? 0,
-
-    // A relayed message's event, which names its sender.
-    findRelay: ({ accountId, messageId }: FindRelayOptions) =>
-      db
-        .select()
-        .from(events)
-        .where(
-          and(
-            eq(events.accountId, accountId),
-            isNotNull(events.sender),
-            eq(events.messageId, messageId),
-          ),
-        )
-        .get(),
   };
 }
 

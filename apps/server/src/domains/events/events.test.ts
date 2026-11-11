@@ -1,6 +1,12 @@
 import { expect, test } from "bun:test";
 
-import { connectClient, createTestServer, openStream, type TestServer } from "../../app/testing";
+import {
+  connectClient,
+  createTestServer,
+  listen,
+  openStream,
+  type TestServer,
+} from "../../app/testing";
 
 type AddEventOptions = { server: TestServer; accountId: string };
 
@@ -84,4 +90,21 @@ test("starts another client from now", async () => {
   expect(await stream.next()).toMatchObject({ messageId: next });
 
   stream.close();
+});
+
+test("ends a stream once another client connects, and refuses it after", async () => {
+  const server = await createTestServer();
+  const codex = server.account("Codex");
+  const first = await listen(codex, "Pi");
+  const second = await listen(codex, "Claude Code");
+
+  const reopenedStream = await codex.call(
+    `/api/agents/${codex.id}/events/stream?connection=${first.connectionId}`,
+  );
+
+  expect(reopenedStream.status).toBe(409);
+  expect(second.response.status).toBe(200);
+
+  first.close();
+  second.close();
 });

@@ -8,13 +8,11 @@ import {
 } from "../../platform/commands";
 import type { AccountsService } from "../accounts/service";
 import type { ChannelKind } from "../channels/schema";
-import type { ChannelsService } from "../channels/service";
 import type { AddressesService } from "./service";
 
 type AddressCommandsOptions = {
   accounts: AccountsService;
   addresses: AddressesService;
-  channels: ChannelsService;
   // Reads what a channel asks for to connect, like a bot's token.
   readSecret: ReadSecret;
   confirm: Confirm;
@@ -26,7 +24,6 @@ type AddressCommandsOptions = {
 export function createAddressCommands({
   accounts,
   addresses,
-  channels,
   readSecret,
   confirm,
   out,
@@ -64,7 +61,7 @@ export function createAddressCommands({
 
   async function disconnect({ kind, name }: DisconnectOptions) {
     const account = accounts.getByIdOrName(name);
-    const channel = channels.get(kind);
+    const channel = addresses.getConnectable(kind);
     const address = addresses.findByAccount({ accountId: account.id, channel: kind });
 
     if (!address) return out(`${account.name} has no ${channel.name} address.`);

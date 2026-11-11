@@ -2,8 +2,8 @@ import { z } from "zod";
 
 import { type Channel, contractVersion } from "@artil/channels/contract";
 import { AppError } from "@artil/errors";
+import { channel as urlChannel } from "@artil/url-channel";
 
-import { urlKind } from "../url/schema";
 import type { ChannelKind } from "./schema";
 
 // A kind names the channel in commands and in the path its provider posts to.
@@ -95,7 +95,7 @@ export async function loadChannels({ specifiers, dataDir, builtInChannels }: Loa
       ? checkChannel({ specifier, channel: builtIn })
       : await importChannel({ specifier, dataDir });
 
-    if (channel.kind === urlKind || channels.has(channel.kind)) {
+    if (channel.kind === urlChannel.kind || channels.has(channel.kind)) {
       throw invalid(
         `The server has a ${channel.kind} channel already; ${specifier} cannot be another`,
       );

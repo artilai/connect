@@ -1,8 +1,8 @@
 import { AppError } from "@artil/errors";
+import { channel as urlChannel } from "@artil/url-channel";
 
 import type { AccessService } from "../access/service";
 import type { FilesService } from "../files/service";
-import { urlKind } from "../url/schema";
 import type { AccountsRepository } from "./repository";
 
 // Account ids look like Artil Cloud's: eight characters of Crockford's base32.
@@ -91,7 +91,7 @@ export function createAccountsService({
     // from the other accounts' lists at their Message URLs, where it goes by its id.
     async remove(id: string) {
       await files.removeByAccount(id);
-      access.removeSenderEverywhere({ channel: urlKind, sender: id });
+      access.removeSenderEverywhere({ channel: urlChannel.kind, sender: id });
 
       return accountsRepository.remove(id);
     },

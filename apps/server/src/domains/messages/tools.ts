@@ -222,7 +222,6 @@ export function registerMessageTools({
         const sent = await messages.sendDraft({
           accountId: actingAccountId({ agent, signedInAccountId: actor.accountId }),
           accountName: actor.accountName,
-          client: actor.tokenName,
           draft,
           uploads: [],
         });

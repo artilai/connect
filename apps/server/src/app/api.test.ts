@@ -150,12 +150,6 @@ test("describes the API it answers", async () => {
   const spec = z.object({ paths: z.record(z.string(), z.unknown()) }).parse(await described.json());
 
   expect(Object.keys(spec.paths)).toEqual(
-    expect.arrayContaining([
-      "/me",
-      "/team",
-      "/agents/{id}/messages",
-      "/agents/{id}/url",
-      "/agents/{id}/events/stream",
-    ]),
+    expect.arrayContaining(["/me", "/team", "/agents/{id}/messages", "/agents/{id}/events/stream"]),
   );
 });

@@ -22,6 +22,20 @@
       "when": 1794425316106,
       "tag": "0002_client_thread",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1794428446629,
+      "tag": "0003_copy_relayed_threads_to_messages",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1794428452362,
+      "tag": "0004_events_without_relayed_messages",
+      "breakpoints": true
     }
   ]
 }

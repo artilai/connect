@@ -94,14 +94,10 @@ test("sends to another account's Message URL and answers what came there", async
   const sent = await call({
     client,
     name: "messages.send",
-    args: { channel: "url", to: [codex.id], text: "Plan the launch" },
+    args: { channel: "url", to: ["Codex"], text: "Plan the launch" },
   });
 
   expect(sent.isError).toBe(false);
-  expect(await codexStream.next()).toMatchObject({
-    text: "Plan the launch",
-    sender: { id: chatgpt.id },
-  });
 
   const { id } = z.object({ id: z.uuid() }).parse(sent.json());
 
@@ -114,20 +110,28 @@ test("sends to another account's Message URL and answers what came there", async
   });
 
   const chatgptStream = await listen(chatgpt);
+  const { messageId } = await codexStream.next();
 
-  const reply = await codex.json(`/api/agents/${chatgpt.id}/url`, { text: "Done" });
-  const { messageId } = z.object({ messageId: z.uuid() }).parse(await reply.json());
+  await codex.json(`/api/agents/${codex.id}/messages`, { replyTo: messageId, text: "Done" });
 
-  expect(await chatgptStream.next()).toMatchObject({ text: "Done" });
+  const done = await chatgptStream.next();
+
+  expect(
+    (await call({ client, name: "messages.read", args: { id: done.messageId } })).json(),
+  ).toMatchObject({ direction: "inbound", fromName: "Codex", text: "Done" });
 
   const answer = await call({
     client,
     name: "messages.send",
-    args: { replyTo: messageId, text: "Thanks" },
+    args: { replyTo: done.messageId, text: "Thanks" },
   });
 
   expect(answer.isError).toBe(false);
-  expect(await codexStream.next()).toMatchObject({ text: "Thanks", sender: { id: chatgpt.id } });
+
+  const thanks = await codexStream.next();
+  const read = await codex.call(`/api/agents/${codex.id}/messages/${thanks.messageId}`);
+
+  expect(await read.json()).toMatchObject({ counterpart: chatgpt.id, text: "Thanks" });
 
   codexStream.close();
   chatgptStream.close();

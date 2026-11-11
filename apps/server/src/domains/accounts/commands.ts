@@ -1,4 +1,5 @@
 import { AppError } from "@artil/errors";
+import { channel as urlChannel } from "@artil/url-channel";
 import { shellQuoted } from "@artil/utils/shell";
 
 import { loginCommand } from "../../platform/artil-cli";
@@ -9,7 +10,7 @@ import type { AddressesService } from "../addresses/service";
 import type { ChannelsService } from "../channels/service";
 import type { ConnectionsService } from "../connections/service";
 import type { TokensService } from "../tokens/service";
-import { toMessageUrl, urlKind } from "../url/schema";
+import { toMessageUrl } from "./schema";
 import type { AccountsService } from "./service";
 
 type AccountCommandsOptions = {
@@ -152,13 +153,13 @@ export function createAccountCommands({
     // The Message URL first, then each channel the account has an address on, or a list of its own
     // for, which it can have before it connects one.
     const wakerRows = [
-      channels.get(urlKind),
-      ...channels.list().filter(({ kind }) => kind !== urlKind),
+      urlChannel,
+      ...channels.list().filter(({ kind }) => kind !== urlChannel.kind),
     ].flatMap(({ kind, name: channelName }) => {
       const wakers = access.read({ accountId: account.id, channel: kind });
 
       const shown =
-        kind === urlKind ||
+        kind === urlChannel.kind ||
         connectedKinds.has(kind) ||
         wakers.admit !== defaultAccess.admit ||
         wakers.senders.length > 0;

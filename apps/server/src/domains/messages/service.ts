@@ -7,14 +7,12 @@ import type { Upload } from "../../platform/storage";
 import type { Refusal } from "../access/schema";
 import type { AccessService } from "../access/service";
 import type { AccountsService } from "../accounts/service";
-import type { ConnectedAddress } from "../addresses/schema";
+import type { AddressRecord } from "../addresses/schema";
 import type { AddressesService } from "../addresses/service";
 import type { ChannelKind } from "../channels/schema";
-import { checkLimits, readRecipients, type ChannelsService } from "../channels/service";
+import { checkLimits, type ChannelsService } from "../channels/service";
 import type { EventsService } from "../events/service";
 import type { FilesService } from "../files/service";
-import type { UrlDelivery } from "../url/schema";
-import type { UrlChannel } from "../url/service";
 import type { MessageFilter, MessagesRepository } from "./repository";
 import type { Draft, MessageRecord, MessageRow } from "./schema";
 
@@ -31,7 +29,6 @@ type CreateMessagesServiceOptions = {
   access: AccessService;
   events: EventsService;
   channels: ChannelsService;
-  url: UrlChannel;
   log: (line: string) => void;
 };
 
@@ -50,18 +47,13 @@ type SendDraftOptions = {
   accountName: string;
   draft: Draft;
   uploads: Upload[];
-  // The client the agent writes in, which a message on the Message URL names.
-  client: string | null;
 };
 
-type SendOptions = Omit<SendDraftOptions, "client"> & { recipients: Recipients };
+type SendOptions = SendDraftOptions & { recipients: Recipients };
 
 type ListOptions = { accountId: string; filter: MessageFilter };
 
 type FindOptions = { accountId: string; id: string };
-
-// Whom an answer on the Message URL goes to, and the thread of their client it goes to.
-type UrlAnswer = { to: string[]; toThread: string | null };
 
 // An answer goes to whoever wrote the message, or to whom the agent wrote it.
 function replyRecipients(message: MessageRow): string[] {
@@ -90,7 +82,6 @@ export function createMessagesService({
   access,
   events,
   channels,
-  url,
   log,
 }: CreateMessagesServiceOptions) {
   function toRecords(rows: MessageRow[]): MessageRecord[] {
@@ -140,34 +131,8 @@ export function createMessagesService({
     };
   }
 
-  // An account's address on the Message URL is its id, which the server gives it by itself.
-  function urlAddressOf(accountId: string) {
-    return addresses.findOrAdd({ accountId, channel: url.kind, value: accountId });
-  }
-
-  // An answer to a message on the Message URL goes to whoever sent one the account received, in
-  // the thread it came from, or again to whom the account sent one, in the thread it went to. The
-  // event the receiving account got tells the threads, which the messages do not keep.
-  function findUrlAnswer({ accountId, id }: FindOptions): UrlAnswer | undefined {
-    const receivedEvent = events.findRelay({ accountId, messageId: id });
-
-    if (receivedEvent) return { to: [receivedEvent.sender.id], toThread: receivedEvent.thread };
-
-    const sent = messagesRepository.find({ accountId, id });
-    const [recipientId] = sent?.to ?? [];
-
-    if (sent?.channel !== url.kind || sent.direction !== "outbound") return undefined;
-
-    // Both copies hold the id of the received one, which its event goes by.
-    const recipientEvent =
-      recipientId && sent.externalId
-        ? events.findRelay({ accountId: recipientId, messageId: sent.externalId })
-        : undefined;
-
-    return { to: sent.to, toThread: recipientEvent?.toThread ?? null };
-  }
-
-  // Sends on a channel with addresses, and keeps the message among the account's.
+  // Sends on the channel from the account's address there, and keeps the message among the
+  // account's.
   async function send({ accountId, accountName, draft, uploads, recipients }: SendOptions) {
     const { channel: kind, ...addressed } = recipients;
     const channel = channels.find(kind);
@@ -197,7 +162,7 @@ export function createMessagesService({
     const message = {
       from: address.value,
       ...addressed,
-      to: readRecipients({ channel, to: addressed.to }),
+      to: addresses.readRecipients({ channel, to: addressed.to }),
       text: draft.text,
       files: outgoingFiles,
     };
@@ -236,6 +201,10 @@ export function createMessagesService({
       const { id: externalId } = await channel.send({
         message,
         token: address.token,
+        // A channel without a provider, like the Message URL, hands the message back to reach the
+        // server's own accounts.
+        deliver: (delivered) =>
+          deliver({ channel: kind, message: delivered, fromThread: Boolean(draft.thread) }),
       });
 
       messagesRepository.markSent(id, externalId);
@@ -260,16 +229,21 @@ export function createMessagesService({
     return sent;
   }
 
-  type LogKeptOutOptions = { accountId: string; channel: ChannelKind; message: InboundMessage };
+  type LogKeptOutOptions = {
+    accountId: string;
+    channel: ChannelKind;
+    message: InboundMessage;
+    fromName: string | null;
+  };
 
   // Lets them in by their address, which stays theirs, where a username can pass to someone
   // else; in a group, everyone in it by the group's.
-  function logKeptOut({ accountId, channel, message }: LogKeptOutOptions) {
+  function logKeptOut({ accountId, channel, message, fromName }: LogKeptOutOptions) {
     const accountName = accounts.findById(accountId)?.name ?? accountId;
     const channelName = channels.find(channel)?.name ?? channel;
     const { from, group } = message;
     const goesBy = from.username ?? from.address;
-    const named = from.name ? `${from.name} (${goesBy})` : goesBy;
+    const named = fromName ? `${fromName} (${goesBy})` : goesBy;
 
     // A sender that starts with a dash, like a group's id, reads as no flag only after --.
     function allowCommand(sender: string) {
@@ -305,14 +279,23 @@ export function createMessagesService({
     );
   }
 
-  type ReceiveAtOptions = ReceiveOptions & { address: ConnectedAddress };
+  type ReceiveAtOptions = ReceiveOptions & { address: AddressRecord; fromThread: boolean };
 
-  async function receiveAt({ channel, message, address }: ReceiveAtOptions) {
-    if (messagesRepository.hasReceived({ addressId: address.id, externalId: message.id })) return;
+  // Takes a message that reached one of the account's addresses, and returns why it did not wake the
+  // agent, when it did not.
+  async function receiveAt({ channel, message, address, fromThread }: ReceiveAtOptions) {
+    if (messagesRepository.hasReceived({ addressId: address.id, externalId: message.id })) {
+      return null;
+    }
 
     const accountId = address.accountId;
     const { from, group } = message;
     const sender = addresses.findByValue({ channel, value: from.address });
+    const fromSelf = sender?.accountId === accountId;
+    // An account's client writes to itself from one thread to another, whatever its list says.
+    const betweenThreads = fromSelf && fromThread;
+    // The server's own accounts go by their names.
+    const fromName = (sender && accounts.findById(sender.accountId)?.name) ?? from.name;
 
     // A message in a group is the group's, which an answer goes to, and names who wrote it.
     const counterpart = group?.address ?? from.address;
@@ -323,10 +306,11 @@ export function createMessagesService({
       from: from.address,
       username: from.username,
       group: group?.address ?? null,
-      fromSelf: sender?.accountId === accountId,
+      fromSelf: fromSelf && !betweenThreads,
       // Another account's address on the server is the team's.
       fromTeam: Boolean(sender),
       fromVerified: from.verified,
+      listed: betweenThreads,
     });
 
     // The first time someone the list keeps out writes, or a group, the log says how to let
@@ -336,7 +320,7 @@ export function createMessagesService({
       keptOut.has(refusal) &&
       !messagesRepository.hasReceivedFrom({ accountId, channel, counterpart })
     ) {
-      logKeptOut({ accountId, channel, message });
+      logKeptOut({ accountId, channel, message, fromName });
     }
 
     const id = crypto.randomUUID();
@@ -350,9 +334,9 @@ export function createMessagesService({
       direction: "inbound",
       externalId: message.id,
       counterpart,
-      counterpartName: group ? group.name : from.name,
+      counterpartName: group ? group.name : fromName,
       author: group ? from.address : null,
-      authorName: group ? from.name : null,
+      authorName: group ? fromName : null,
       to: message.to,
       text: message.text,
       status: refusal ? "refused" : "received",
@@ -374,6 +358,45 @@ export function createMessagesService({
         event: { type: "message.received", channel, messageId: id, toThread },
       });
     }
+
+    return refusal;
+  }
+
+  type DeliverOptions = ReceiveOptions & { fromThread: boolean };
+
+  // Takes a message a channel hands back from one of the server's accounts to others, as it takes
+  // any message that reaches them, except that the sender hears at once when one does not take it.
+  async function deliver({ channel, message, fromThread }: DeliverOptions) {
+    const { name, labels } = channels.get(channel);
+
+    for (const value of message.to) {
+      const address = addresses.findByValue({ channel, value });
+
+      if (!address) {
+        throw new AppError({
+          code: "not_found",
+          message: `There is no ${name} ${labels.address} ${value} on this server`,
+        });
+      }
+
+      const refusal = await receiveAt({ channel, message, address, fromThread });
+
+      if (refusal === "self") {
+        throw new AppError({
+          code: "invalid_input",
+          message: `An agent writes to itself on ${name} only from one thread of its client to another`,
+        });
+      }
+
+      if (refusal) {
+        const recipient = accounts.findById(address.accountId)?.name ?? address.accountId;
+
+        throw new AppError({
+          code: "forbidden",
+          message: `${recipient} does not take ${name} messages from you`,
+        });
+      }
+    }
   }
 
   return {
@@ -394,118 +417,18 @@ export function createMessagesService({
       for (const value of message.to) {
         const address = addresses.findByValue({ channel, value });
 
-        if (address) await receiveAt({ channel, message, address });
-      }
-    },
-
-    // Takes a message the Message URL hands over whole: the sender keeps what it sent and the
-    // account it is for what it received, each with the files, and that account wakes. The
-    // sender's copy is sent once the event is, and both copies then name the received one's id,
-    // which the event gives.
-    async receiveRelay({ from, to, text, files: uploads, thread, toThread, client }: UrlDelivery) {
-      const messageId = crypto.randomUUID();
-      const sentId = crypto.randomUUID();
-
-      messagesRepository.add({
-        id: sentId,
-        accountId: from.id,
-        addressId: urlAddressOf(from.id).id,
-        channel: url.kind,
-        direction: "outbound",
-        counterpart: to,
-        to: [to],
-        text,
-        status: "sending",
-      });
-
-      try {
-        messagesRepository.add({
-          id: messageId,
-          accountId: to,
-          addressId: urlAddressOf(to).id,
-          channel: url.kind,
-          direction: "inbound",
-          externalId: messageId,
-          counterpart: from.id,
-          counterpartName: from.name,
-          to: [to],
-          text,
-          status: "received",
-          // Only the server's accounts write on the Message URL, and its channel let this one in.
-          admission: "team",
-        });
-
-        // The files go in before the event, so the agent never hears of a message without them.
-        await files.save({ accountId: from.id, messageId: sentId, uploads });
-        await files.save({ accountId: to, messageId, uploads });
-
-        const event = events.relay({
-          accountId: to,
-          event: {
-            type: "message.received",
-            channel: url.kind,
-            messageId,
-            text: text || null,
-            sender: { id: from.id, name: from.name },
-            thread,
-            toThread,
-            client,
-          },
-        });
-
-        messagesRepository.markSent(sentId, messageId);
-
-        return event;
-      } catch (cause) {
-        messagesRepository.markFailed(sentId, messageOf(cause, "the server gave no reason"));
-
-        throw cause;
+        if (address) await receiveAt({ channel, message, address, fromThread: false });
       }
     },
 
     // Sends what an agent writes, and returns the copy the account keeps. An answer goes back the
-    // way its message came, and on the Message URL to the thread it came from or went to.
-    async sendDraft({
-      accountId,
-      accountName,
-      client,
-      draft,
-      uploads,
-    }: SendDraftOptions): Promise<MessageRecord> {
-      const urlAnswer = draft.replyTo ? findUrlAnswer({ accountId, id: draft.replyTo }) : undefined;
-
-      const recipients = urlAnswer
-        ? { channel: url.kind, to: urlAnswer.to }
-        : resolveRecipients(accountId, draft);
+    // way its message came.
+    sendDraft({ accountId, accountName, draft, uploads }: SendDraftOptions) {
+      const recipients = resolveRecipients(accountId, draft);
 
       checkCarried(draft, recipients.channel);
 
-      if (recipients.channel !== url.kind) {
-        return send({ accountId, accountName, draft, uploads, recipients });
-      }
-
-      const event = await url.relay({
-        from: accountId,
-        to: recipients.to,
-        text: draft.text,
-        thread: draft.thread ?? null,
-        toThread: urlAnswer?.toThread ?? null,
-        client,
-        attachments: draft.attachments ?? [],
-        uploads,
-      });
-
-      const row = messagesRepository.findByExternalId({
-        addressId: urlAddressOf(accountId).id,
-        direction: "outbound",
-        externalId: event.messageId,
-      });
-
-      const [sent] = row ? toRecords([row]) : [];
-
-      if (!sent) throw new Error(`Message ${event.messageId} went missing`);
-
-      return sent;
+      return send({ accountId, accountName, draft, uploads, recipients });
     },
   };
 }

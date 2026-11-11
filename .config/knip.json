@@ -10,6 +10,7 @@
     "packages/channels": {},
     "packages/errors": {},
     "packages/telegram-channel": {},
+    "packages/url-channel": {},
     "packages/utils": {
       "includeEntryExports": true
     }

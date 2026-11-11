@@ -22,3 +22,10 @@ type Account = z.infer<typeof accountSchema>;
 export function toAccount({ id, name, createdAt }: AccountRecord): Account {
   return { id, name, icon: "bot", createdAt };
 }
+
+type ToMessageUrlOptions = { baseUrl: string; accountId: string };
+
+// An account's Message URL as a person copies it, which the server answers at /a/<id>.
+export function toMessageUrl({ baseUrl, accountId }: ToMessageUrlOptions) {
+  return `${baseUrl}/a/${accountId}`;
+}
