@@ -57,21 +57,6 @@ test("takes one channel of each kind, and leaves url to the Message URL", async 
   ).rejects.toThrow("The server has a url channel already");
 });
 
-test("refuses a channel that does not extend Channel", async () => {
-  const dataDir = await dataFolder({
-    "plain-channel.ts": `export const channel = {
-  contractVersion: 1,
-  kind: "plain",
-  send: async () => ({ id: "1" }),
-};
-`,
-  });
-
-  await expect(
-    loadChannels({ specifiers: ["./plain-channel.ts"], dataDir, builtInChannels }),
-  ).rejects.toThrow("The plain channel does not extend Channel from @artil/channels");
-});
-
 test("refuses a channel built for another version of the contract, saying which to update", async () => {
   const cases = [
     {

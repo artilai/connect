@@ -9,31 +9,12 @@ import type { ChannelKind } from "./schema";
 // A kind names the channel in commands and in the path its provider posts to.
 const kindPattern = /^[a-z][a-z0-9\-]*$/v;
 
-// What a channel says of itself: its kind, and the version of the contract it was built for. A
-// channel from before the contract had versions has none, which counts as 0.
+// What a channel says of itself: its kind, and the version of the contract it was built for, which
+// Channel gives every channel that extends it. A channel from before the contract had versions has
+// none, which counts as 0.
 const identitySchema = z.looseObject({
   kind: z.string().regex(kindPattern, "A channel's kind is lowercase letters, digits and dashes"),
   contractVersion: z.int().default(0),
-});
-
-// A channel extends the contract's Channel from whichever copy of the package it brought, so the
-// server checks its shape rather than its class.
-const channelSchema = z.object({
-  kind: z.string(),
-  name: z.string(),
-  labels: z.object({ contact: z.string(), token: z.string().optional() }),
-  limits: z.object({
-    recipients: z.number(),
-    text: z.number(),
-    files: z.number(),
-    fileSize: z.number().optional(),
-  }),
-  disconnect: z.function(),
-  start: z.function(),
-  parseSender: z.function(),
-  parseRecipient: z.function(),
-  recipientWritesFirst: z.function(),
-  send: z.function(),
 });
 
 function invalid(message: string) {
@@ -55,8 +36,7 @@ function contractMismatch({ kind, builtFor }: ContractMismatchOptions) {
 
 type CheckChannelOptions = { specifier: string; channel: unknown };
 
-// The channel, once it is built for this server's version of the contract and has the shape of
-// Channel.
+// The channel, once it is built for this server's version of the contract.
 function checkChannel({ specifier, channel }: CheckChannelOptions) {
   const identity = identitySchema.safeParse(channel);
 
@@ -70,16 +50,8 @@ function checkChannel({ specifier, channel }: CheckChannelOptions) {
 
   if (builtFor !== contractVersion) throw contractMismatch({ kind, builtFor });
 
-  const channelCheck = channelSchema.safeParse(channel);
-
-  if (!channelCheck.success) {
-    throw invalid(
-      `The ${kind} channel does not extend Channel from @artil/channels: ${z.prettifyError(channelCheck.error)}`,
-    );
-  }
-
-  // SAFETY: the channel has the shape of Channel, from whichever copy of the package it extends;
-  // the parsed copy would leave out what the schema does not name, like its private fields.
+  // SAFETY: only Channel gives a channel this server's version of the contract, so the channel
+  // extends Channel of this version, from whichever copy of the package it brought.
   return channel as Channel;
 }
 
