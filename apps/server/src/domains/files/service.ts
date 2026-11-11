@@ -21,7 +21,6 @@ type SaveOptions = {
   messageId: string;
   // A file the channel handed over without its bytes is saved by its description.
   uploads: readonly InboundFile[];
-  expiresAt?: Date;
 };
 
 type ReadForSendingOptions = { accountId: string; fileId: string };
@@ -125,7 +124,7 @@ export function createFilesService({ filesRepository, store, log }: CreateFilesS
 
     // Saves a message's files: their bytes when the server has a bucket, and their description
     // either way.
-    save: ({ accountId, messageId, uploads, expiresAt }: SaveOptions) =>
+    save: ({ accountId, messageId, uploads }: SaveOptions) =>
       Promise.all(
         uploads.map(async ({ name, type, size, content }) => {
           const id = crypto.randomUUID();
@@ -140,7 +139,6 @@ export function createFilesService({ filesRepository, store, log }: CreateFilesS
             type,
             size,
             key: stored ? key : null,
-            expiresAt,
           });
         }),
       ),
@@ -152,7 +150,8 @@ export function createFilesService({ filesRepository, store, log }: CreateFilesS
       return file && content ? { file, content } : undefined;
     },
 
-    // Removes the expired files, such as a relayed message's.
+    // Removes the expired files: those a message on the Message URL brought before the server kept
+    // its messages, a day after it came.
     removeExpired: (now = new Date()) => removeFiles(filesRepository.listExpired(now)),
 
     // Removes the bytes of an account's files, before the account's removal deletes their rows.

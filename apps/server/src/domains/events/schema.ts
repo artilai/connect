@@ -12,12 +12,11 @@ import { teammateSchema, toTeammate } from "../team/schema";
 
 export type EventRow = typeof events.$inferSelect;
 
-// A message the server keeps in the account's inbox, which the event points at.
+// A message the event points at, which the client reads.
 type Arrival = { type: "message.received"; channel: ChannelKind; messageId: string };
 
-// A message on a channel without an inbox, which the server relays whole in the event: with its
-// sender, the sender's thread to answer in, the account's thread it is for, and the client the sender
-// wrote it in.
+// A message on the Message URL, which the event also brings whole: with its sender, the sender's
+// thread to answer in, the account's thread it is for, and the client the sender wrote it in.
 export type Relay = {
   type: "message.received";
   channel: ChannelKind;
@@ -42,16 +41,7 @@ export function isRelay(event: EventRecord): event is RelayRecord {
 }
 
 const relayedAttachmentsSchema = z
-  .array(
-    attachmentSchema.extend({
-      url: z
-        .string()
-        .nullable()
-        .describe(
-          "Where to download the file: a link that needs no sign-in and works as long as the server keeps the file; null when the server kept only the file's description",
-        ),
-    }),
-  )
+  .array(attachmentSchema)
   .optional()
   .describe("The files that came with a message relayed by the Message URL");
 

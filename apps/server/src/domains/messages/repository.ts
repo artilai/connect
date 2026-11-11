@@ -19,6 +19,12 @@ type ListOptions = { accountId: string; filter: MessageFilter };
 
 type FindOptions = { accountId: string; id: string };
 
+type FindByExternalIdOptions = {
+  accountId: string;
+  direction: "inbound" | "outbound";
+  externalId: string;
+};
+
 type HasReceivedOptions = { addressId: string; externalId: string };
 
 type HasReceivedFromOptions = { accountId: string; channel: ChannelKind; counterpart: string };
@@ -72,6 +78,19 @@ export function createMessagesRepository(db: Database) {
         .limit(limit)
         .all();
     },
+
+    findByExternalId: ({ accountId, direction, externalId }: FindByExternalIdOptions) =>
+      db
+        .select()
+        .from(messages)
+        .where(
+          and(
+            eq(messages.accountId, accountId),
+            eq(messages.direction, direction),
+            eq(messages.externalId, externalId),
+          ),
+        )
+        .get(),
 
     add: (message: NewMessage) => db.insert(messages).values(message).returning().get(),
 

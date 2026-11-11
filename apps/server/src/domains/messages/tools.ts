@@ -14,7 +14,6 @@ import {
 } from "../../platform/mcp";
 import { describeRefusal, type Refusal } from "../access/schema";
 import type { ChannelsService } from "../channels/service";
-import type { RelayRecord } from "../events/schema";
 import { type FileLinks, toAttachment } from "../files/schema";
 import type { Actor } from "../tokens/schema";
 import { draftSchema, type MessageRecord } from "./schema";
@@ -122,22 +121,6 @@ function toToolMessage(
   };
 }
 
-type ToRelayedMessageOptions = { sent: RelayRecord; to: string[]; links: FileLinks };
-
-function toRelayedMessage({ sent, to, links }: ToRelayedMessageOptions) {
-  const { messageId, channel, text, createdAt } = sent;
-
-  return {
-    id: messageId,
-    channel,
-    direction: "outbound",
-    to,
-    text,
-    attachments: sent.attachments.map((attachment) => toAttachment(attachment, { links })),
-    createdAt,
-  };
-}
-
 type RegisterMessageToolsOptions = {
   server: McpServer;
   actor: Actor;
@@ -219,9 +202,7 @@ export function registerMessageTools({
           uploads: [],
         });
 
-        return sent.kind === "stored"
-          ? toToolMessage(sent.message, fileLinks)
-          : toRelayedMessage({ sent: sent.event, to: sent.to, links: fileLinks });
+        return toToolMessage(sent, fileLinks);
       }),
   );
 }

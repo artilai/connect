@@ -18,8 +18,8 @@ type ListAfterOptions = { accountId: string; cursor: number };
 type FindRelayOptions = { accountId: string; messageId: string };
 
 export function createEventsService({ eventsRepository, bus, files }: CreateEventsServiceOptions) {
-  // A relayed message, which names its sender, brings its files with its event, as the server
-  // keeps no other copy of it.
+  // A relayed message, which names its sender, brings its files with its event, as the rest of the
+  // message does.
   function toRecords(rows: EventRow[]): EventRecord[] {
     const attachmentsByMessage = files.describeByMessages(
       rows.flatMap(({ sender, messageId }) => (sender ? [messageId] : [])),
@@ -60,7 +60,7 @@ export function createEventsService({ eventsRepository, bus, files }: CreateEven
   return {
     add,
 
-    // Hands the account's client a message whole, as the inbox keeps no copy of it.
+    // Hands the account's client a message on the Message URL whole.
     relay(options: RelayOptions) {
       const record = add(options);
 

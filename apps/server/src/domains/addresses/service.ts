@@ -30,6 +30,7 @@ export function createAddressesService({
   return {
     findByValue: addressesRepository.findByValue,
     findByAccount: addressesRepository.findByAccount,
+    findOrAdd: addressesRepository.findOrAdd,
     listByAccount: addressesRepository.listByAccount,
     listConnected: addressesRepository.listConnected,
 

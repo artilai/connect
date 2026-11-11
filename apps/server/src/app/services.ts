@@ -72,7 +72,15 @@ export function createServices({
     events,
   });
 
-  const url = new UrlChannel({ accounts, access, connections, events, files });
+  // The Message URL hands what it carries to the messages, which send on it in turn, so it reaches
+  // them once they are made.
+  const url = new UrlChannel({
+    accounts,
+    access,
+    connections,
+    files,
+    receiveRelay: async (delivery) => messages.receiveRelay(delivery),
+  });
 
   // Every channel behind the one interface, whatever carries its messages.
   const channels = createChannelsService(
