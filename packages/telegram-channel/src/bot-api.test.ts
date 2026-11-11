@@ -94,6 +94,9 @@ type Message = {
   date: number;
   text?: string;
   entities?: { type: string; offset: number; length: number }[];
+  caption_entities?: { type: string; offset: number; length: number }[];
+  media_group_id?: string;
+  document?: File & { file_name?: string };
   caption?: string;
   voice?: File & { duration: number };
   video?: File;
@@ -282,6 +285,36 @@ test("reads what tags the bot in a group or answers it, and skips the rest of th
   expect(await telegram.verifyEvents(update({ ...inGroup, text: "Hi all" }))).toEqual([]);
   expect(await telegram.verifyEvents(tagged("@otherbot hi", "mention"))).toEqual([]);
   expect(await telegram.verifyEvents(tagged("/status@OtherBot", "bot_command"))).toEqual([]);
+});
+
+test("takes every file of an album that tagged the bot in a group, and none of one that did not", async () => {
+  const { telegram } = setup({
+    answers: { getFile: { body: { ok: true, result: { file_path: "documents/file.log" } } } },
+  });
+
+  const inGroup = { ...fromAda, chat: { id: -100_42, type: "supergroup", title: "Launch" } };
+  const caption = "@acmesupportbot the logs";
+
+  function file(id: number, album: string) {
+    return {
+      ...inGroup,
+      message_id: id,
+      media_group_id: album,
+      document: { file_id: `file-${id}`, file_name: `${id}.log`, file_size: 3 },
+    };
+  }
+
+  const tagged = {
+    ...file(8, "album-1"),
+    caption,
+    caption_entities: [{ type: "mention", offset: 0, length: 15 }],
+  };
+
+  expect(await telegram.verifyEvents(update(tagged))).toHaveLength(1);
+  expect(await telegram.verifyEvents(update(file(9, "album-1")))).toMatchObject([
+    { message: { externalId: "-10042:9", files: [{ name: "9.log" }] } },
+  ]);
+  expect(await telegram.verifyEvents(update(file(10, "album-2")))).toEqual([]);
 });
 
 test("skips updates without a message", async () => {

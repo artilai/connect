@@ -33,6 +33,10 @@ const longestRetryDelay = minute;
 // The longest caption a file carries; a longer text goes as a message of its own.
 const maxCaption = 1024;
 
+// How long the rest of an album that tagged the bot still comes along: Telegram sends its files one
+// right after another.
+const albumWindow = minute;
+
 const tokenPattern = /^\d+:[\w\-]+$/v;
 
 const secretHeader = "x-telegram-bot-api-secret-token";
@@ -76,6 +80,8 @@ const messageSchema = z.object({
   caption: z.string().optional(),
   entities: z.array(entitySchema).optional(),
   caption_entities: z.array(entitySchema).optional(),
+  // The album a file came in, which Telegram sends one message per file.
+  media_group_id: z.string().optional(),
   reply_to_message: z
     .object({
       from: userSchema.optional(),
@@ -153,6 +159,30 @@ export function createBotApi({
   fetch = (url, init) => globalThis.fetch(url, init),
   sleep = abortableSleep,
 }: Options = {}): TelegramProvider {
+  // The albums in groups that tagged a bot, until when the rest of their files come along.
+  const taggedAlbums = new Map<string, number>();
+
+  // In a group, what tags the bot, and the other files of an album that did: Telegram puts the
+  // album's caption, and so the tag, on one of them.
+  function isForBotInGroup({ bot, message }: IsForBotOptions) {
+    const now = Date.now();
+
+    for (const [album, until] of taggedAlbums) if (until <= now) taggedAlbums.delete(album);
+
+    const album =
+      message.media_group_id === undefined
+        ? undefined
+        : `${bot.toLowerCase()}:${message.chat.id}:${message.media_group_id}`;
+
+    if (isForBot({ bot, message })) {
+      if (album) taggedAlbums.set(album, now + albumWindow);
+
+      return true;
+    }
+
+    return album !== undefined && taggedAlbums.has(album);
+  }
+
   function secretFor(secret: string, bot: string) {
     return createHmac("sha256", secret).update(bot).digest("base64url");
   }
@@ -364,7 +394,7 @@ export function createBotApi({
     if (!message || !from) return [];
 
     const inGroup = groupTypes.has(message.chat.type);
-    const forBot = inGroup ? isForBot({ bot, message }) : message.chat.type === "private";
+    const forBot = inGroup ? isForBotInGroup({ bot, message }) : message.chat.type === "private";
 
     if (!forBot) return [];
 
