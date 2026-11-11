@@ -38,7 +38,13 @@ export type InboundMessage = {
   externalId: string;
   /** The account's address the message came to. */
   to: string;
+  /** Whoever wrote the message. */
   from: Sender;
+  /**
+   * The group the message came in, by its address there, which an answer goes to, and its name. A
+   * message without one came straight to the account's address.
+   */
+  group?: { address: string; name: string | null };
   text: string;
   files: InboundFile[];
   /** Whether the provider marked the message as spam, on a channel whose provider does. */

@@ -83,6 +83,8 @@ function toMessageSummary({
   channel,
   counterpart,
   counterpartName,
+  author,
+  authorName,
   createdAt,
   status,
   refusal,
@@ -91,8 +93,11 @@ function toMessageSummary({
   return {
     id,
     channel,
+    // A message in a group comes from the group, and its author wrote it.
     from: counterpart,
     fromName: counterpartName,
+    author,
+    authorName,
     receivedAt: createdAt,
     status,
     refusal,
@@ -102,14 +107,29 @@ function toMessageSummary({
 }
 
 function toToolMessage(
-  { attachments, direction, counterpart, counterpartName, admission, ...message }: MessageRecord,
+  {
+    attachments,
+    direction,
+    counterpart,
+    counterpartName,
+    author,
+    authorName,
+    admission,
+    ...message
+  }: MessageRecord,
   links: FileLinks,
 ) {
   return {
     id: message.id,
     channel: message.channel,
     direction,
-    ...(direction === "inbound" && { from: counterpart, fromName: counterpartName, admission }),
+    ...(direction === "inbound" && {
+      from: counterpart,
+      fromName: counterpartName,
+      author,
+      authorName,
+      admission,
+    }),
     to: message.to,
     text: message.text,
     attachments: attachments.map((attachment) => toAttachment(attachment, { links })),

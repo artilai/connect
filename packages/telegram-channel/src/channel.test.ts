@@ -84,6 +84,8 @@ test("turns messages to the bot into received messages from their chat, named wi
         externalId: "42:7",
         bot: "AcmeSupportBot",
         chat: "42",
+        group: null,
+        senderId: "42",
         fromBot: null,
         username: "AdaLovelace",
         fromName: "Ada Lovelace",
@@ -98,6 +100,8 @@ test("turns messages to the bot into received messages from their chat, named wi
         externalId: "99:3",
         bot: "AcmeSupportBot",
         chat: "99",
+        group: null,
+        senderId: "99",
         fromBot: "OpsBot",
         username: null,
         fromName: "Ops",
@@ -143,6 +147,8 @@ test("turns updates it asks Telegram for into received messages", async () => {
         externalId: "42:7",
         bot: "AcmeSupportBot",
         chat: "42",
+        group: null,
+        senderId: "42",
         fromBot: null,
         username: null,
         fromName: "Ada",
@@ -189,6 +195,8 @@ test("quotes the message a reply answers above its text", async () => {
     externalId: "42:9",
     bot: "AcmeSupportBot",
     chat: "42",
+    group: null,
+    senderId: "42",
     fromBot: null,
     username: null,
     fromName: "Ada",
@@ -226,12 +234,57 @@ test("sends to one chat as the bot, answering by Telegram's id for the message",
   expect(preparing.prepare({ ...outbound, to: ["@OpsBot"] }).to).toEqual(["@opsbot"]);
 });
 
+test("turns a message in a group into one from whoever wrote it, which an answer takes to the group", async () => {
+  const { channel } = setup([
+    {
+      type: "received",
+      message: {
+        externalId: "-10042:7",
+        bot: "AcmeSupportBot",
+        chat: "-10042",
+        group: { title: "Launch" },
+        senderId: "42",
+        fromBot: null,
+        username: "AdaLovelace",
+        fromName: "Ada Lovelace",
+        text: "@acmesupportbot are you there?",
+        files: [],
+        quote: null,
+      },
+    },
+  ]);
+
+  const { received } = await takeWebhook(channel);
+
+  expect(received).toEqual([
+    {
+      type: "message.received",
+      message: {
+        externalId: "-10042:7",
+        to: "@acmesupportbot",
+        from: {
+          address: "42",
+          name: "Ada Lovelace (@AdaLovelace)",
+          handle: "@adalovelace",
+          verified: true,
+        },
+        group: { address: "-10042", name: "Launch" },
+        text: "@acmesupportbot are you there?",
+        files: [],
+      },
+    },
+  ]);
+  expect(channel.readSender("-10042")).toBe("-10042");
+  expect(channel.prepare({ ...outbound, to: ["-10042"] }).to).toEqual(["-10042"]);
+  expect(channel.recipientWritesFirst("-10042")).toBe(true);
+});
+
 test("refuses a message Telegram cannot carry", () => {
   expect(() => preparing.prepare({ ...outbound, to: ["42", "43"] })).toThrow(
     "A Telegram message goes to one chat",
   );
   expect(() => preparing.prepare({ ...outbound, to: ["@ada"] })).toThrow(
-    "@ada is not a Telegram user id or bot username",
+    "@ada is not a Telegram user id, group id or bot username",
   );
   expect(() => preparing.prepare({ ...outbound, text: "a".repeat(4097) })).toThrow(
     "A Telegram message holds at most 4096 characters",

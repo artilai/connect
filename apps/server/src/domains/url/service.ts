@@ -133,6 +133,7 @@ export class UrlChannel extends Channel<"url", UrlData> {
       channel: this.kind,
       from: from.address,
       handle: null,
+      group: null,
       fromSelf: false,
       spam: false,
       fromTeam: true,

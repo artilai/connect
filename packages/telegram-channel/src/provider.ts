@@ -1,10 +1,17 @@
 import type { InboundFile, OutboundFile } from "@artil/channels/contract";
 
-// A message someone sent a bot in a private chat with it.
+// A message someone sent a bot: in a private chat with it, or in a group where it tags the bot or
+// answers it.
 export type InboundTelegram = {
   externalId: string;
   bot: string;
+  // The chat it came in: a person's private chat with the bot, which goes by their user id, or a
+  // group.
   chat: string;
+  // The group's title, when the chat is a group.
+  group: { title: string | null } | null;
+  // The Telegram user id of whoever wrote it.
+  senderId: string;
   // The sender's username when the sender is a bot itself.
   fromBot: string | null;
   // The username a person goes by, if they chose one.

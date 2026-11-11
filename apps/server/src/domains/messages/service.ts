@@ -249,15 +249,28 @@ export function createMessagesService({
 
   type LogKeptOutOptions = { accountId: string; channel: ChannelKind; message: InboundMessage };
 
-  // Lets them in by their address, which stays theirs, where a handle can pass to someone else.
+  // Lets them in by their address, which stays theirs, where a handle can pass to someone else; in
+  // a group, everyone in it by the group's.
   function logKeptOut({ accountId, channel, message }: LogKeptOutOptions) {
     const accountName = accounts.findById(accountId)?.name ?? accountId;
-    const { address, handle, name } = message.from;
-    const goesBy = handle ?? address;
-    const named = name ? `${name} (${goesBy})` : goesBy;
+    const channelName = channels.find(channel)?.name ?? channel;
+    const { from, group } = message;
+    const goesBy = from.handle ?? from.address;
+    const named = from.name ? `${from.name} (${goesBy})` : goesBy;
+
+    // A sender that starts with a dash, like a group's id, reads as no flag only after --.
+    function allowCommand(sender: string) {
+      const allow = `artil-server account allow ${shellQuoted(accountName)}`;
+
+      return sender.startsWith("-")
+        ? `${allow} --channel ${channel} -- ${shellQuoted(sender)}`
+        : `${allow} ${shellQuoted(sender)} --channel ${channel}`;
+    }
 
     log(
-      `${named} wrote to ${accountName} on ${channels.find(channel)?.name ?? channel} but is not on its list; let them in with: artil-server account allow ${shellQuoted(accountName)} ${shellQuoted(address)} --channel ${channel}`,
+      group
+        ? `${named} wrote to ${accountName} in ${group.name ?? group.address} on ${channelName} but neither is on its list; let them in with: ${allowCommand(from.address)}, or everyone in the group with: ${allowCommand(group.address)}`
+        : `${named} wrote to ${accountName} on ${channelName} but is not on its list; let them in with: ${allowCommand(from.address)}`,
     );
   }
 
@@ -285,27 +298,33 @@ export function createMessagesService({
       }
 
       const accountId = address.accountId;
-      const sender = addresses.findByValue({ channel, value: message.from.address });
+      const { from, group } = message;
+      const sender = addresses.findByValue({ channel, value: from.address });
+
+      // A message in a group is the group's, which an answer goes to, and names who wrote it.
+      const counterpart = group?.address ?? from.address;
 
       const { refusal, admission } = access.decide({
         accountId,
         channel,
-        from: message.from.address,
-        handle: message.from.handle,
+        from: from.address,
+        handle: from.handle,
+        group: group?.address ?? null,
         fromSelf: sender?.accountId === accountId,
         spam: message.spam ?? false,
         // Another account's address on the server is the team's.
         fromTeam: sender !== undefined,
-        fromVerified: message.from.verified,
+        fromVerified: from.verified,
       });
 
-      // The first time someone the list keeps out writes, the log says how to let them in.
-      if (refusal && keptOut.has(refusal)) {
-        const counterpart = message.from.address;
-
-        if (!messagesRepository.hasReceivedFrom({ accountId, channel, counterpart })) {
-          logKeptOut({ accountId, channel, message });
-        }
+      // The first time someone the list keeps out writes, or a group, the log says how to let
+      // them in.
+      if (
+        refusal &&
+        keptOut.has(refusal) &&
+        !messagesRepository.hasReceivedFrom({ accountId, channel, counterpart })
+      ) {
+        logKeptOut({ accountId, channel, message });
       }
 
       const id = crypto.randomUUID();
@@ -318,8 +337,10 @@ export function createMessagesService({
         channel,
         direction: "inbound",
         externalId: message.externalId,
-        counterpart: message.from.address,
-        counterpartName: message.from.name,
+        counterpart,
+        counterpartName: group ? group.name : from.name,
+        author: group ? from.address : null,
+        authorName: group ? from.name : null,
         to: [message.to],
         text: message.text,
         status: refusal ? "refused" : "received",

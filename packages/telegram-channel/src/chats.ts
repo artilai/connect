@@ -9,19 +9,20 @@ export function atUsername(username: string) {
   return `@${username.toLowerCase()}`;
 }
 
-// A bot writes to a person at their private chat's id, which is their user id, and to another
-// bot at its @username.
+// A bot writes to a person at their private chat's id, which is their user id, to a group at its
+// id, which is below zero, and to another bot at its @username.
 export function readChat(value: string) {
   const chat = value.trim();
 
-  if (/^\d{1,20}$/v.test(chat)) return chat;
+  if (/^-?\d{1,20}$/v.test(chat)) return chat;
 
   const bot = botUsername.exec(chat)?.[1];
 
   return bot ? atUsername(bot) : undefined;
 }
 
-// Who may wake an agent is listed the way a bot writes to them, or a person by their @username.
+// Who may wake an agent is listed the way a bot writes to them, or a person by their @username. A
+// group on the list lets in everyone in it.
 export function readSender(value: string) {
   const person = personUsername.exec(value.trim())?.[1];
 

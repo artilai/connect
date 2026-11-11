@@ -7,6 +7,8 @@ export type Arrival = {
   from: string;
   // Another address the sender goes by on the channel, which the list can name in place of from.
   handle: string | null;
+  // The group the message came in, which the list can name to let in everyone in it.
+  group: string | null;
   fromTeam: boolean;
   fromVerified: boolean;
 };
@@ -38,6 +40,6 @@ export function admissionOf(arrival: Arrival): Admission {
   return isListed(arrival) ? "listed" : "anyone";
 }
 
-function isListed({ access, from, handle }: Arrival) {
-  return access.senders.some((sender) => sender === from || sender === handle);
+function isListed({ access, from, handle, group }: Arrival) {
+  return access.senders.some((sender) => sender === from || sender === handle || sender === group);
 }

@@ -19,17 +19,18 @@ const maxFiles = 10;
 
 const maxFileSize = 50_000_000;
 
-// Telegram through a provider, the Bot API in the server: a bot is an address, and a chat with it
-// is whom a message goes to.
+// Telegram through a provider, the Bot API in the server: a bot is an address, and a chat with it,
+// private or in a group, is whom a message goes to.
 export class TelegramChannel extends Channel<"telegram"> {
   readonly kind = "telegram";
 
   readonly name = "Telegram";
 
   readonly recipients =
-    "the id of someone who wrote to the account's bot first, or a bot's @username";
+    "the id of someone who wrote to the account's bot first, the id of a group that tagged it, or a bot's @username";
 
-  override readonly senders = "a person's @username or Telegram user id, or a bot's @username";
+  override readonly senders =
+    "a person's @username or Telegram user id, a group's id to let in everyone in it, or a bot's @username";
 
   override readonly credentials = "Bot token";
 
@@ -40,7 +41,8 @@ export class TelegramChannel extends Channel<"telegram"> {
     "Tap API Token and copy it.",
     "",
     "Messages to the bot reach this account from now on.",
-    "People write to the bot first, in private chats.",
+    "People write to the bot first, in private chats,",
+    "or tag it in a group it is in.",
     "Then the agent can answer.",
   ].join("\n");
 
@@ -82,8 +84,8 @@ export class TelegramChannel extends Channel<"telegram"> {
     return readSender(input) ?? null;
   }
 
-  // A bot cannot start a chat with a person, but it can write first to another bot that takes
-  // messages from bots.
+  // A bot cannot start a chat with a person or a group, but it can write first to another bot that
+  // takes messages from bots.
   override recipientWritesFirst(chat: string) {
     return !chat.startsWith("@");
   }
@@ -122,7 +124,7 @@ function prepareTelegram(message: OutboundMessage) {
   if (!chat) {
     throw new AppError({
       code: "invalid_input",
-      message: `${recipient} is not a Telegram user id or bot username`,
+      message: `${recipient} is not a Telegram user id, group id or bot username`,
     });
   }
 
@@ -156,6 +158,8 @@ function received({
   externalId,
   bot,
   chat,
+  group,
+  senderId,
   fromBot,
   username,
   fromName,
@@ -169,13 +173,15 @@ function received({
       externalId,
       to: atUsername(bot),
       from: {
-        address: fromBot ? atUsername(fromBot) : chat,
+        address: fromBot ? atUsername(fromBot) : senderId,
         // A person shows by their name and @username, the way Telegram shows them.
         name: fromName && username ? `${fromName} (@${username})` : fromName,
         handle: username ? atUsername(username) : null,
         // Telegram vouches for who sent each message to the bot.
         verified: true,
       },
+      // An answer to a message in a group goes to the group.
+      ...(group && { group: { address: chat, name: group.title } }),
       text: withQuote(text, quote),
       files,
     },

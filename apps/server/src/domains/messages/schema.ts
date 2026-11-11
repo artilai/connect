@@ -54,16 +54,21 @@ export const messageSchema = z
     direction: directionSchema,
     counterpart: z
       .string()
-      .describe("Who sent an inbound message, or the recipients of an outbound one"),
+      .describe(
+        "Who sent an inbound message, or the group it came in, or the recipients of an outbound one",
+      ),
     counterpartName: z
       .string()
       .nullable()
-      .describe("The name an inbound message's sender goes by, when the channel tells it"),
+      .describe("The name an inbound message's sender or group goes by, when the channel tells it"),
     author: z
       .string()
       .nullable()
-      .describe("Null: only private chats reach an agent here; groups are in Artil Cloud"),
-    authorName: z.string().nullable().describe("Null, as the author is"),
+      .describe("Who wrote an inbound message in a group, such as a Telegram user id"),
+    authorName: z
+      .string()
+      .nullable()
+      .describe("The name the author goes by, when the channel tells it"),
     to: z.array(z.string()).describe("Whom the message names as its recipients"),
     cc: z.array(z.string()).describe("Empty: copies are email's, which only Artil Cloud carries"),
     subject: z
@@ -98,9 +103,6 @@ export function toMessage({ attachments, ...message }: MessageRecord, links: Fil
     cc: [],
     subject: null,
     thread: null,
-    // Only private chats reach an account here, so no message has an author beside its sender.
-    author: null,
-    authorName: null,
     attachments: attachments.map((attachment) => toAttachment(attachment, { links })),
   };
 }

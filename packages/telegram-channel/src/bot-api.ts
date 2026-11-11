@@ -33,6 +33,10 @@ const longestRetryDelay = minute;
 // The longest caption a file carries; a longer text goes as a message of its own.
 const maxCaption = 1024;
 
+// How long the rest of an album that tagged the bot still comes along: Telegram sends its files one
+// right after another.
+const albumWindow = minute;
+
 const tokenPattern = /^\d+:[\w\-]+$/v;
 
 const secretHeader = "x-telegram-bot-api-secret-token";
@@ -58,18 +62,26 @@ const fileSchema = z.object({
 const storedSchema = z.object({ file_path: z.string().optional() });
 
 const userSchema = z.object({
+  id: z.number(),
   is_bot: z.boolean(),
   first_name: z.string().optional(),
   last_name: z.string().optional(),
   username: z.string().optional(),
 });
 
+// A part of a message's text Telegram marks, like an @mention or a /command.
+const entitySchema = z.object({ type: z.string(), offset: z.number(), length: z.number() });
+
 const messageSchema = z.object({
   message_id: z.number(),
   from: userSchema.optional(),
-  chat: z.object({ id: z.number(), type: z.string() }),
+  chat: z.object({ id: z.number(), type: z.string(), title: z.string().optional() }),
   text: z.string().optional(),
   caption: z.string().optional(),
+  entities: z.array(entitySchema).optional(),
+  caption_entities: z.array(entitySchema).optional(),
+  // The album a file came in, which Telegram sends one message per file.
+  media_group_id: z.string().optional(),
   reply_to_message: z
     .object({
       from: userSchema.optional(),
@@ -91,6 +103,11 @@ const updateSchema = z.object({ message: messageSchema.optional() });
 const updatesSchema = z.array(updateSchema.extend({ update_id: z.number() }));
 
 type Message = z.infer<typeof messageSchema>;
+
+type User = z.infer<typeof userSchema>;
+
+// The chats where many people write, as Telegram types them.
+const groupTypes: ReadonlySet<string> = new Set(["group", "supergroup"]);
 
 type Webhook = { url: string; secret_token: string; allowed_updates: string[] };
 
@@ -142,6 +159,30 @@ export function createBotApi({
   fetch = (url, init) => globalThis.fetch(url, init),
   sleep = abortableSleep,
 }: Options = {}): TelegramProvider {
+  // The albums in groups that tagged a bot, until when the rest of their files come along.
+  const taggedAlbums = new Map<string, number>();
+
+  // In a group, what tags the bot, and the other files of an album that did: Telegram puts the
+  // album's caption, and so the tag, on one of them.
+  function isForBotInGroup({ bot, message }: IsForBotOptions) {
+    const now = Date.now();
+
+    for (const [album, until] of taggedAlbums) if (until <= now) taggedAlbums.delete(album);
+
+    const album =
+      message.media_group_id === undefined
+        ? undefined
+        : `${bot.toLowerCase()}:${message.chat.id}:${message.media_group_id}`;
+
+    if (isForBot({ bot, message })) {
+      if (album) taggedAlbums.set(album, now + albumWindow);
+
+      return true;
+    }
+
+    return album !== undefined && taggedAlbums.has(album);
+  }
+
   function secretFor(secret: string, bot: string) {
     return createHmac("sha256", secret).update(bot).digest("base64url");
   }
@@ -225,7 +266,7 @@ export function createBotApi({
       method: "sendMessage",
       schema: sentSchema,
       body: {
-        chat_id: /^\d+$/v.test(chat) ? Number(chat) : chat,
+        chat_id: /^-?\d+$/v.test(chat) ? Number(chat) : chat,
         text,
         ...(reply && { reply_parameters: reply }),
       },
@@ -346,13 +387,20 @@ export function createBotApi({
 
   type ReadOptions = { bot: string; message: Message | undefined; token: string | null };
 
-  // Only private chats with the bot reach the agent.
+  // A private chat with the bot reaches the account, and in a group what tags the bot or answers it.
   async function read({ bot, message, token }: ReadOptions): Promise<TelegramEvent[]> {
-    if (message?.chat.type !== "private") return [];
+    const from = message?.from;
+
+    if (!message || !from) return [];
+
+    const inGroup = groupTypes.has(message.chat.type);
+    const forBot = inGroup ? isForBotInGroup({ bot, message }) : message.chat.type === "private";
+
+    if (!forBot) return [];
 
     const files = await filesOf({ message, token });
 
-    return [{ type: "received", message: toInbound({ bot, message, files }) }];
+    return [{ type: "received", message: toInbound({ bot, message, from, inGroup, files }) }];
   }
 
   function verify(request: Request) {
@@ -487,17 +535,48 @@ function digest(value: string) {
   return createHash("sha256").update(value).digest();
 }
 
-type ToInboundOptions = { bot: string; message: Message; files: InboundFile[] };
+type IsForBotOptions = { bot: string; message: Message };
 
-function toInbound({ bot, message, files }: ToInboundOptions): InboundTelegram {
-  const { message_id, from, chat, text, caption } = message;
+// What tags the bot, as @bot or /command@bot, or answers one of its messages, in any case.
+function isForBot({ bot, message }: IsForBotOptions) {
+  const username = bot.toLowerCase();
+  const answered = message.reply_to_message?.from;
+
+  if (answered?.is_bot && answered.username?.toLowerCase() === username) return true;
+
+  const text = message.text ?? message.caption ?? "";
+  const entities = message.entities ?? message.caption_entities ?? [];
+
+  // Telegram counts offsets in UTF-16 code units, as JavaScript strings do.
+  return entities.some(({ type, offset, length }) => {
+    const tag = text.slice(offset, offset + length).toLowerCase();
+
+    return (
+      (type === "mention" && tag === `@${username}`) ||
+      (type === "bot_command" && tag.endsWith(`@${username}`))
+    );
+  });
+}
+
+type ToInboundOptions = {
+  bot: string;
+  message: Message;
+  from: User;
+  inGroup: boolean;
+  files: InboundFile[];
+};
+
+function toInbound({ bot, message, from, inGroup, files }: ToInboundOptions): InboundTelegram {
+  const { message_id, chat, text, caption } = message;
 
   return {
     externalId: externalIdOf(chat.id, message_id),
     bot,
     chat: String(chat.id),
-    fromBot: from?.is_bot ? (from.username ?? null) : null,
-    username: from?.is_bot ? null : (from?.username ?? null),
+    group: inGroup ? { title: chat.title ?? null } : null,
+    senderId: String(from.id),
+    fromBot: from.is_bot ? (from.username ?? null) : null,
+    username: from.is_bot ? null : (from.username ?? null),
     fromName: nameOf(from),
     text: text ?? caption ?? "",
     files,
@@ -505,7 +584,7 @@ function toInbound({ bot, message, files }: ToInboundOptions): InboundTelegram {
   };
 }
 
-function nameOf(user: z.infer<typeof userSchema> | undefined) {
+function nameOf(user: User | undefined) {
   return [user?.first_name, user?.last_name].filter(Boolean).join(" ") || null;
 }
 

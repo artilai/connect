@@ -370,9 +370,13 @@ test("adds a sender to an account's list on the channel it names", async () => {
   expect(await cli(dataDir, "account", "list")).toContain("woken on Test by @adalovelace");
   await expect(
     cli(dataDir, "account", "allow", "Codex", "not a sender!", "--channel", "test"),
-  ).rejects.toThrow("not a sender! is not a name or @handle");
+  ).rejects.toThrow("not a sender! is not a name, @handle or -group");
   await expect(cli(dataDir, "account", "allow", "Codex", "@AdaLovelace")).rejects.toThrow(
     "Codex is connected to no channel; name one with --channel",
+  );
+  // A group's id starts with a dash, so it goes after --, as the log's command puts it.
+  expect(await cli(dataDir, "account", "allow", "Codex", "--channel", "test", "--", "-10042")).toBe(
+    "-10042 now wakes Codex on Test.",
   );
 });
 

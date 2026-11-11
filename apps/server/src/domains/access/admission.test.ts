@@ -9,6 +9,7 @@ const ordinary = {
   access: { admit: "anyone" as const, senders: [] },
   from: "ada@example.com",
   handle: null,
+  group: null,
   fromTeam: false,
   fromVerified: true,
 };
@@ -39,6 +40,7 @@ test("names the loop before spam, spam before the sender, and the sender before 
     access: list,
     from: "eve@example.com",
     handle: null,
+    group: null,
     fromTeam: false,
     fromVerified: false,
   };
@@ -82,6 +84,15 @@ test("lets a Telegram user through by the @username they go by", () => {
   expect(admit({ ...ada, access: listed })).toBeNull();
   expect(admissionOf({ ...ada, access: listed })).toBe("listed");
   expect(admit({ ...ada, handle: null, access: listed })).toBe("sender");
+});
+
+test("lets everyone in a group through once the group is on the list", () => {
+  const inGroup = { ...ordinary, from: "42", group: "-10042" };
+  const listed = { admit: "list" as const, senders: ["-10042"] };
+
+  expect(admit({ ...inGroup, access: listed })).toBeNull();
+  expect(admissionOf({ ...inGroup, access: listed })).toBe("listed");
+  expect(admit({ ...inGroup, group: null, access: listed })).toBe("sender");
 });
 
 test("describes each refusal, and names one from a newer server by its code", () => {
