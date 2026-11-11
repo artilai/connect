@@ -136,6 +136,28 @@ test("writes again to the thread it wrote to at the Message URL by answering wha
   stream.close();
 });
 
+test("marks the sender's copy failed when the message does not reach the account", async () => {
+  const server = await createTestServer();
+  const claude = server.account("Claude");
+
+  // An account removed while the message was on its way.
+  await expect(
+    server.services.messages.receiveRelay({
+      from: { id: claude.id, name: "Claude" },
+      to: "removed",
+      text: "Review the PR",
+      files: [],
+      thread: null,
+      toThread: null,
+      client: null,
+    }),
+  ).rejects.toThrow();
+
+  expect(server.services.messages.list({ accountId: claude.id, filter: {} })).toMatchObject([
+    { channel: "url", direction: "outbound", status: "failed", error: expect.any(String) },
+  ]);
+});
+
 test("refuses a message when nobody listens to the account", async () => {
   const server = await createTestServer();
   const claude = server.account("Claude");

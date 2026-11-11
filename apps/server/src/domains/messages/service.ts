@@ -335,53 +335,68 @@ export function createMessagesService({
     },
 
     // Takes a message the Message URL hands over whole: the sender keeps what it sent and the
-    // account it is for what it received, each with the files, and that account wakes. Both copies
-    // name the received one's id, which the event gives.
+    // account it is for what it received, each with the files, and that account wakes. The
+    // sender's copy is sent once the event is, and both copies then name the received one's id,
+    // which the event gives.
     async receiveRelay({ from, to, text, files: uploads, thread, toThread, client }: UrlDelivery) {
       const messageId = crypto.randomUUID();
       const sentId = crypto.randomUUID();
-      const copyFields = { channel: url.kind, externalId: messageId, to: [to], text };
 
       messagesRepository.add({
-        ...copyFields,
         id: sentId,
         accountId: from.id,
         addressId: urlAddressOf(from.id).id,
+        channel: url.kind,
         direction: "outbound",
         counterpart: to,
-        status: "sent",
+        to: [to],
+        text,
+        status: "sending",
       });
 
-      messagesRepository.add({
-        ...copyFields,
-        id: messageId,
-        accountId: to,
-        addressId: urlAddressOf(to).id,
-        direction: "inbound",
-        counterpart: from.id,
-        counterpartName: from.name,
-        status: "received",
-        // Only the server's accounts write on the Message URL, and its channel let this one in.
-        admission: "team",
-      });
-
-      // The files go in before the event, so the agent never hears of a message without them.
-      await files.save({ accountId: from.id, messageId: sentId, uploads });
-      await files.save({ accountId: to, messageId, uploads });
-
-      return events.relay({
-        accountId: to,
-        event: {
-          type: "message.received",
+      try {
+        messagesRepository.add({
+          id: messageId,
+          accountId: to,
+          addressId: urlAddressOf(to).id,
           channel: url.kind,
-          messageId,
-          text: text || null,
-          sender: { id: from.id, name: from.name },
-          thread,
-          toThread,
-          client,
-        },
-      });
+          direction: "inbound",
+          externalId: messageId,
+          counterpart: from.id,
+          counterpartName: from.name,
+          to: [to],
+          text,
+          status: "received",
+          // Only the server's accounts write on the Message URL, and its channel let this one in.
+          admission: "team",
+        });
+
+        // The files go in before the event, so the agent never hears of a message without them.
+        await files.save({ accountId: from.id, messageId: sentId, uploads });
+        await files.save({ accountId: to, messageId, uploads });
+
+        const event = events.relay({
+          accountId: to,
+          event: {
+            type: "message.received",
+            channel: url.kind,
+            messageId,
+            text: text || null,
+            sender: { id: from.id, name: from.name },
+            thread,
+            toThread,
+            client,
+          },
+        });
+
+        messagesRepository.markSent(sentId, messageId);
+
+        return event;
+      } catch (cause) {
+        messagesRepository.markFailed(sentId, messageOf(cause, "the server gave no reason"));
+
+        throw cause;
+      }
     },
 
     // Sends what an agent writes, and returns the copy the account keeps. An answer goes back the
