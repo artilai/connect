@@ -43,7 +43,7 @@ export class TelegramChannel extends Channel {
   override start({ token, webhookUrl, webhookSecret, signal, receive }: StartOptions) {
     return this.#provider.start({
       token,
-      ...(webhookUrl && { webhookUrl }),
+      webhookUrl,
       webhookSecret,
       signal,
       onEvents: (events) => receive(events.map(({ message }) => received(message))),
@@ -139,7 +139,7 @@ function received({
         verified: true,
       },
       // An answer to a message in a group goes to the group.
-      ...(group && { group: { address: chat, name: group.title } }),
+      group: group ? { address: chat, name: group.title } : undefined,
       text: withQuote(text, quote),
       files,
     },

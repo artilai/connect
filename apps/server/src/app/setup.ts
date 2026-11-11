@@ -255,7 +255,7 @@ async function setUpFiles(config: Config): Promise<S3Settings | null> {
   }
 }
 
-type SetUpModeOptions = { config: Config; tailscale: Tailscale | undefined };
+type SetUpModeOptions = { config: Config; tailscale?: Tailscale };
 
 // Local or public mode, with the sign-in page's password that public mode needs.
 async function setUpMode({ config, tailscale }: SetUpModeOptions) {
@@ -342,11 +342,11 @@ async function installArtilCli(artil: ArtilCli) {
 
 type RunSetupOptions = {
   paths: Paths;
-  config: Config | undefined;
+  config?: Config;
   builtInChannels: readonly Channel[];
   artil: ArtilCli;
   migrationsFolder: string;
-  tailscale: Tailscale | undefined;
+  tailscale?: Tailscale;
   out: (line: string) => void;
 };
 

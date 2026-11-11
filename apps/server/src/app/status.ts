@@ -7,7 +7,7 @@ import type { Tailscale } from "../platform/tailscale";
 import type { CommandContext } from "./context";
 import { runningGreeting } from "./http";
 
-type FindStartProblemsOptions = { config: Config; tailscale: Tailscale | undefined };
+type FindStartProblemsOptions = { config: Config; tailscale?: Tailscale };
 
 type ShowStatusOptions = FindStartProblemsOptions & {
   context: CommandContext;

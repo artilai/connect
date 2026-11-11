@@ -93,7 +93,7 @@ export function createDraftReader<Schema extends z.ZodType>(schema: Schema) {
   // A client sends either json or form. Hono's client types a union of the two as a function it
   // cannot call, so both are optional here.
   type DraftInput = {
-    in: { json?: z.input<Schema> | undefined; form?: FormInput | undefined };
+    in: { json?: z.input<Schema>; form?: FormInput };
     out: { json: SendBody };
   };
 

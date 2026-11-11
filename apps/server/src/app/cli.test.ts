@@ -17,7 +17,6 @@ const environment = {
   version: "0.0.0",
   builtInChannels: [createTestChannel()],
   migrationsFolder,
-  tailscale: undefined,
   artil: { installed: true, install: async () => {} },
 };
 

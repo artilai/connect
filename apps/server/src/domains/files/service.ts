@@ -12,7 +12,7 @@ import { type AttachmentInput, type FileRecord, toMessageAttachment } from "./sc
 
 type CreateFilesServiceOptions = {
   filesRepository: FilesRepository;
-  store: FileStore | undefined;
+  store?: FileStore;
   log: (line: string) => void;
 };
 

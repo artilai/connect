@@ -34,8 +34,8 @@ type CreateServicesOptions = {
   // Where clients reach the server, which file links point at.
   baseUrl: string;
   // The server's address on the internet, where providers post; none in local mode.
-  publicUrl: string | undefined;
-  store: FileStore | undefined;
+  publicUrl?: string;
+  store?: FileStore;
   // The channels the config loads; the server carries the Message URL itself.
   channels: ReadonlyMap<ChannelKind, Channel>;
   log: (line: string) => void;

@@ -24,14 +24,14 @@ type StartServerOptions = {
   databasePath: string;
   migrationsFolder: string;
   // Opens the server to the internet in public mode.
-  tailscale: Tailscale | undefined;
+  tailscale?: Tailscale;
   // The channels the config loads, beside the Message URL.
   channels: ReadonlyMap<ChannelKind, Channel>;
   // Reads the hash of the sign-in page's password for each sign-in, so a new one counts at once.
   password: () => Promise<string | null>;
   log: (line: string) => void;
   // Tests swap it for a fake bucket.
-  store?: FileStore | undefined;
+  store?: FileStore;
 };
 
 // Starts the server: the database, the channels, the HTTP API on the local port, and Funnel in public

@@ -181,7 +181,7 @@ export function registerMessageTools({
             filter: {
               ...filter,
               direction: "inbound",
-              ...(from && { counterpart: from }),
+              counterpart: from,
             },
           })
           .map(toMessageSummary),

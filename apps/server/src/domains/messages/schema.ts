@@ -43,7 +43,7 @@ export const draftSchema = z.object({
 
 // What the API's requests take; MCP sends on any channel of the server.
 export type Draft = Omit<z.infer<typeof draftSchema>, "channel"> & {
-  channel?: ChannelKind | undefined;
+  channel?: ChannelKind;
 };
 
 export const messageSchema = z

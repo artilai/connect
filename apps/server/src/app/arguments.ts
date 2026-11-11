@@ -33,7 +33,7 @@ type ChooserOptions = {
   // The arguments given before the one to choose.
   given: ReadonlyMap<string, string>;
   // The channel --channel names, if it does.
-  channel: string | undefined;
+  channel?: string;
 };
 
 // Picks an argument a command line left out.

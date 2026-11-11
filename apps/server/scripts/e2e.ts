@@ -25,7 +25,6 @@ const server = await startServer({
   config,
   databasePath: join(folder, "artil.db"),
   migrationsFolder,
-  tailscale: undefined,
   channels: await loadChannels({
     specifiers: config.channels,
     dataDir: folder,

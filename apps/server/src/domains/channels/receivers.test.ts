@@ -51,7 +51,6 @@ test("starts a channel again on an address after its start fails", async () => {
 
   const receivers = createReceivers({
     channel,
-    webhookUrl: undefined,
     webhookSecret: "secret",
     addresses: server.services.addresses,
     receive: async (options) => {
@@ -112,7 +111,6 @@ test("waits longer after each failed start, and from the first wait after one th
 
   const receivers = createReceivers({
     channel,
-    webhookUrl: undefined,
     webhookSecret: "secret",
     addresses: server.services.addresses,
     receive: server.services.messages.receive,

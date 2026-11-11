@@ -37,7 +37,7 @@ export function createSignInPageRoutes({
 }: CreateSignInPageRoutesOptions) {
   type RenderPageOptions = {
     signIn: SignInRecord;
-    selectedAccountId: string | undefined;
+    selectedAccountId?: string;
     error?: string;
   };
 

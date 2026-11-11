@@ -24,7 +24,7 @@ const longestRetryDelay = minute;
 type CreateReceiversOptions = {
   channel: Channel;
   // Where the channel's provider posts, which a channel on a server nothing can reach goes without.
-  webhookUrl: string | undefined;
+  webhookUrl?: string;
   webhookSecret: string;
   addresses: AddressesService;
   receive: Receive;
@@ -60,7 +60,7 @@ export function createReceivers({
       try {
         await channel.start({
           token,
-          ...(webhookUrl && { webhookUrl }),
+          webhookUrl,
           webhookSecret,
           signal,
           receive: (events) => receiveEvents({ receive, channel: channel.kind, events }),

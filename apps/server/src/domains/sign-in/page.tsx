@@ -49,9 +49,9 @@ export type SignInPageProps = {
   // Where the code goes, so the person can tell a client from one that only borrows its name.
   redirectHost: string;
   accounts: readonly Account[];
-  selectedAccountId: string | undefined;
+  selectedAccountId?: string;
   askPassword: boolean;
-  error: string | undefined;
+  error?: string;
 };
 
 export function SignInPage({

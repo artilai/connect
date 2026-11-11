@@ -129,7 +129,7 @@ export function createMessagesService({
       channel: repliedMessage.channel,
       to: draft.to ?? replyRecipients(repliedMessage),
       // The channel threads the answer by its own id for the message, when it gave one.
-      ...(repliedMessage.externalId !== null && { replyTo: repliedMessage.externalId }),
+      replyTo: repliedMessage.externalId ?? undefined,
     };
   }
 

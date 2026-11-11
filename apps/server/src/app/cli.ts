@@ -64,7 +64,7 @@ type Environment = {
   // The channels the server comes with; the config loads others.
   builtInChannels: readonly Channel[];
   migrationsFolder: string;
-  tailscale: Tailscale | undefined;
+  tailscale?: Tailscale;
   // The artil CLI on this computer, which the setup offers when it is missing.
   artil: ArtilCli;
   // Asks for the accounts, their channels, files and mode in the terminal, and saves the config.
