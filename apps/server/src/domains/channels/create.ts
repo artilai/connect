@@ -24,7 +24,6 @@ type CreateChannelsOptions = {
 // A channel extends the contract's Channel from whichever copy of the package its module brought,
 // so the server checks its shape rather than its class.
 const channelSchema = z.object({
-  contractVersion: z.literal(contractVersion),
   kind: z.string(),
   name: z.string(),
   recipients: z.string(),
@@ -39,7 +38,7 @@ const channelSchema = z.object({
 });
 
 // The version of the contract a channel was built for, which the copy of the package it extends
-// gives it; a channel from before the contract had versions has none.
+// gives it; a channel from before the contract had versions has none, which counts as 0.
 const builtForSchema = z.object({ contractVersion: z.int() });
 
 type ContractMismatchOptions = { kind: string; builtFor: number };
@@ -80,17 +79,15 @@ export function createChannels({
         log,
       });
 
-      const builtFor = builtForSchema.safeParse(channel).data?.contractVersion;
+      const builtFor = builtForSchema.safeParse(channel).data?.contractVersion ?? 0;
 
-      if (builtFor !== undefined && builtFor !== contractVersion) {
-        throw contractMismatch({ kind, builtFor });
-      }
+      if (builtFor !== contractVersion) throw contractMismatch({ kind, builtFor });
 
       const channelCheck = channelSchema.safeParse(channel);
 
       if (!channelCheck.success) {
         throw new Error(
-          `The ${kind} channel does not extend Channel from version ${contractVersion} of @artil/channels: ${z.prettifyError(channelCheck.error)}`,
+          `The ${kind} channel does not extend Channel from @artil/channels: ${z.prettifyError(channelCheck.error)}`,
         );
       }
 
