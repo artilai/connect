@@ -16,6 +16,8 @@ type FindByValueOptions = { channel: ChannelKind; value: string };
 
 type FindByAccountOptions = { accountId: string; channel: ChannelKind };
 
+type FindOrAddOptions = { accountId: string; channel: ChannelKind; value: string };
+
 const connectedWhere = isNotNull(addresses.credentials);
 
 // Each lookup finds connected addresses only; a disconnected one stays only for its messages.
@@ -98,6 +100,21 @@ export function createAddressesRepository(db: Database) {
         return { address, replaced };
       });
     },
+
+    // An address the server gives the account by itself, like its Message URL, which takes no
+    // credentials and is there only for its messages; the first message adds it.
+    findOrAdd: ({ accountId, channel, value }: FindOrAddOptions) =>
+      db
+        .select()
+        .from(addresses)
+        .where(
+          and(
+            eq(addresses.accountId, accountId),
+            eq(addresses.channel, channel),
+            eq(addresses.value, value),
+          ),
+        )
+        .get() ?? db.insert(addresses).values({ accountId, channel, value }).returning().get(),
 
     // Keeps the address and its messages, without the credentials that let it send.
     disconnect(options: FindByAccountOptions) {

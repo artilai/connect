@@ -103,6 +103,16 @@ test("sends to another account's Message URL and answers what came there", async
     sender: { id: chatgpt.id },
   });
 
+  const { id } = z.object({ id: z.uuid() }).parse(sent.json());
+
+  expect((await call({ client, name: "messages.read", args: { id } })).json()).toMatchObject({
+    channel: "url",
+    direction: "outbound",
+    to: [codex.id],
+    text: "Plan the launch",
+    status: "sent",
+  });
+
   const chatgptStream = await listen(chatgpt);
 
   const reply = await codex.json(`/api/agents/${chatgpt.id}/url`, { text: "Done" });

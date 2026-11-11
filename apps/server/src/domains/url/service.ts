@@ -1,20 +1,17 @@
 import { Channel, type OutboundMessage } from "@artil/channels/contract";
 import { AppError } from "@artil/errors";
-import { day } from "@artil/utils/time";
 
 import type { Upload } from "../../platform/storage";
 import type { AccessService } from "../access/service";
 import type { AccountsService } from "../accounts/service";
 import type { ConnectionsService } from "../connections/service";
-import type { EventsService } from "../events/service";
+import type { RelayRecord } from "../events/schema";
 import type { AttachmentInput } from "../files/schema";
 import type { FilesService } from "../files/service";
-import { maxUrlText, type UrlData, urlKind } from "./schema";
+import { maxUrlText, type UrlData, type UrlDelivery, urlKind } from "./schema";
 
-// A message on the Message URL carries up to 10 files, which stay a day.
+// A message on the Message URL carries up to 10 files.
 const maxUrlFiles = 10;
-
-const filesLifetime = day;
 
 const noThreads: UrlData = { thread: null, toThread: null, client: null };
 
@@ -26,8 +23,10 @@ type UrlChannelOptions = {
   accounts: AccountsService;
   access: AccessService;
   connections: ConnectionsService;
-  events: EventsService;
   files: FilesService;
+  // Keeps the message among the messages of both accounts and wakes the one it is for, which the
+  // messages service does as it does for every channel.
+  receiveRelay: (delivery: UrlDelivery) => Promise<RelayRecord>;
 };
 
 type RelayOptions = {
@@ -101,7 +100,7 @@ export class UrlChannel extends Channel<"url", UrlData> {
     files: uploads,
     channelData = noThreads,
   }: OutboundMessage<UrlData>) {
-    const { accounts, access, connections, events, files } = this.#services;
+    const { accounts, access, connections, files, receiveRelay } = this.#services;
     const [recipientId, ...others] = to;
 
     if (recipientId === undefined || others.length > 0) {
@@ -157,28 +156,14 @@ export class UrlChannel extends Channel<"url", UrlData> {
 
     if (uploads.length > 0 && !files.enabled) throw files.unavailableError();
 
-    const messageId = crypto.randomUUID();
-
-    // The files go in before the event, so the agent never hears of a message without them.
-    await files.save({
-      accountId: recipient.id,
-      messageId,
-      uploads,
-      expiresAt: new Date(Date.now() + filesLifetime),
+    const event = await receiveRelay({
+      from: { id: from.address, name: from.name },
+      to: recipient.id,
+      text,
+      files: uploads,
+      ...channelData,
     });
 
-    const event = events.relay({
-      accountId: recipient.id,
-      event: {
-        type: "message.received",
-        channel: this.kind,
-        messageId,
-        text: text || null,
-        sender: { id: from.address, name: from.name },
-        ...channelData,
-      },
-    });
-
-    return { externalId: messageId, event };
+    return { externalId: event.messageId, event };
   }
 }

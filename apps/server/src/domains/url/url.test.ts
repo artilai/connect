@@ -1,8 +1,14 @@
 import { expect, test } from "bun:test";
 
-import { day, minute } from "@artil/utils/time";
+import { z } from "zod";
+
+import { day } from "@artil/utils/time";
 
 import { createTestServer, listen } from "../../app/testing";
+
+const attachmentsSchema = z.object({
+  attachments: z.array(z.object({ name: z.string(), url: z.url() })),
+});
 
 test("hands a message at an account's Message URL to the client that listens to it", async () => {
   const server = await createTestServer();
@@ -30,6 +36,126 @@ test("hands a message at an account's Message URL to the client that listens to 
   });
 
   stream.close();
+});
+
+test("keeps a message at the Message URL among the messages of both accounts", async () => {
+  const server = await createTestServer();
+  const claude = server.account("Claude");
+  const codex = server.account("Codex");
+  const stream = await listen(codex);
+
+  await claude.json(`/api/agents/${codex.id}/url`, { text: "Review the PR" });
+
+  const { messageId } = await stream.next();
+  const received = await codex.call(`/api/agents/${codex.id}/messages/${messageId}`);
+
+  expect(await received.json()).toMatchObject({
+    channel: "url",
+    direction: "inbound",
+    counterpart: claude.id,
+    counterpartName: "Claude",
+    to: [codex.id],
+    text: "Review the PR",
+    status: "received",
+    admission: "team",
+  });
+
+  expect(await (await claude.call(`/api/agents/${claude.id}/messages`)).json()).toMatchObject([
+    {
+      channel: "url",
+      direction: "outbound",
+      counterpart: codex.id,
+      to: [codex.id],
+      text: "Review the PR",
+      status: "sent",
+    },
+  ]);
+
+  stream.close();
+});
+
+test("answers a message at the Message URL in the thread it came from", async () => {
+  const server = await createTestServer();
+  const claude = server.account("Claude");
+  const codex = server.account("Codex");
+  const claudeStream = await listen(claude);
+  const codexStream = await listen(codex);
+
+  await claude.json(`/api/agents/${codex.id}/url`, { text: "Review the PR", thread: "pr-42" });
+
+  const { messageId } = await codexStream.next();
+
+  const reply = await codex.json(`/api/agents/${codex.id}/messages`, {
+    replyTo: messageId,
+    text: "Approved",
+  });
+
+  expect(reply.status).toBe(201);
+  expect(await reply.json()).toMatchObject({
+    channel: "url",
+    direction: "outbound",
+    counterpart: claude.id,
+    text: "Approved",
+    status: "sent",
+  });
+  expect(await claudeStream.next()).toMatchObject({
+    text: "Approved",
+    sender: { id: codex.id },
+    toThread: "pr-42",
+  });
+
+  claudeStream.close();
+  codexStream.close();
+});
+
+test("writes again to the thread it wrote to at the Message URL by answering what it sent", async () => {
+  const server = await createTestServer();
+  const claude = server.account("Claude");
+  const codex = server.account("Codex");
+  const stream = await listen(codex);
+
+  await claude.json(`/api/agents/${codex.id}/url`, { text: "Review the PR", toThread: "pr-42" });
+  await stream.next();
+
+  const [sent] = z
+    .array(z.object({ id: z.uuid() }))
+    .parse(await (await claude.call(`/api/agents/${claude.id}/messages`)).json());
+
+  const followUp = await claude.json(`/api/agents/${claude.id}/messages`, {
+    replyTo: sent?.id ?? "",
+    text: "Any news?",
+  });
+
+  expect(followUp.status).toBe(201);
+  expect(await stream.next()).toMatchObject({
+    text: "Any news?",
+    sender: { id: claude.id },
+    toThread: "pr-42",
+  });
+
+  stream.close();
+});
+
+test("marks the sender's copy failed when the message does not reach the account", async () => {
+  const server = await createTestServer();
+  const claude = server.account("Claude");
+
+  // An account removed while the message was on its way.
+  await expect(
+    server.services.messages.receiveRelay({
+      from: { id: claude.id, name: "Claude" },
+      to: "removed",
+      text: "Review the PR",
+      files: [],
+      thread: null,
+      toThread: null,
+      client: null,
+    }),
+  ).rejects.toThrow();
+
+  expect(server.services.messages.list({ accountId: claude.id, filter: {} })).toMatchObject([
+    { channel: "url", direction: "outbound", status: "failed", error: expect.any(String) },
+  ]);
 });
 
 test("refuses a message when nobody listens to the account", async () => {
@@ -121,7 +247,7 @@ test("ends a stream once another client connects, and refuses it after", async (
   second.close();
 });
 
-test("brings a relayed message's files, which the agent downloads for a day", async () => {
+test("brings a relayed message's files, which both accounts keep as they keep any message's", async () => {
   const server = await createTestServer();
   const claude = server.account("Claude");
   const codex = server.account("Codex");
@@ -150,8 +276,24 @@ test("brings a relayed message's files, which the agent downloads for a day", as
 
   expect(download.status).toBe(200);
   expect(await download.text()).toBe("line one");
-  // The link works as long as the server keeps the file, and its expiry counts in seconds.
-  expect(Number(link.searchParams.get("exp"))).toBeGreaterThan((Date.now() + day - minute) / 1000);
+
+  await server.services.files.removeExpired(new Date(Date.now() + 2 * day));
+
+  const received = attachmentsSchema.parse(
+    await (await codex.call(`/api/agents/${codex.id}/messages/${event.messageId}`)).json(),
+  );
+
+  const [sentMessage] = z
+    .array(attachmentsSchema)
+    .parse(await (await claude.call(`/api/agents/${claude.id}/messages`)).json());
+
+  expect(sentMessage?.attachments).toHaveLength(1);
+
+  for (const { url } of [...received.attachments, ...(sentMessage?.attachments ?? [])]) {
+    const fileLink = new URL(url);
+
+    expect(await (await server.call(fileLink.pathname + fileLink.search)).text()).toBe("line one");
+  }
 
   stream.close();
 });

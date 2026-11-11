@@ -124,7 +124,8 @@ export const messages = sqliteTable(
     channel: text("channel").notNull(),
     direction: text("direction", { enum: ["inbound", "outbound"] }).notNull(),
     // The provider's id for the message, which a provider that delivers twice repeats. Bots number
-    // their messages each on their own, so it tells messages apart only at one address.
+    // their messages each on their own, so it tells messages apart only at one address. Both
+    // copies of a message on the Message URL hold the id of the one the account it went to received.
     externalId: text("external_id"),
     counterpart: text("counterpart").notNull(),
     counterpartName: encryptedText("messages", "counterpart_name"),
@@ -153,14 +154,15 @@ export const files = sqliteTable(
     accountId: text("account_id")
       .notNull()
       .references(() => accounts.id, { onDelete: "cascade" }),
-    // A message's id, or the id of a relayed message, which keeps no other row.
+    // The id of the message the file came or went with.
     messageId: text("message_id").notNull(),
     name: encryptedText("files", "name").notNull(),
     type: text("type").notNull(),
     size: integer("size").notNull(),
     // Where the bytes are in the bucket; null when the server kept only the file's description.
     key: text("key"),
-    // When the file goes, for the files of a relayed message.
+    // When the file goes, for the files a message on the Message URL brought before the server kept
+    // its messages.
     expiresAt: timestamp("expires_at"),
     createdAt: createdAt(),
   },
@@ -177,7 +179,7 @@ export const events = sqliteTable(
     type: text("type", { enum: ["message.received"] }).notNull(),
     channel: text("channel").notNull(),
     messageId: text("message_id").notNull(),
-    // A message on a channel without an inbox comes whole in its event, which names its sender.
+    // A message on the Message URL comes whole in its event too, which names its sender.
     text: encryptedText("events", "text"),
     sender: text("sender", { mode: "json" }).$type<{ id: string; name: string }>(),
     thread: text("thread"),

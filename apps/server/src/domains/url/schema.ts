@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import type { OutboundFile } from "@artil/channels/contract";
+
 import { labelSchema } from "../../platform/http/validate";
 import { attachmentsSchema } from "../files/schema";
 
@@ -23,6 +25,14 @@ export type UrlData = {
   thread: string | null;
   toThread: string | null;
   client: string | null;
+};
+
+// A message the Message URL hands whole from one account to another, which it names by its id.
+export type UrlDelivery = UrlData & {
+  from: { id: string; name: string };
+  to: string;
+  text: string;
+  files: OutboundFile[];
 };
 
 const threadSchema = labelSchema("A thread", 128);
