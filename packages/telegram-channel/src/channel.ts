@@ -3,22 +3,13 @@ import {
   type ChannelEvent,
   type ConnectedAddress,
   type HandleWebhookOptions,
-  type OutboundMessage,
   type SendOptions,
   type StartOptions,
 } from "@artil/channels/contract";
 import { AppError } from "@artil/errors";
-import { formatBytes } from "@artil/utils/text";
 
 import { atUsername, readChat, readSender } from "./chats";
 import type { InboundTelegram, TelegramProvider, TelegramQuote } from "./provider";
-
-const maxLength = 4096;
-
-// A bot sends up to 10 files in one album, each of up to 50 MB.
-const maxFiles = 10;
-
-const maxFileSize = 50_000_000;
 
 // Telegram through a provider, the Bot API in the server: a bot is an address, and a chat with it,
 // private or in a group, is whom a message goes to.
@@ -27,25 +18,13 @@ export class TelegramChannel extends Channel<"telegram"> {
 
   readonly name = "Telegram";
 
-  readonly recipients =
-    "the id of someone who wrote to the account's bot first, the id of a group that tagged it, or a bot's @username";
+  readonly labels = {
+    contact: "user id, group id or @username",
+    token: "bot token from @BotFather",
+  };
 
-  override readonly senders =
-    "a person's @username or Telegram user id, a group's id to let in everyone in it, or a bot's @username";
-
-  override readonly credentials = "Bot token";
-
-  // Short lines, which the setup shows as they are.
-  override readonly credentialsGuide = [
-    "Open @BotFather in Telegram.",
-    "Send /newbot to make a bot, or /mybots to pick one you have.",
-    "Tap API Token and copy it.",
-    "",
-    "Messages to the bot reach this account from now on.",
-    "People write to the bot first, in private chats,",
-    "or tag it in a group it is in.",
-    "Then the agent can answer.",
-  ].join("\n");
+  // A bot sends up to 10 files in one album, each of up to 50 MB.
+  override readonly limits = { recipients: 1, text: 4096, files: 10, fileSize: 50_000_000 };
 
   readonly #provider: TelegramProvider;
 
@@ -81,18 +60,28 @@ export class TelegramChannel extends Channel<"telegram"> {
     return new Response(null, { status: 204 });
   }
 
-  override readSender(input: string) {
+  override parseSender(input: string) {
     return readSender(input) ?? null;
+  }
+
+  // A bot writes to a person by the id of their chat with it, never by their @username.
+  override parseRecipient(input: string) {
+    const chat = readChat(input);
+
+    if (!chat && readSender(input)) {
+      throw new AppError({
+        code: "invalid_input",
+        message: `A bot writes to a person by their user id, which comes with their first message, not by ${input.trim()}`,
+      });
+    }
+
+    return chat ?? null;
   }
 
   // A bot cannot start a chat with a person or a group, but it can write first to another bot that
   // takes messages from bots.
   override recipientWritesFirst(chat: string) {
     return !chat.startsWith("@");
-  }
-
-  override prepare(message: OutboundMessage) {
-    return prepareTelegram(message);
   }
 
   send({ message: { to, text, files, replyTo }, credentials }: SendOptions) {
@@ -116,43 +105,6 @@ function onlyChat(to: string[]) {
   }
 
   return chat;
-}
-
-function prepareTelegram(message: OutboundMessage) {
-  const recipient = onlyChat(message.to);
-  const chat = readChat(recipient);
-
-  if (!chat) {
-    throw new AppError({
-      code: "invalid_input",
-      message: `${recipient} is not a Telegram user id, group id or bot username`,
-    });
-  }
-
-  if (message.text.length > maxLength) {
-    throw new AppError({
-      code: "invalid_input",
-      message: `A Telegram message holds at most ${maxLength} characters`,
-    });
-  }
-
-  if (message.files.length > maxFiles) {
-    throw new AppError({
-      code: "invalid_input",
-      message: `A Telegram message carries up to ${maxFiles} files`,
-    });
-  }
-
-  const tooBig = message.files.find(({ size }) => size > maxFileSize);
-
-  if (tooBig) {
-    throw new AppError({
-      code: "invalid_input",
-      message: `${tooBig.name} is ${formatBytes(tooBig.size)}; Telegram takes files of up to ${formatBytes(maxFileSize)}`,
-    });
-  }
-
-  return { ...message, to: [chat] };
 }
 
 function received({

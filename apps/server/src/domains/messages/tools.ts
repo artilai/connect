@@ -51,7 +51,7 @@ const readSchema = z.object({
 
 const draftFields = draftSchema.shape;
 
-type DescribedChannel = Pick<Channel, "kind" | "recipients">;
+type DescribedChannel = Pick<Channel, "kind" | "name" | "labels">;
 
 // The send tool's input, which tells agents the server's channels and whom each sends to.
 function sendSchemaFor(channels: readonly DescribedChannel[]) {
@@ -68,7 +68,7 @@ function sendSchemaFor(channels: readonly DescribedChannel[]) {
         `The channel to start a conversation on: ${channels.map(({ kind }) => kind).join(" or ")}`,
       ),
     to: draftFields.to.describe(
-      `Who to send to: ${channels.map(({ kind, recipients }) => `${kind} takes ${recipients}`).join("; ")}`,
+      `Who to send to: ${channels.map(({ kind, name, labels }) => `${kind} takes a ${name} ${labels.contact}`).join("; ")}`,
     ),
     cc: draftFields.cc.describe("Not on this server's channels, which copy no one"),
     subject: draftFields.subject.describe("Not on this server's channels, which have no subjects"),

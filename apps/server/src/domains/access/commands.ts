@@ -63,10 +63,13 @@ export function createAccessCommands({
 }: AccessCommandsOptions) {
   // The sender as the channel writes it in from.
   function readSender({ channel, who }: ReadSenderOptions) {
-    const sender = channel.readSender(who);
+    const sender = channel.parseSender(who);
 
     if (!sender) {
-      throw new AppError({ code: "invalid_input", message: `${who} is not ${channel.senders}` });
+      throw new AppError({
+        code: "invalid_input",
+        message: `${who} is not a ${channel.name} ${channel.labels.contact}`,
+      });
     }
 
     return sender;
@@ -111,7 +114,7 @@ export function createAccessCommands({
 
     const sender = readSender({ channel, who });
     const added = access.addSender({ accountId: account.id, channel: channel.kind, sender });
-    const shown = channels.showSender(channel.kind, sender);
+    const shown = accounts.toSenderName(sender);
 
     out(
       added
@@ -134,7 +137,7 @@ export function createAccessCommands({
 
     const sender = readSender({ channel, who });
     const removed = access.removeSender({ accountId: account.id, channel: channel.kind, sender });
-    const shown = channels.showSender(channel.kind, sender);
+    const shown = accounts.toSenderName(sender);
 
     out(
       removed

@@ -4,14 +4,12 @@ import { AppError } from "@artil/errors";
 import type { Upload } from "../../platform/storage";
 import type { AccessService } from "../access/service";
 import type { AccountsService } from "../accounts/service";
+import { checkLimits, readRecipients } from "../channels/service";
 import type { ConnectionsService } from "../connections/service";
 import type { RelayRecord } from "../events/schema";
 import type { AttachmentInput } from "../files/schema";
 import type { FilesService } from "../files/service";
 import { maxUrlText, type UrlData, type UrlDelivery, urlKind } from "./schema";
-
-// A message on the Message URL carries up to 10 files.
-const maxUrlFiles = 10;
 
 const noThreads: UrlData = { thread: null, toThread: null, client: null };
 
@@ -52,9 +50,9 @@ export class UrlChannel extends Channel<"url", UrlData> {
 
   readonly name = "Message URL";
 
-  readonly recipients = "the id of one agent from team.list";
+  readonly labels = { contact: "account name or id" };
 
-  override readonly senders = "an account of this server, by its name or id";
+  override readonly limits = { recipients: 1, text: maxUrlText, files: 10 };
 
   readonly #services: UrlChannelOptions;
 
@@ -63,13 +61,17 @@ export class UrlChannel extends Channel<"url", UrlData> {
     this.#services = services;
   }
 
-  // The list keeps an account by its id, as the sender of a message comes, which a rename leaves be.
-  override readSender(input: string) {
-    return this.#services.accounts.findByIdOrName(input)?.id ?? null;
+  // An account goes by its id on lists and as whom a message goes to, which a rename leaves be.
+  override parseSender(input: string) {
+    return this.#accountIdOf(input);
   }
 
-  override showSender(sender: string) {
-    return this.#services.accounts.findById(sender)?.name ?? sender;
+  override parseRecipient(input: string) {
+    return this.#accountIdOf(input);
+  }
+
+  #accountIdOf(input: string) {
+    return this.#services.accounts.findByIdOrName(input)?.id ?? null;
   }
 
   // Sends what an agent writes to another's Message URL, and returns the event the other got.
@@ -79,13 +81,17 @@ export class UrlChannel extends Channel<"url", UrlData> {
       attachments,
     });
 
+    const outgoingFiles = [...attachedFiles, ...uploads];
+
+    checkLimits({ channel: this, text, files: outgoingFiles });
+
     const { event } = await this.send({
       // The Message URL threads an answer by toThread, and needs no credentials.
       message: {
         from,
-        to,
+        to: readRecipients({ channel: this, to }),
         text,
-        files: [...attachedFiles, ...uploads],
+        files: outgoingFiles,
         channelData: { thread, toThread, client },
       },
       credentials: null,
@@ -99,19 +105,9 @@ export class UrlChannel extends Channel<"url", UrlData> {
   async send({ message }: SendOptions<UrlData>) {
     const { from, to, text, files: uploads, channelData = noThreads } = message;
     const { accounts, access, connections, files, receiveRelay } = this.#services;
-    const [recipientId, ...others] = to;
+    const [recipientId] = to;
 
-    if (!recipientId || others.length > 0) {
-      throw invalid("Put the id of the one agent to send to in to");
-    }
-
-    if (text.length > maxUrlText) {
-      throw invalid(`A message on url holds at most ${maxUrlText} characters`);
-    }
-
-    if (uploads.length > maxUrlFiles) {
-      throw invalid(`A message on url carries at most ${maxUrlFiles} files`);
-    }
+    if (!recipientId) throw invalid("Put the id of the one agent to send to in to");
 
     // Without a thread, an account writing to itself would only answer itself.
     if (from === recipientId && channelData.thread === null) {

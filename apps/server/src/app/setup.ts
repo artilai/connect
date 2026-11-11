@@ -120,10 +120,11 @@ async function setUpChannel({ context, channel }: SetUpChannelOptions) {
 
     if (!account) return;
 
-    if (channel.credentialsGuide) note(channel.credentialsGuide, `Connecting ${channel.name}`);
-
     const credentials = requireAnswer(
-      await password({ message: channel.credentials, validate: validateNotEmpty }),
+      await password({
+        message: `${channel.name} ${channel.labels.token ?? "token"}`,
+        validate: validateNotEmpty,
+      }),
     );
 
     const progressSpinner = spinner();
@@ -149,7 +150,7 @@ async function setUpChannel({ context, channel }: SetUpChannelOptions) {
 
     const sender = requireAnswer(
       await text({
-        message: `Who may wake ${account.name} on ${channel.name}? Give ${channel.senders}; leave it empty to let them in once they write`,
+        message: `Who may wake ${account.name} on ${channel.name}? Give a ${channel.name} ${channel.labels.contact}; leave it empty to let them in once they write`,
         defaultValue: "",
       }),
     ).trim();

@@ -202,7 +202,7 @@ test("lets in an account a person put on its list by name", async () => {
   const codex = server.account("Codex");
   const stream = await listen(codex);
   const url = server.services.channels.get("url");
-  const sender = url.readSender("claude");
+  const sender = url.parseSender("claude");
 
   if (!sender) throw new Error("The Message URL did not read Claude by name");
 
@@ -210,8 +210,8 @@ test("lets in an account a person put on its list by name", async () => {
   server.services.access.addSender({ accountId: codex.id, channel: "url", sender });
 
   expect((await claude.json(`/api/agents/${codex.id}/url`, { text: "Hi" })).status).toBe(201);
-  expect(url.showSender?.(sender)).toBe("Claude");
-  expect(url.readSender("nobody")).toBeNull();
+  expect(server.services.accounts.toSenderName(sender)).toBe("Claude");
+  expect(url.parseSender("nobody")).toBeNull();
 
   stream.close();
 });

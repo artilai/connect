@@ -54,6 +54,10 @@ export function createAccountsService({
   return {
     findById: accountsRepository.findById,
     findByIdOrName: accountsRepository.findByIdOrName,
+
+    // A sender on a list as a person knows them: an account of this server by its name.
+    toSenderName: (sender: string) => accountsRepository.findById(sender)?.name ?? sender,
+
     list: accountsRepository.list,
 
     // An account a person names by its id or name, as the commands take one.
