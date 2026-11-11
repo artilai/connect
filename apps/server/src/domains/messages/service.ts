@@ -48,6 +48,9 @@ type ListOptions = { agentId: string; filter: MessageFilter };
 
 type FindOptions = { agentId: string; id: string };
 
+// Whom an answer on the Message URL goes to, and the thread of their client it goes to.
+type UrlAnswer = { to: string[]; toThread: string | null };
+
 // An answer goes to whoever wrote the message, or to whom the agent wrote it.
 function replyRecipients(message: MessageRecord): string[] {
   return message.direction === "inbound" ? [message.counterpart] : message.to;
@@ -109,6 +112,28 @@ export function createMessagesService({
   // An agent's address on the Message URL is its id, which the server gives it by itself.
   function urlAddressOf(agentId: string) {
     return addresses.findOrAdd({ agentId, channel: "url", value: agentId });
+  }
+
+  // An answer to a message on the Message URL goes to whoever sent one the agent received, in the
+  // thread it came from, or again to whom the agent sent one, in the thread it went to. The event
+  // the receiving agent got tells the threads, which the messages do not keep.
+  function findUrlAnswer({ agentId, id }: FindOptions): UrlAnswer | undefined {
+    const receivedEvent = events.findRelay({ agentId, messageId: id });
+
+    if (receivedEvent) return { to: [receivedEvent.sender.id], toThread: receivedEvent.thread };
+
+    const sent = messagesRepository.find({ agentId, id });
+    const [recipientId] = sent?.to ?? [];
+
+    if (sent?.channel !== "url" || sent.direction !== "outbound") return undefined;
+
+    // Both copies hold the id of the received one, which its event goes by.
+    const recipientEvent =
+      recipientId === undefined || sent.externalId === null
+        ? undefined
+        : events.findRelay({ agentId: recipientId, messageId: sent.externalId });
+
+    return { to: sent.to, toThread: recipientEvent?.toThread ?? null };
   }
 
   // Sends on a channel with addresses, and keeps the message among the agent's.
@@ -339,8 +364,7 @@ export function createMessagesService({
     },
 
     // Sends what an agent writes, and returns the copy the agent keeps. An answer goes back the
-    // way its message came, and one to a message the Message URL brought goes to the thread it
-    // came from.
+    // way its message came, and on the Message URL to the thread it came from or went to.
     async sendDraft({
       agentId,
       agentName,
@@ -350,13 +374,11 @@ export function createMessagesService({
     }: SendDraftOptions): Promise<MessageRecord> {
       if (draft.forward !== undefined) throw onlyInCloud("Forwarding a message");
 
-      const relayed =
-        draft.replyTo === undefined
-          ? undefined
-          : events.findRelay({ agentId, messageId: draft.replyTo });
+      const urlAnswer =
+        draft.replyTo === undefined ? undefined : findUrlAnswer({ agentId, id: draft.replyTo });
 
-      const recipients = relayed
-        ? { channel: "url", to: [relayed.sender.id], cc: draft.cc ?? [] }
+      const recipients = urlAnswer
+        ? { channel: "url", to: urlAnswer.to, cc: draft.cc ?? [] }
         : resolveRecipients(agentId, draft);
 
       if (recipients.channel !== "url") {
@@ -369,7 +391,7 @@ export function createMessagesService({
         cc: recipients.cc,
         text: draft.text,
         thread: null,
-        toThread: relayed?.thread ?? null,
+        toThread: urlAnswer?.toThread ?? null,
         client,
         attachments: draft.attachments ?? [],
         uploads,

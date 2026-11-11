@@ -108,13 +108,13 @@ test("answers a message at the Message URL in the thread it came from", async ()
   codexStream.close();
 });
 
-test("writes again to whom it wrote at the Message URL by answering what it sent", async () => {
+test("writes again to the thread it wrote to at the Message URL by answering what it sent", async () => {
   const server = await createTestServer();
   const claude = server.agent("Claude");
   const codex = server.agent("Codex");
   const stream = await listen(codex);
 
-  await claude.json(`/api/agents/${codex.id}/url`, { text: "Review the PR" });
+  await claude.json(`/api/agents/${codex.id}/url`, { text: "Review the PR", toThread: "pr-42" });
   await stream.next();
 
   const [sent] = z
@@ -127,7 +127,11 @@ test("writes again to whom it wrote at the Message URL by answering what it sent
   });
 
   expect(followUp.status).toBe(201);
-  expect(await stream.next()).toMatchObject({ text: "Any news?", sender: { id: claude.id } });
+  expect(await stream.next()).toMatchObject({
+    text: "Any news?",
+    sender: { id: claude.id },
+    toThread: "pr-42",
+  });
 
   stream.close();
 });
