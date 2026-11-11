@@ -12,4 +12,4 @@ what only it takes with a message, and the server decides who a message wakes.
 
 A channel's package exports the channel itself, named `channel`, which the server loads.
 
-Raise `contractVersion` before a release that breaks channels built for the last one: the server loads only channels of its own version.
+A release that breaks channels built for the last one raises `contractVersion` by one, and the pull requests before it leave it as it is: the server loads only channels of its own version.
