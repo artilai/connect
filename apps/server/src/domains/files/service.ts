@@ -96,7 +96,7 @@ export function createFilesService({ filesRepository, store, log }: CreateFilesS
   }
 
   return {
-    enabled: store !== undefined,
+    enabled: Boolean(store),
 
     readForSending,
 

@@ -42,7 +42,7 @@ export function createAddressCommands({
       guide: channel.credentialsGuide,
     });
 
-    if (credentials === undefined) return;
+    if (!credentials) return;
 
     const { address, replaced } = await addresses.connect({
       accountId: account.id,

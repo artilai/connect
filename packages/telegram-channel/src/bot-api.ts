@@ -170,9 +170,7 @@ export function createBotApi({
     for (const [album, until] of taggedAlbums) if (until <= now) taggedAlbums.delete(album);
 
     const album =
-      message.media_group_id === undefined
-        ? undefined
-        : `${bot.toLowerCase()}:${message.chat.id}:${message.media_group_id}`;
+      message.media_group_id && `${bot.toLowerCase()}:${message.chat.id}:${message.media_group_id}`;
 
     if (isForBot({ bot, message })) {
       if (album) taggedAlbums.set(album, now + albumWindow);
@@ -180,7 +178,7 @@ export function createBotApi({
       return true;
     }
 
-    return album !== undefined && taggedAlbums.has(album);
+    return album ? taggedAlbums.has(album) : false;
   }
 
   function secretFor(secret: string, bot: string) {
@@ -424,7 +422,7 @@ export function createBotApi({
 
     while (!signal.aborted) {
       try {
-        if (polledBot === undefined) {
+        if (!polledBot) {
           const { username } = await findBot(token);
 
           if (webhook) {
@@ -516,11 +514,11 @@ function idOf(chat: number, messageId: number) {
 
 // What the answer quotes: the message's id in the chat it goes to, from the id Artil gave it.
 function replyParameters(replyTo: string | null): ReplyParameters | undefined {
-  const messageId = replyTo === null ? undefined : /^-?\d+:(\d+)$/v.exec(replyTo)?.[1];
+  const messageId = /^-?\d+:(\d+)$/v.exec(replyTo ?? "")?.[1];
 
-  return messageId === undefined
-    ? undefined
-    : { message_id: Number(messageId), allow_sending_without_reply: true };
+  return messageId
+    ? { message_id: Number(messageId), allow_sending_without_reply: true }
+    : undefined;
 }
 
 function invalidToken() {

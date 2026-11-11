@@ -167,6 +167,16 @@ test("acts as its own account only", async () => {
   });
 });
 
+test("refuses to list by an empty channel", async () => {
+  const server = await createTestServer();
+  const client = await connect({ server, account: server.account("Codex") });
+
+  const result = await call({ client, name: "messages.list", args: { channel: "" } });
+
+  expect(result.isError).toBe(true);
+  expect(result.text).toContain("channel");
+});
+
 // A client that keeps its registration and tokens in memory and hands the sign-in link to the test.
 function memoryProvider(redirectUrl: string) {
   let client: StoredOAuthClientInformation | undefined;

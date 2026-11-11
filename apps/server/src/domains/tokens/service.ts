@@ -43,7 +43,7 @@ export function createTokensService({ tokensRepository }: CreateTokensServiceOpt
       };
     },
 
-    isValid: (hash: string) => tokensRepository.findByHash(hash) !== undefined,
+    isValid: (hash: string) => Boolean(tokensRepository.findByHash(hash)),
     listByAccount: tokensRepository.listByAccount,
 
     // The account's sign-ins that go by a name a person gives, in any case. JavaScript folds the

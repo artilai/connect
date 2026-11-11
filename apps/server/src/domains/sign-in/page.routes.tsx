@@ -88,8 +88,7 @@ export function createSignInPageRoutes({
         // The CLI names the account it signs in as, which the page then selects.
         const account = c.req.query("account");
 
-        const selectedAccountId =
-          account === undefined ? undefined : accounts.findByIdOrName(account)?.id;
+        const selectedAccountId = account ? accounts.findByIdOrName(account)?.id : undefined;
 
         return c.html(await renderPage({ signIn, selectedAccountId }));
       })
@@ -114,8 +113,7 @@ export function createSignInPageRoutes({
             );
           }
 
-          const account =
-            form.data.account === undefined ? undefined : accounts.findById(form.data.account);
+          const account = form.data.account ? accounts.findById(form.data.account) : undefined;
 
           if (!account)
             return c.html(

@@ -44,8 +44,9 @@ function readNote(text: string) {
 // The port of the server that serves the data folder, if one does. A server that stopped without
 // a word leaves its note behind, with a process that is gone.
 export async function findRunningPort(paths: Paths) {
-  const text = await readFile(paths.running, "utf8").catch(() => undefined);
-  const running = text === undefined ? undefined : readNote(text);
+  // A missing note reads as an empty one, which is no note.
+  const text = await readFile(paths.running, "utf8").catch(() => "");
+  const running = readNote(text);
 
   return running && isAlive(running.pid) ? running.port : undefined;
 }

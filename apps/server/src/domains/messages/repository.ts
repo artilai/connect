@@ -57,10 +57,10 @@ export function createMessagesRepository(db: Database) {
 
     list({ accountId, filter }: ListOptions) {
       const { channel, direction, counterpart, before, limit = messageListLimit } = filter;
-      const anchor = before === undefined ? undefined : find({ accountId, id: before });
+      const anchor = before ? find({ accountId, id: before }) : undefined;
 
       // A message the account does not have leaves nothing older.
-      if (before !== undefined && !anchor) return [];
+      if (before && !anchor) return [];
 
       return db
         .select()
@@ -68,9 +68,9 @@ export function createMessagesRepository(db: Database) {
         .where(
           and(
             eq(messages.accountId, accountId),
-            channel === undefined ? undefined : eq(messages.channel, channel),
+            channel ? eq(messages.channel, channel) : undefined,
             direction && eq(messages.direction, direction),
-            counterpart === undefined ? undefined : eq(messages.counterpart, counterpart),
+            counterpart ? eq(messages.counterpart, counterpart) : undefined,
             anchor && olderThan(anchor),
           ),
         )
@@ -96,31 +96,35 @@ export function createMessagesRepository(db: Database) {
 
     // A provider that delivers a message twice gets the one the server already took.
     hasReceived: ({ addressId, externalId }: HasReceivedOptions) =>
-      db
-        .select({ id: messages.id })
-        .from(messages)
-        .where(
-          and(
-            eq(messages.addressId, addressId),
-            eq(messages.direction, "inbound"),
-            eq(messages.externalId, externalId),
-          ),
-        )
-        .get() !== undefined,
+      Boolean(
+        db
+          .select({ id: messages.id })
+          .from(messages)
+          .where(
+            and(
+              eq(messages.addressId, addressId),
+              eq(messages.direction, "inbound"),
+              eq(messages.externalId, externalId),
+            ),
+          )
+          .get(),
+      ),
 
     hasReceivedFrom: ({ accountId, channel, counterpart }: HasReceivedFromOptions) =>
-      db
-        .select({ id: messages.id })
-        .from(messages)
-        .where(
-          and(
-            eq(messages.accountId, accountId),
-            eq(messages.channel, channel),
-            eq(messages.direction, "inbound"),
-            eq(messages.counterpart, counterpart),
-          ),
-        )
-        .get() !== undefined,
+      Boolean(
+        db
+          .select({ id: messages.id })
+          .from(messages)
+          .where(
+            and(
+              eq(messages.accountId, accountId),
+              eq(messages.channel, channel),
+              eq(messages.direction, "inbound"),
+              eq(messages.counterpart, counterpart),
+            ),
+          )
+          .get(),
+      ),
 
     // Who wrote to the account on the channel and was refused for one of the reasons, the latest
     // first, by the name they last gave.

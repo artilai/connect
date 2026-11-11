@@ -60,7 +60,7 @@ export function createSignInsService({ signInsRepository, tokens }: CreateSignIn
         signIn?.kind === kind &&
         signIn.challenge === pkceChallenge(verifier) &&
         signIn.redirectUri === redirectUri &&
-        (clientId === undefined || signIn.clientId === clientId);
+        signIn.clientId === (clientId ?? signIn.clientId);
 
       if (!matchesRequest || signIn.accountId === null) return undefined;
 

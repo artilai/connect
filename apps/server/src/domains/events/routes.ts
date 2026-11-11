@@ -68,11 +68,12 @@ export function createEventRoutes({
 
   return new Hono<AccountEnv>()
     .get("/", docs.list, validateQuery(listSchema), (c) => {
-      const { after } = c.req.valid("query");
+      // Without a cursor the latest events come; the cursor 0 lists them from the first.
+      const { after = null } = c.req.valid("query");
       const accountId = c.var.account.id;
 
       const listedEvents =
-        after === undefined
+        after === null
           ? events.listLatest(accountId)
           : events.listAfter({ accountId, cursor: after });
 
@@ -89,7 +90,7 @@ export function createEventRoutes({
 
       const resumeAfter = lastEventId.data ?? after;
 
-      if (connection === undefined) {
+      if (!connection) {
         const { tokenHash } = c.var.actor;
 
         return streamEvents({

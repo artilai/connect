@@ -68,13 +68,16 @@ export function pathsIn(dataDir: string) {
 export type Paths = ReturnType<typeof pathsIn>;
 
 export async function readConfig(paths: Paths) {
-  const text = await readFile(paths.config, "utf8").catch((cause: unknown) => {
+  let text: string;
+
+  try {
+    text = await readFile(paths.config, "utf8");
+  } catch (cause) {
+    // A server that was never set up has no config.
     if (cause instanceof Error && "code" in cause && cause.code === "ENOENT") return undefined;
 
     throw cause;
-  });
-
-  if (text === undefined) return undefined;
+  }
 
   const parsed = configSchema.safeParse(JSON.parse(text));
 

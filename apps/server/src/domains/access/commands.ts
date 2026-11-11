@@ -37,12 +37,12 @@ type SayWokenOptions = { account: Account; channel: Channel; admit: Admit; chang
 // The channel --channel names, or else the one the account is connected to, as allow and
 // disallow take it and the terminal picks a sender on.
 export function readChannel({ account, kind, addresses, channels }: ReadChannelOptions) {
-  if (kind !== undefined) return channels.get(kind);
+  if (kind) return channels.get(kind);
 
   const connected = [...new Set(addresses.listByAccount(account.id).map(({ channel }) => channel))];
   const [onlyKind] = connected;
 
-  if (onlyKind === undefined || connected.length > 1) {
+  if (!onlyKind || connected.length > 1) {
     const named = connected.length === 0 ? "no channel" : connected.join(" and ");
 
     throw new AppError({
