@@ -7,7 +7,8 @@ import { AppError } from "@artil/errors";
 import { loadAccount } from "../domains/accounts/middleware";
 import { createAccountRoutes } from "../domains/accounts/routes";
 import { createAddressRoutes } from "../domains/addresses/routes";
-import { createChannelRoutes } from "../domains/channels/routes";
+import { createChannelRoutes } from "../domains/channels/agent.routes";
+import { createProviderRoutes } from "../domains/channels/provider.routes";
 import { createConnectionRoutes } from "../domains/connections/routes";
 import { createEventRoutes } from "../domains/events/routes";
 import { createFileRoutes } from "../domains/files/routes";
@@ -49,6 +50,7 @@ function createApi({ services, workspace }: Pick<CreateAppOptions, "services" | 
   const ownRoutes = new Hono<AuthEnv>()
     .use(loadAccount(services.accounts))
     .route("/addresses", createAddressRoutes(services))
+    .route("/channels", createChannelRoutes(services))
     .route("/connection", createConnectionRoutes(services))
     .route("/events", createEventRoutes(services))
     .route("/messages", createMessageRoutes(services))
@@ -85,7 +87,7 @@ export function createApp({ services, hosts, password, workspace, log }: CreateA
     .get("/openapi.json", async (c) => c.json(await (specs ??= describeApi(api))))
     .route("/cli", createCliSignInRoutes(services))
     .route("/files", createFileRoutes(services))
-    .route("/channels", createChannelRoutes({ ...services, receive: services.messages.receive }))
+    .route("/channels", createProviderRoutes({ ...services, receive: services.messages.receive }))
     .route("/", api)
     .all("*", (c) => notFound(c.req.method, c.req.path));
 

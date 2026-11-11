@@ -33,7 +33,7 @@ export type OutboundMessage<Data = never> = {
 
 export type ChannelEvent = { type: "message.received"; message: InboundMessage };
 
-export type ChannelLabels = { contact: string; token?: string };
+export type ChannelLabels = { address: string; contact: string; token?: string };
 
 export type ChannelLimits = { recipients: number; text: number; files: number; fileSize?: number };
 

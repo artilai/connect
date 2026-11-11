@@ -9,14 +9,18 @@ import { createDraftReader, sendBodyLimit } from "../../platform/http/draft";
 import { jsonResponse } from "../../platform/http/openapi";
 import { readId, validateQuery } from "../../platform/http/validate";
 import type { AccountEnv } from "../accounts/schema";
-import { apiChannelKinds } from "../channels/schema";
 import type { ChannelsService } from "../channels/service";
 import type { FileLinks } from "../files/schema";
 import { directionSchema, draftSchema, messageListLimit, messageSchema, toMessage } from "./schema";
 import type { MessagesService } from "./service";
 
 const listSchema = z.object({
-  channel: z.enum(apiChannelKinds).exactOptional(),
+  channel: z
+    .string()
+    .trim()
+    .min(1)
+    .exactOptional()
+    .describe("Keep the messages on this channel, by its kind"),
   direction: directionSchema.exactOptional(),
   limit: z.coerce
     .number()

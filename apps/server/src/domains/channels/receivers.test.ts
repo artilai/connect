@@ -12,7 +12,7 @@ class FlakyChannel extends Channel {
 
   readonly name = "Flaky";
 
-  readonly labels = { contact: "name" };
+  readonly labels = { address: "address", contact: "name" };
 
   starts = 0;
 
@@ -78,7 +78,7 @@ class FailingChannel extends Channel {
 
   readonly name = "Failing";
 
-  readonly labels = { contact: "name" };
+  readonly labels = { address: "address", contact: "name" };
 
   readonly #started = Promise.withResolvers<void>();
 

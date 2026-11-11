@@ -1,0 +1,10 @@
+# Requests that take any channel this server has, where Artil Cloud lists its own: the cloud's
+# channels still pass, so no client breaks. Remove a line once Artil Cloud takes any channel too.
+GET /agents/{id}/messages removed the enum value `email` from the `query` request parameter `channel`
+GET /agents/{id}/messages removed the enum value `sms` from the `query` request parameter `channel`
+GET /agents/{id}/messages removed the enum value `telegram` from the `query` request parameter `channel`
+GET /agents/{id}/messages for the `query` request parameter `channel`, the minLength was set to `1`
+POST /agents/{id}/messages removed the enum value `email` of the request property `channel`
+POST /agents/{id}/messages removed the enum value `sms` of the request property `channel`
+POST /agents/{id}/messages removed the enum value `telegram` of the request property `channel`
+POST /agents/{id}/messages the `channel` request property's minLength was set to `1`

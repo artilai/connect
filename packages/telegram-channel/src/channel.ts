@@ -18,6 +18,7 @@ export class TelegramChannel extends Channel {
   readonly name = "Telegram";
 
   readonly labels = {
+    address: "bot",
     contact: "user id, group id or @username",
     token: "bot token from @BotFather",
   };
