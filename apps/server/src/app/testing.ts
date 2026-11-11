@@ -37,6 +37,8 @@ const testInboundSchema = z.object({
   from: z.string(),
   text: z.string().default(""),
   fromHandle: z.string().nullable().default(null),
+  // The group the message came in, by its address and name.
+  group: z.object({ address: z.string(), name: z.string().nullable() }).optional(),
 });
 
 // A message someone sends to one of the test channel's addresses.
@@ -56,7 +58,7 @@ class TestChannel extends Channel<"test"> {
 
   readonly recipients = "someone who wrote to the address first, or another @address";
 
-  override readonly senders = "a name or @handle";
+  override readonly senders = "a name, @handle or -group";
 
   override readonly credentials = "A word, which names the address @word";
 
@@ -84,7 +86,7 @@ class TestChannel extends Channel<"test"> {
   }
 
   override readSender(input: string) {
-    return /^@?\w+$/v.test(input.trim()) ? input.trim().toLowerCase() : null;
+    return /^(?:@?\w+|-\d+)$/v.test(input.trim()) ? input.trim().toLowerCase() : null;
   }
 
   override recipientWritesFirst(recipient: string) {
@@ -121,7 +123,7 @@ class TestChannel extends Channel<"test"> {
 }
 
 function toTestEvent({ files = [], ...inbound }: TestInbound): ChannelEvent {
-  const { id, to, from, text, fromHandle } = testInboundSchema.parse(inbound);
+  const { id, to, from, text, fromHandle, group } = testInboundSchema.parse(inbound);
 
   return {
     type: "message.received",
@@ -129,6 +131,7 @@ function toTestEvent({ files = [], ...inbound }: TestInbound): ChannelEvent {
       externalId: id,
       to,
       from: { address: from, name: null, handle: fromHandle, verified: true },
+      ...(group && { group }),
       text,
       files,
     },

@@ -88,6 +88,24 @@ test("says in the log how to let a stranger in, the first time they write", asyn
   ]);
 });
 
+test("says in the log how to let in someone in a group, or everyone in it, the first time the group writes", async () => {
+  const server = await createTestServer();
+  const codex = server.account("Codex");
+  const address = await server.connectAddress({ account: codex, word: "codex" });
+  const inLaunch = { to: address, group: { address: "-10042", name: "Launch" } };
+
+  server.testChannel.queue("codex", { id: "1", ...inLaunch, from: "42", fromHandle: "@ada" });
+  server.testChannel.queue("codex", { id: "2", ...inLaunch, from: "43", fromHandle: "@eve" });
+  await server.deliverQueued();
+
+  expect(server.logs).toEqual([
+    "@ada wrote to Codex in Launch on Test but neither is on its list; let them in with: artil-server account allow Codex 42 --channel test, or everyone in the group with: artil-server account allow Codex --channel test -- -10042",
+  ]);
+  expect(server.services.messages.listKeptOut({ accountId: codex.id, channel: "test" })).toEqual([
+    { sender: "-10042", name: "Launch" },
+  ]);
+});
+
 test("wakes the agent with a stranger's message once anyone may", async () => {
   const server = await createTestServer();
   const codex = server.account("Codex");
@@ -168,6 +186,75 @@ test("answers a message the way it came", async () => {
       inReplyTo: { externalId: "1" },
     },
   ]);
+});
+
+test("keeps a message in a group as the group's, naming who wrote it, and answers in the group", async () => {
+  const server = await createTestServer();
+  const codex = server.account("Codex");
+  const address = await server.connectAddress({ account: codex, word: "codex" });
+  const launch = { address: "-10042", name: "Launch" };
+
+  server.services.access.addSender({ accountId: codex.id, channel: "test", sender: "-10042" });
+
+  const stream = await listen(codex);
+
+  server.testChannel.queue("codex", {
+    id: "7",
+    to: address,
+    from: "42",
+    group: launch,
+    text: "Hi",
+  });
+  await server.deliverQueued();
+
+  const { messageId } = await stream.next();
+  const received = await codex.call(`/api/agents/${codex.id}/messages/${messageId}`);
+
+  expect(await received.json()).toMatchObject({
+    direction: "inbound",
+    counterpart: "-10042",
+    counterpartName: "Launch",
+    author: "42",
+    authorName: null,
+    status: "received",
+    admission: "listed",
+  });
+
+  const reply = await codex.json(`/api/agents/${codex.id}/messages`, {
+    replyTo: messageId,
+    text: "On it",
+  });
+
+  expect(reply.status).toBe(201);
+  expect(await reply.json()).toMatchObject({ counterpart: "-10042", author: null });
+  expect(server.testChannel.sent).toMatchObject([
+    { to: ["-10042"], text: "On it", inReplyTo: { externalId: "7" } },
+  ]);
+
+  stream.close();
+});
+
+test("wakes the agent from any group for someone on its list, and keeps the rest of the group out", async () => {
+  const server = await createTestServer();
+  const codex = server.account("Codex");
+  const address = await server.connectAddress({ account: codex, word: "codex" });
+  const launch = { address: "-10042", name: "Launch" };
+
+  server.services.access.addSender({ accountId: codex.id, channel: "test", sender: "ada" });
+  server.testChannel.queue("codex", { id: "1", to: address, from: "ada", group: launch });
+  server.testChannel.queue("codex", { id: "2", to: address, from: "eve", group: launch });
+  await server.deliverQueued();
+
+  const messages = server.services.messages.list({ accountId: codex.id, filter: {} });
+
+  expect(messages.find(({ author }) => author === "ada")).toMatchObject({
+    status: "received",
+    admission: "listed",
+  });
+  expect(messages.find(({ author }) => author === "eve")).toMatchObject({
+    status: "refused",
+    refusal: "outsider",
+  });
 });
 
 test("writes first only to someone the channel lets it", async () => {

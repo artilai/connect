@@ -127,8 +127,12 @@ export const messages = sqliteTable(
     // their messages each on their own, so it tells messages apart only at one address. Both
     // copies of a message on the Message URL hold the id of the one the account it went to received.
     externalId: text("external_id"),
+    // Who sent an inbound message, or the group it came in, or the recipients of an outbound one.
     counterpart: text("counterpart").notNull(),
     counterpartName: encryptedText("messages", "counterpart_name"),
+    // Who wrote a message that came in a group, and the name they go by.
+    author: text("author"),
+    authorName: encryptedText("messages", "author_name"),
     to: text("to", { mode: "json" }).$type<string[]>().notNull(),
     text: encryptedText("messages", "text").notNull(),
     status: text("status", {

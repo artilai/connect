@@ -90,9 +90,10 @@ type File = { file_id: string; mime_type?: string; file_size?: number };
 type Message = {
   message_id: number;
   from: { id: number; is_bot: boolean; first_name: string; username?: string };
-  chat: { id: number; type: string };
+  chat: { id: number; type: string; title?: string };
   date: number;
   text?: string;
+  entities?: { type: string; offset: number; length: number }[];
   caption?: string;
   voice?: File & { duration: number };
   video?: File;
@@ -214,6 +215,8 @@ test("reads a private message from a webhook with the bot's secret", async () =>
         externalId: "42:7",
         bot: "AcmeSupportBot",
         chat: "42",
+        group: null,
+        senderId: "42",
         fromBot: null,
         username: "AdaLovelace",
         fromName: "Ada",
@@ -233,11 +236,57 @@ test("refuses a webhook without the bot's secret", async () => {
   ).rejects.toMatchObject({ code: "unauthorized" });
 });
 
-test("skips messages in groups and updates without a message", async () => {
+test("reads what tags the bot in a group or answers it, and skips the rest of the group", async () => {
   const { telegram } = setup();
-  const inGroup = { ...fromAda, chat: { id: -100_42, type: "group" }, text: "Hi all" };
+  const inGroup = { ...fromAda, chat: { id: -100_42, type: "supergroup", title: "Launch" } };
 
-  expect(await telegram.verifyEvents(update(inGroup))).toEqual([]);
+  function tagged(text: string, type: string) {
+    const tag = text.split(" ")[0] ?? "";
+
+    return update({ ...inGroup, text, entities: [{ type, offset: 0, length: tag.length }] });
+  }
+
+  expect(await telegram.verifyEvents(tagged("@acmesupportbot are you there?", "mention"))).toEqual([
+    {
+      type: "received",
+      message: {
+        externalId: "-10042:7",
+        bot: "AcmeSupportBot",
+        chat: "-10042",
+        group: { title: "Launch" },
+        senderId: "42",
+        fromBot: null,
+        username: "AdaLovelace",
+        fromName: "Ada",
+        text: "@acmesupportbot are you there?",
+        files: [],
+        quote: null,
+      },
+    },
+  ]);
+  expect(await telegram.verifyEvents(tagged("/status@AcmeSupportBot", "bot_command"))).toHaveLength(
+    1,
+  );
+
+  const answer = update({
+    ...inGroup,
+    text: "Thanks",
+    reply_to_message: {
+      ...inGroup,
+      from: { id: 123456, is_bot: true, first_name: "Support", username: "AcmeSupportBot" },
+      text: "Done",
+    },
+  });
+
+  expect(await telegram.verifyEvents(answer)).toHaveLength(1);
+  expect(await telegram.verifyEvents(update({ ...inGroup, text: "Hi all" }))).toEqual([]);
+  expect(await telegram.verifyEvents(tagged("@otherbot hi", "mention"))).toEqual([]);
+  expect(await telegram.verifyEvents(tagged("/status@OtherBot", "bot_command"))).toEqual([]);
+});
+
+test("skips updates without a message", async () => {
+  const { telegram } = setup();
+
   expect(
     await telegram.verifyEvents(
       new Request("https://artil.test/api/channels/telegram?bot=AcmeSupportBot", {
@@ -396,6 +445,7 @@ test("sends a message to a chat and keeps its id", async () => {
   expect(await telegram.send({ ...hello, chat: "42", inReplyTo: "42:7" })).toEqual({
     externalId: "42:8",
   });
+  await telegram.send({ ...hello, chat: "-10042" });
   expect(requests).toEqual([
     { method: "sendMessage", body: { chat_id: 42, text: "Hello" } },
     { method: "sendMessage", body: { chat_id: "@opsbot", text: "Hello" } },
@@ -407,6 +457,7 @@ test("sends a message to a chat and keeps its id", async () => {
         reply_parameters: { message_id: 7, allow_sending_without_reply: true },
       },
     },
+    { method: "sendMessage", body: { chat_id: -10042, text: "Hello" } },
   ]);
 });
 
