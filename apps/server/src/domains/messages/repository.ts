@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, lt, max, or } from "drizzle-orm";
+import { and, desc, eq, inArray, isNotNull, lt, max, or } from "drizzle-orm";
 
 import type { Database } from "../../platform/db/connection";
 import { messages } from "../../platform/db/schema";
@@ -20,10 +20,12 @@ type ListOptions = { accountId: string; filter: MessageFilter };
 type FindOptions = { accountId: string; id: string };
 
 type FindByExternalIdOptions = {
-  accountId: string;
+  addressId: string;
   direction: "inbound" | "outbound";
   externalId: string;
 };
+
+type FindLastClientThreadOptions = { addressId: string; counterpart: string };
 
 type HasReceivedOptions = { addressId: string; externalId: string };
 
@@ -79,18 +81,35 @@ export function createMessagesRepository(db: Database) {
         .all();
     },
 
-    findByExternalId: ({ accountId, direction, externalId }: FindByExternalIdOptions) =>
+    findByExternalId: ({ addressId, direction, externalId }: FindByExternalIdOptions) =>
       db
         .select()
         .from(messages)
         .where(
           and(
-            eq(messages.accountId, accountId),
+            eq(messages.addressId, addressId),
             eq(messages.direction, direction),
             eq(messages.externalId, externalId),
           ),
         )
         .get(),
+
+    // The thread of the client that last wrote to someone from the address, of those that named one.
+    findLastClientThread: ({ addressId, counterpart }: FindLastClientThreadOptions) =>
+      db
+        .select({ clientThread: messages.clientThread })
+        .from(messages)
+        .where(
+          and(
+            eq(messages.addressId, addressId),
+            eq(messages.direction, "outbound"),
+            eq(messages.counterpart, counterpart),
+            isNotNull(messages.clientThread),
+          ),
+        )
+        .orderBy(desc(messages.createdAt), desc(messages.id))
+        .limit(1)
+        .get()?.clientThread ?? null,
 
     add: (message: NewMessage) => db.insert(messages).values(message).returning().get(),
 

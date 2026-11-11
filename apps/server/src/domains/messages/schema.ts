@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { admissions, type messages, refusals } from "../../platform/db/schema";
+import { labelSchema } from "../../platform/http/validate";
 import { channelKindSchema } from "../channels/schema";
 import {
   attachmentSchema,
@@ -14,13 +15,16 @@ export const messageListLimit = 50;
 
 export type MessageRow = typeof messages.$inferSelect;
 
-export type MessageRecord = Omit<MessageRow, "accountId" | "externalId"> & {
+export type MessageRecord = Omit<MessageRow, "accountId" | "externalId" | "clientThread"> & {
   attachments: MessageAttachment[];
 };
 
 export type NewMessage = Omit<typeof messages.$inferInsert, "createdAt">;
 
 export const directionSchema = z.enum(["inbound", "outbound"]);
+
+// A thread is whatever a client calls its conversation, like a Codex thread id.
+export const threadSchema = labelSchema("A thread", 128);
 
 const maxRecipients = 10;
 
@@ -44,6 +48,9 @@ export const draftSchema = z.object({
   subject: z.string().trim().max(240, "Subject must be at most 240 characters").optional(),
   text: z.string().min(1, "Text cannot be empty").max(maxText, "Text is too long"),
   attachments: attachmentsSchema.optional(),
+  thread: threadSchema
+    .optional()
+    .describe("The thread of your client you send from, which an answer to the message wakes"),
 });
 
 export type Draft = z.infer<typeof draftSchema>;

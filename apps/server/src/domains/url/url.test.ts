@@ -88,6 +88,7 @@ test("answers a message at the Message URL in the thread it came from", async ()
   const reply = await codex.json(`/api/agents/${codex.id}/messages`, {
     replyTo: messageId,
     text: "Approved",
+    thread: "review",
   });
 
   expect(reply.status).toBe(201);
@@ -101,6 +102,7 @@ test("answers a message at the Message URL in the thread it came from", async ()
   expect(await claudeStream.next()).toMatchObject({
     text: "Approved",
     sender: { id: codex.id },
+    thread: "review",
     toThread: "pr-42",
   });
 

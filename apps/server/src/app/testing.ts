@@ -39,6 +39,7 @@ const testInboundSchema = z.object({
   username: z.string().nullable().default(null),
   // The group the message came in, by its address and name.
   group: z.object({ address: z.string(), name: z.string().nullable() }).optional(),
+  replyTo: z.string().optional(),
 });
 
 // A message someone sends to one of the test channel's addresses.
@@ -123,7 +124,7 @@ class TestChannel extends Channel {
 }
 
 function toTestEvent({ files = [], ...inbound }: TestInbound): ChannelEvent {
-  const { id, to, from, text, username, group } = testInboundSchema.parse(inbound);
+  const { id, to, from, text, username, group, replyTo } = testInboundSchema.parse(inbound);
 
   return {
     type: "message.received",
@@ -134,6 +135,7 @@ function toTestEvent({ files = [], ...inbound }: TestInbound): ChannelEvent {
       group,
       text,
       files,
+      replyTo,
     },
   };
 }

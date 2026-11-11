@@ -15,6 +15,13 @@
       "when": 1794407829243,
       "tag": "0001_telegram_group_authors",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1794425316106,
+      "tag": "0002_client_thread",
+      "breakpoints": true
     }
   ]
 }

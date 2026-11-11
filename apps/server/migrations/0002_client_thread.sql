@@ -1,0 +1,1 @@
+ALTER TABLE `messages` ADD `client_thread` text;

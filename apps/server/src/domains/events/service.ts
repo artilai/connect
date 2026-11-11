@@ -27,7 +27,7 @@ export function createEventsService({ eventsRepository, bus, files }: CreateEven
 
     return rows.map(
       ({ id, type, channel, messageId, text, sender, thread, toThread, client, createdAt }) => {
-        if (!sender) return { id, type, channel, messageId, createdAt };
+        if (!sender) return { id, type, channel, messageId, toThread, createdAt };
 
         return {
           id,

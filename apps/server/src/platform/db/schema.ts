@@ -136,6 +136,8 @@ export const messages = sqliteTable(
     authorName: encryptedText("messages", "author_name"),
     to: text("to", { mode: "json" }).$type<string[]>().notNull(),
     text: encryptedText("messages", "text").notNull(),
+    // The thread of the client that sent an outbound message, which an answer to it wakes.
+    clientThread: text("client_thread"),
     status: text("status", {
       enum: ["received", "refused", "sending", "sent", "failed"],
     }).notNull(),

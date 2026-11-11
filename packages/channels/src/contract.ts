@@ -20,6 +20,7 @@ export type InboundMessage = {
   group?: { address: string; name: string | null };
   text: string;
   files: InboundFile[];
+  replyTo?: string;
 };
 
 export type OutboundMessage<Data = never> = {
