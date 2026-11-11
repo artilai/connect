@@ -18,7 +18,7 @@ type ListAfterOptions = { agentId: string; cursor: number };
 type FindRelayOptions = { agentId: string; messageId: string };
 
 export function createEventsService({ eventsRepository, bus, files }: CreateEventsServiceOptions) {
-  // A relayed message's files come with its event, as it keeps no other copy.
+  // A relayed message's files come with its event, as the rest of the message does.
   function toRecords(rows: EventRow[]): EventRecord[] {
     const attachmentsByMessage = files.describeByMessages(
       rows.flatMap(({ channel, messageId }) => (channel === "url" ? [messageId] : [])),

@@ -12,6 +12,6 @@ itself, so the channel has no provider.
 
 `UrlChannel` holds the Message URL's rules: one agent to send to, no copies, up
 to 2000 characters and 10 files, only the server's agents as senders, to itself
-only from one thread to another, someone listening, and files that stay a day.
+only from one thread to another, and someone listening.
 The server gives it a `UrlChannelHost`, which finds the agents, decides by each
 agent's list who wakes it, knows who listens and hands a message over.

@@ -135,9 +135,10 @@ test("writes first only to someone the channel lets it", async () => {
   await server.connectAddress({ agent: codex, word: "codex" });
 
   const sent = await server.services.messages
-    .send({
+    .sendDraft({
       agentId: codex.id,
       agentName: "Codex",
+      client: null,
       draft: { channel: "test", to: ["ada"], text: "Hi" },
       uploads: [],
     })

@@ -68,7 +68,16 @@ export function createServices({
 
   const access = createAccessService({ accessRepository: createAccessRepository(db), events });
 
-  const urlChannel = new UrlChannel(createUrlHost({ agents, access, connections, events, files }));
+  // The Message URL hands what it carries to the messages, which send on it in turn, so its host
+  // reaches them once they are made.
+  const urlChannel = new UrlChannel(
+    createUrlHost({
+      agents,
+      access,
+      connections,
+      receiveRelay: async (delivery) => messages.receiveRelay(delivery),
+    }),
+  );
 
   // Every channel behind the one interface, whatever carries its messages.
   const channels = createChannelsService(

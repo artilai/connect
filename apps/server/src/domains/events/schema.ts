@@ -12,8 +12,9 @@ import {
 } from "../files/schema";
 import { teammateSchema, toTeammate } from "../team/schema";
 
-// A relayed message's files stay a day after it came.
-const relayedFileLifetime = day;
+// The links to a relayed message's files in its event work a day after it came; reading the
+// message gives new ones.
+const relayedLinkLifetime = day;
 
 export type EventRow = typeof events.$inferSelect;
 
@@ -36,7 +37,7 @@ export type NewEvent = Arrival | Relay;
 
 type Stamped<Record> = Record & { id: number; createdAt: Date };
 
-export type RelayRecord = Stamped<Relay> & { attachments: MessageAttachment[] };
+type RelayRecord = Stamped<Relay> & { attachments: MessageAttachment[] };
 
 export type EventRecord = Stamped<Arrival> | RelayRecord;
 
@@ -51,7 +52,7 @@ const relayedAttachmentsSchema = z
         .string()
         .nullable()
         .describe(
-          "Where to download the file: a link that needs no sign-in and works as long as the server keeps the file, a day after the message came; null when the server kept only the file's description",
+          "Where to download the file: a link that needs no sign-in and works for a day after the message came, then read the message for a new one; null when the server kept only the file's description",
         ),
     }),
   )
@@ -92,8 +93,8 @@ export const eventSchema = z
 
 export type Event = z.infer<typeof eventSchema>;
 
-export function relayedAttachments({ attachments, createdAt }: RelayRecord, links: FileLinks) {
-  const until = createdAt.getTime() + relayedFileLifetime;
+function relayedAttachments({ attachments, createdAt }: RelayRecord, links: FileLinks) {
+  const until = createdAt.getTime() + relayedLinkLifetime;
 
   return attachments.map((attachment) => toAttachment(attachment, { links, until }));
 }

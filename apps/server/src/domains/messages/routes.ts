@@ -99,7 +99,13 @@ export function createMessageRoutes({ messages, channels, fileLinks }: CreateMes
       const { draft, files } = c.req.valid("json");
       const { id, name } = c.var.agent;
 
-      const sent = await messages.send({ agentId: id, agentName: name, draft, uploads: files });
+      const sent = await messages.sendDraft({
+        agentId: id,
+        agentName: name,
+        client: c.var.actor.tokenName,
+        draft,
+        uploads: files,
+      });
 
       return c.json(toMessage(sent, fileLinks), 201);
     });

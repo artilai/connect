@@ -1,5 +1,6 @@
 import type { InboundMessage } from "@artil/channels/contract";
 import { AppError, messageOf } from "@artil/errors";
+import type { UrlDelivery } from "@artil/url-channel/channel";
 import { shellQuoted } from "@artil/utils/shell";
 
 import { missingChannel, onlyInCloud } from "../../platform/cloud";
@@ -8,7 +9,6 @@ import type { AccessService } from "../access/service";
 import type { AddressesService } from "../addresses/service";
 import type { ChannelKind } from "../channels/schema";
 import type { ChannelsService } from "../channels/service";
-import type { RelayRecord } from "../events/schema";
 import type { EventsService } from "../events/service";
 import type { FileLinks } from "../files/schema";
 import type { FilesService } from "../files/service";
@@ -31,24 +31,22 @@ type CreateMessagesServiceOptions = {
 
 type ReceiveOptions = { channel: ChannelKind; message: InboundMessage };
 
-type SendOptions = { agentId: string; agentName: string; draft: Draft; uploads: Upload[] };
+type Recipients = { channel: ChannelKind; to: string[]; cc: string[] };
 
-type SendDraftOptions = SendOptions & {
+type SendDraftOptions = {
+  agentId: string;
+  agentName: string;
+  draft: Draft;
+  uploads: Upload[];
   // The client the agent writes in, which a message on the Message URL names.
   client: string | null;
 };
 
+type SendOptions = Omit<SendDraftOptions, "client"> & { recipients: Recipients };
+
 type ListOptions = { agentId: string; filter: MessageFilter };
 
 type FindOptions = { agentId: string; id: string };
-
-type Recipients = { channel: ChannelKind; to: string[]; cc: string[] };
-
-// What came of a message an agent wrote: the server keeps one on a channel with addresses, and
-// hands one on the Message URL whole to the other agent.
-type Sent =
-  | { kind: "stored"; message: MessageRecord }
-  | { kind: "relayed"; event: RelayRecord; to: string[] };
 
 // An answer goes to whoever wrote the message, or to whom the agent wrote it.
 function replyRecipients(message: MessageRecord): string[] {
@@ -108,11 +106,14 @@ export function createMessagesService({
     };
   }
 
-  // Sends on a channel with addresses, and keeps the message among the agent's.
-  async function send({ agentId, agentName, draft, uploads }: SendOptions) {
-    if (draft.forward !== undefined) throw onlyInCloud("Forwarding a message");
+  // An agent's address on the Message URL is its id, which the server gives it by itself.
+  function urlAddressOf(agentId: string) {
+    return addresses.findOrAdd({ agentId, channel: "url", value: agentId });
+  }
 
-    const { channel: kind, to, cc } = resolveRecipients(agentId, draft);
+  // Sends on a channel with addresses, and keeps the message among the agent's.
+  async function send({ agentId, agentName, draft, uploads, recipients }: SendOptions) {
+    const { channel: kind, to, cc } = recipients;
     const channel = channels.find(kind);
 
     if (!channel) throw missingChannel(kind);
@@ -275,50 +276,116 @@ export function createMessagesService({
       }
     },
 
-    send,
+    // Takes a message the Message URL hands over whole: the sender keeps what it sent and the
+    // agent it is for what it received, each with the files, and that agent wakes. Both copies
+    // name the received one's id, which the event gives.
+    async receiveRelay({ from, to, text, files: uploads, thread, toThread, client }: UrlDelivery) {
+      if (uploads.length > 0 && !files.enabled) throw files.unavailableError();
 
-    // Sends what an agent writes. An answer goes back the way its message came; a message on the
-    // Message URL goes whole to the other agent, and the server keeps one on any other channel.
+      const messageId = crypto.randomUUID();
+      const sentId = crypto.randomUUID();
+
+      const copyFields = {
+        channel: "url",
+        externalId: messageId,
+        to: [to.id],
+        cc: [],
+        subject: null,
+        text: text ?? "",
+      };
+
+      messagesRepository.add({
+        ...copyFields,
+        id: sentId,
+        agentId: from.id,
+        addressId: urlAddressOf(from.id).id,
+        direction: "outbound",
+        counterpart: to.id,
+        status: "sent",
+      });
+
+      messagesRepository.add({
+        ...copyFields,
+        id: messageId,
+        agentId: to.id,
+        addressId: urlAddressOf(to.id).id,
+        direction: "inbound",
+        counterpart: from.id,
+        counterpartName: from.name,
+        status: "received",
+        // Only the server's agents write on the Message URL, and its channel let this one in.
+        admission: "team",
+      });
+
+      // The files go in before the event, so the agent never hears of a message without them.
+      await files.save({ agentId: from.id, messageId: sentId, uploads });
+      await files.save({ agentId: to.id, messageId, uploads });
+
+      events.add({
+        agentId: to.id,
+        event: {
+          type: "message.received",
+          channel: "url",
+          messageId,
+          text,
+          sender: { id: from.id, name: from.name },
+          thread,
+          toThread,
+          client,
+        },
+      });
+
+      return messageId;
+    },
+
+    // Sends what an agent writes, and returns the copy the agent keeps. An answer goes back the
+    // way its message came, and one to a message the Message URL brought goes to the thread it
+    // came from.
     async sendDraft({
       agentId,
       agentName,
       client,
       draft,
       uploads,
-    }: SendDraftOptions): Promise<Sent> {
+    }: SendDraftOptions): Promise<MessageRecord> {
+      if (draft.forward !== undefined) throw onlyInCloud("Forwarding a message");
+
       const relayed =
         draft.replyTo === undefined
           ? undefined
           : events.findRelay({ agentId, messageId: draft.replyTo });
 
-      const relayTo = relayed
-        ? { to: [relayed.sender.id], toThread: relayed.thread }
-        : draft.channel === "url"
-          ? { to: draft.to ?? [], toThread: null }
-          : undefined;
+      const recipients = relayed
+        ? { channel: "url", to: [relayed.sender.id], cc: draft.cc ?? [] }
+        : resolveRecipients(agentId, draft);
 
-      if (!relayTo) {
-        return { kind: "stored", message: await send({ agentId, agentName, draft, uploads }) };
-      }
-
-      // Forwarding needs a message the server keeps, and the Message URL keeps none.
-      if (draft.forward !== undefined) {
-        throw new AppError({ code: "invalid_input", message: "A message on url forwards nothing" });
+      if (recipients.channel !== "url") {
+        return send({ agentId, agentName, draft, uploads, recipients });
       }
 
       const event = await url.relay({
         sender: { id: agentId, name: agentName },
-        to: relayTo.to,
-        cc: draft.cc ?? [],
+        to: recipients.to,
+        cc: recipients.cc,
         text: draft.text,
         thread: null,
-        toThread: relayTo.toThread,
+        toThread: relayed?.thread ?? null,
         client,
         attachments: draft.attachments ?? [],
         uploads,
       });
 
-      return { kind: "relayed", event, to: relayTo.to };
+      const row = messagesRepository.findByExternalId({
+        agentId,
+        direction: "outbound",
+        externalId: event.messageId,
+      });
+
+      const [sent] = row ? toRecords([row]) : [];
+
+      if (!sent) throw new Error(`Message ${event.messageId} went missing`);
+
+      return sent;
     },
   };
 }
@@ -326,3 +393,5 @@ export function createMessagesService({
 export type MessagesService = ReturnType<typeof createMessagesService>;
 
 export type Receive = MessagesService["receive"];
+
+export type ReceiveRelay = MessagesService["receiveRelay"];

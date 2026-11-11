@@ -20,6 +20,7 @@ export function createAddressesService({
   return {
     findByValue: addressesRepository.findByValue,
     findByAgent: addressesRepository.findByAgent,
+    findOrAdd: addressesRepository.findOrAdd,
     listByAgent: addressesRepository.listByAgent,
     listConnected: addressesRepository.listConnected,
 

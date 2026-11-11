@@ -77,7 +77,8 @@ export const signIns = sqliteTable("sign_ins", {
 });
 
 // A bot keeps its row once disconnected, without its token, so the messages it carried stay; one
-// agent at a time holds it.
+// agent at a time holds it. An agent's address on the Message URL, its id, has no credentials
+// either: it is there only for its messages.
 export const addresses = sqliteTable(
   "addresses",
   {
@@ -124,7 +125,8 @@ export const messages = sqliteTable(
     channel: text("channel").notNull(),
     direction: text("direction", { enum: ["inbound", "outbound"] }).notNull(),
     // The provider's id for the message, which a provider that delivers twice repeats. Bots number
-    // their messages each on their own, so it tells messages apart only at one address.
+    // their messages each on their own, so it tells messages apart only at one address. Both
+    // copies of a message on the Message URL hold the id of the one the agent it went to received.
     externalId: text("external_id"),
     counterpart: text("counterpart").notNull(),
     counterpartName: text("counterpart_name"),
@@ -156,14 +158,15 @@ export const files = sqliteTable(
     agentId: text("agent_id")
       .notNull()
       .references(() => agents.id, { onDelete: "cascade" }),
-    // A message's id, or the id of a message the Message URL relayed, which keeps no other row.
+    // The id of the message the file came or went with.
     messageId: text("message_id").notNull(),
     name: text("name").notNull(),
     type: text("type").notNull(),
     size: integer("size").notNull(),
     // Where the bytes are in the bucket; null when the server kept only the file's description.
     key: text("key"),
-    // When the file goes, for the files of a relayed message.
+    // When the file goes, for the files a relayed message brought before the server kept the
+    // Message URL's messages.
     expiresAt: timestamp("expires_at"),
     createdAt: createdAt(),
   },

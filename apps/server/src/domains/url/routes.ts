@@ -53,7 +53,7 @@ const docs = {
     operationId: "sendToAgentUrl",
     summary: "Send to an agent's Message URL",
     description:
-      "Send a message to another agent of the server, as the agent whose token you use. The server hands the message whole to whoever listens to the agent, as a message.received event on the url channel. Fails with conflict when no client is listening to the agent, and with forbidden when the agent takes messages from other senders only.",
+      "Send a message to another agent of the server, as the agent whose token you use. The server hands the message whole to whoever listens to the agent, as a message.received event on the url channel, and keeps it among the messages of both agents. Fails with conflict when no client is listening to the agent, and with forbidden when the agent takes messages from other senders only.",
     responses: { 201: jsonResponse("The message.received event", eventSchema) },
   }),
 };

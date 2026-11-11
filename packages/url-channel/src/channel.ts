@@ -1,6 +1,5 @@
 import { Channel, type OutboundFile, type OutboundMessage } from "@artil/channels/contract";
 import { AppError } from "@artil/errors";
-import { day } from "@artil/utils/time";
 
 // A message on the Message URL holds up to 2000 characters and 10 files.
 export const maxUrlText = 2000;
@@ -19,14 +18,12 @@ export type UrlData = {
 
 type UrlAgent = { id: string; name: string };
 
-// A message the Message URL hands whole to an agent, which keeps no copy of it.
+// A message the Message URL hands whole to an agent.
 export type UrlDelivery = UrlData & {
   from: UrlAgent;
   to: UrlAgent;
   text: string | null;
   files: OutboundFile[];
-  // When the message's files go, which the agent downloads until then.
-  filesExpireAt: Date;
 };
 
 // Why the agent does not take a message, as the server's list of who wakes it decides.
@@ -48,9 +45,6 @@ export type UrlChannelHost = {
   // Hands the message to the agent's listening client, and returns the message's id.
   handOver: (delivery: UrlDelivery) => Promise<string>;
 };
-
-// A relayed message's files stay a day.
-const filesLifetime = day;
 
 const noThreads = { thread: null, toThread: null, client: null } satisfies UrlData;
 
@@ -146,7 +140,6 @@ export class UrlChannel extends Channel<"url", UrlData> {
       text: text || null,
       files,
       ...channelData,
-      filesExpireAt: new Date(Date.now() + filesLifetime),
     });
 
     return { externalId: messageId };

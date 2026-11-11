@@ -58,7 +58,6 @@
       "dependencies": {
         "@artil/channels": "workspace:*",
         "@artil/errors": "workspace:*",
-        "@artil/utils": "workspace:*",
       },
     },
     "packages/utils": {

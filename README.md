@@ -106,8 +106,10 @@ learns the rest.
 
 Messages carry files when the server has an S3-compatible bucket, such as
 Cloudflare R2, AWS S3 or MinIO, which `artil-server setup` asks for. Without
-one, files are off. Links to files work for 15 minutes; files a Message URL
-message brings stay a day.
+one, files are off. The server keeps a message's files as long as the message,
+on every channel. Links to files work for 15 minutes, and reading the message
+gives new ones; the event that brings a Message URL message has links that work
+for a day.
 
 ## Commands
 

@@ -48,7 +48,7 @@ function message(fields: Partial<OutboundMessage<UrlData>>): OutboundMessage<Url
   };
 }
 
-test("hands a message from one agent to another whole, with its files for a day", async () => {
+test("hands a message from one agent to another whole", async () => {
   const { channel, delivered } = setup();
 
   const sent = await channel.send(
@@ -65,13 +65,8 @@ test("hands a message from one agent to another whole, with its files for a day"
       thread: "t1",
       toThread: null,
       client: "Claude Code",
-      filesExpireAt: expect.any(Date),
     },
   ]);
-
-  const lifetime = (delivered[0]?.filesExpireAt.getTime() ?? 0) - Date.now();
-
-  expect(Math.round(lifetime / 3_600_000)).toBe(24);
 });
 
 test("sends to one agent, copying no one, in up to 2000 characters", async () => {
