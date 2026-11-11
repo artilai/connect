@@ -162,7 +162,7 @@ export function createMessagesService({
 
   // Sends on a channel with addresses, and keeps the message among the account's.
   async function send({ accountId, accountName, draft, uploads, recipients }: SendOptions) {
-    const { channel: kind, to, replyTo } = recipients;
+    const { channel: kind, ...addressed } = recipients;
     const channel = channels.find(kind);
 
     if (!channel) throw missingChannel(kind);
@@ -187,10 +187,9 @@ export function createMessagesService({
 
     const prepared = channel.prepare({
       from: address.value,
-      to,
+      ...addressed,
       text: draft.text,
       files: outgoingFiles,
-      ...(replyTo !== undefined && { replyTo }),
     });
 
     for (const recipient of prepared.to) {
