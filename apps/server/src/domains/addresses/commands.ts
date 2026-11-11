@@ -38,8 +38,7 @@ export function createAddressCommands({
     const channel = addresses.getConnectable(kind);
 
     const credentials = await readSecret({
-      message: channel.credentials,
-      guide: channel.credentialsGuide,
+      message: `${channel.name} ${channel.labels.token ?? "token"}`,
     });
 
     if (!credentials) return;
@@ -56,7 +55,7 @@ export function createAddressCommands({
       [
         `${address.value} now reaches ${account.name} on ${channel.name}.`,
         `Only the server's accounts wake ${account.name} there; let someone in with:`,
-        `  artil-server account allow ${shellQuoted(account.name)} <${channel.senders}> --channel ${kind}`,
+        `  artil-server account allow ${shellQuoted(account.name)} <${channel.labels.contact}> --channel ${kind}`,
       ].join("\n"),
     );
   }

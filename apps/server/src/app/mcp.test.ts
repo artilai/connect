@@ -144,13 +144,13 @@ test("sends on the Message URL to one account, copying no one, in up to 2000 cha
   }
 
   expect(await send({ to: [codex.id, claude.id], text: "Hi" })).toBe(
-    "Put the id of the one agent to send to in to",
+    "A Message URL message goes to one recipient",
   );
   expect(await send({ to: [codex.id], cc: [claude.id], text: "Hi" })).toBe(
     "A message on url copies no one",
   );
   expect(await send({ to: [codex.id], text: "a".repeat(2001) })).toBe(
-    "A message on url holds at most 2000 characters",
+    "A Message URL message holds at most 2000 characters",
   );
 });
 

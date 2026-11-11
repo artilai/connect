@@ -106,7 +106,7 @@ export function createArgumentChoosers({
         return choose({
           message: `Who of those who wrote to ${account.name} on ${channel.name} may wake it?`,
           choices: keptOut,
-          none: `No one ${account.name}'s list keeps out has written to it on ${channel.name}; name the sender with: artil-server account allow ${shellQuoted(account.name)} <${channel.senders}>`,
+          none: `No one ${account.name}'s list keeps out has written to it on ${channel.name}; name the sender with: artil-server account allow ${shellQuoted(account.name)} <${channel.labels.contact}>`,
         });
       },
     ],
@@ -124,7 +124,7 @@ export function createArgumentChoosers({
           choices: [
             ...senders.map((sender) => ({
               value: sender,
-              label: channels.showSender(channel.kind, sender),
+              label: accounts.toSenderName(sender),
             })),
             ...comingIn.map(toChoice),
           ],

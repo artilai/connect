@@ -56,13 +56,13 @@ async function takeWebhook(channel: Channel) {
 
 const outbound: OutboundMessage = {
   from: "@acmesupportbot",
-  to: [" 42 "],
+  to: ["42"],
   text: "On my way",
   files: [],
   replyTo: "42:7",
 };
 
-const preparing = setup().channel;
+const parsing = setup().channel;
 
 test("connects a bot at its @username, in lowercase, with its token", async () => {
   const { channel, disconnected } = setup();
@@ -222,16 +222,21 @@ test("quotes the message a reply answers above its text", async () => {
 
 test("sends to one chat as the bot, answering by Telegram's id for the message", async () => {
   const { channel, sent } = setup();
-  const message = preparing.prepare(outbound);
 
-  expect(message).toEqual({ ...outbound, to: ["42"] });
-
-  await channel.send({ message, credentials: "123456:ABC" });
+  await channel.send({ message: outbound, credentials: "123456:ABC" });
 
   expect(sent).toEqual([
     { token: "123456:ABC", chat: "42", text: "On my way", files: [], replyTo: "42:7" },
   ]);
-  expect(preparing.prepare({ ...outbound, to: ["@OpsBot"] }).to).toEqual(["@opsbot"]);
+});
+
+test("writes a recipient as a chat it can send to", () => {
+  expect(parsing.parseRecipient(" 42 ")).toBe("42");
+  expect(parsing.parseRecipient("@OpsBot")).toBe("@opsbot");
+  expect(parsing.parseRecipient("not a chat!")).toBeNull();
+  expect(() => parsing.parseRecipient("@adalovelace")).toThrow(
+    "A bot writes to a person by their user id, which comes with their first message, not by @adalovelace",
+  );
 });
 
 test("turns a message in a group into one from whoever wrote it, which an answer takes to the group", async () => {
@@ -274,37 +279,17 @@ test("turns a message in a group into one from whoever wrote it, which an answer
       },
     },
   ]);
-  expect(channel.readSender("-10042")).toBe("-10042");
-  expect(channel.prepare({ ...outbound, to: ["-10042"] }).to).toEqual(["-10042"]);
+  expect(channel.parseSender("-10042")).toBe("-10042");
+  expect(channel.parseRecipient("-10042")).toBe("-10042");
   expect(channel.recipientWritesFirst("-10042")).toBe(true);
 });
 
-test("refuses a message Telegram cannot carry", () => {
-  expect(() => preparing.prepare({ ...outbound, to: ["42", "43"] })).toThrow(
-    "A Telegram message goes to one chat",
-  );
-  expect(() => preparing.prepare({ ...outbound, to: ["@ada"] })).toThrow(
-    "@ada is not a Telegram user id, group id or bot username",
-  );
-  expect(() => preparing.prepare({ ...outbound, text: "a".repeat(4097) })).toThrow(
-    "A Telegram message holds at most 4096 characters",
-  );
-});
-
-test("sends up to 10 files of up to 50 MB each", async () => {
+test("carries one chat, 4096 characters and up to 10 files of up to 50 MB each", async () => {
   const { channel, sent } = setup();
   const photo = { name: "a.png", type: "image/png", size: 1, content: new Uint8Array(1) };
 
-  await channel.send({
-    message: preparing.prepare({ ...outbound, files: [photo] }),
-    credentials: "123456:ABC",
-  });
+  await channel.send({ message: { ...outbound, files: [photo] }, credentials: "123456:ABC" });
 
   expect(sent).toMatchObject([{ files: [photo] }]);
-  expect(() =>
-    preparing.prepare({ ...outbound, files: Array.from({ length: 11 }, () => photo) }),
-  ).toThrow("A Telegram message carries up to 10 files");
-  expect(() => preparing.prepare({ ...outbound, files: [{ ...photo, size: 60_000_000 }] })).toThrow(
-    "a.png is 60 MB; Telegram takes files of up to 50 MB",
-  );
+  expect(channel.limits).toEqual({ recipients: 1, text: 4096, files: 10, fileSize: 50_000_000 });
 });

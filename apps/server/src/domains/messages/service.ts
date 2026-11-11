@@ -10,7 +10,7 @@ import type { AccountsService } from "../accounts/service";
 import type { ConnectedAddress } from "../addresses/schema";
 import type { AddressesService } from "../addresses/service";
 import type { ChannelKind } from "../channels/schema";
-import type { ChannelsService } from "../channels/service";
+import { checkLimits, readRecipients, type ChannelsService } from "../channels/service";
 import type { EventsService } from "../events/service";
 import type { FilesService } from "../files/service";
 import type { UrlDelivery } from "../url/schema";
@@ -185,14 +185,17 @@ export function createMessagesService({
 
     if (outgoingFiles.length > 0 && !files.enabled) throw files.unavailableError();
 
-    const prepared = channel.prepare({
+    checkLimits({ channel, text: draft.text, files: outgoingFiles });
+
+    const message = {
       from: address.value,
       ...addressed,
+      to: readRecipients({ channel, to: addressed.to }),
       text: draft.text,
       files: outgoingFiles,
-    });
+    };
 
-    for (const recipient of prepared.to) {
+    for (const recipient of message.to) {
       const mustWriteFirst =
         channel.recipientWritesFirst(recipient) &&
         !messagesRepository.hasReceivedFrom({ accountId, channel: kind, counterpart: recipient });
@@ -213,9 +216,9 @@ export function createMessagesService({
       addressId: address.id,
       channel: kind,
       direction: "outbound",
-      counterpart: prepared.to.join(recipientSeparator),
-      to: prepared.to,
-      text: prepared.text,
+      counterpart: message.to.join(recipientSeparator),
+      to: message.to,
+      text: message.text,
       status: "sending",
     });
 
@@ -223,7 +226,7 @@ export function createMessagesService({
       await files.save({ accountId, messageId: id, uploads: outgoingFiles });
 
       const { id: externalId } = await channel.send({
-        message: prepared,
+        message,
         credentials: address.credentials,
       });
 

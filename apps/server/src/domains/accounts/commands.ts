@@ -6,7 +6,6 @@ import { type Command, type Confirm, defineCommand, toRows } from "../../platfor
 import { type Access, defaultAccess } from "../access/schema";
 import type { AccessService } from "../access/service";
 import type { AddressesService } from "../addresses/service";
-import type { ChannelKind } from "../channels/schema";
 import type { ChannelsService } from "../channels/service";
 import type { ConnectionsService } from "../connections/service";
 import type { TokensService } from "../tokens/service";
@@ -39,7 +38,7 @@ type RevokeOptions = { name: string; client: string };
 // The word revoke takes for every client an account is signed in to.
 export const everyClient = "all";
 
-type DescribeWakersOptions = Access & { kind: ChannelKind };
+type DescribeWakersOptions = Access;
 
 // How a date shows to a person, like Nov 10, 2026.
 const dateFormat = new Intl.DateTimeFormat("en", { dateStyle: "medium" });
@@ -95,7 +94,7 @@ export function createAccountCommands({
       // What differs from the default, where only the server's accounts wake the agent.
       const wakers = channels.list().flatMap(({ kind, name }) => {
         const { admit, senders } = access.read({ accountId: account.id, channel: kind });
-        const listed = senders.map((sender) => channels.showSender(kind, sender)).join(", ");
+        const listed = senders.map((sender) => accounts.toSenderName(sender)).join(", ");
 
         const woken = {
           anyone: "by anyone",
@@ -113,8 +112,8 @@ export function createAccountCommands({
   }
 
   // Who wakes the agent on the channel, said in full.
-  function describeWakers({ kind, admit, senders }: DescribeWakersOptions) {
-    const listed = senders.map((sender) => channels.showSender(kind, sender)).join(", ");
+  function describeWakers({ admit, senders }: DescribeWakersOptions) {
+    const listed = senders.map((sender) => accounts.toSenderName(sender)).join(", ");
 
     return {
       anyone: "anyone",
@@ -164,7 +163,7 @@ export function createAccountCommands({
         wakers.admit !== defaultAccess.admit ||
         wakers.senders.length > 0;
 
-      return shown ? [[channelName, describeWakers({ kind, ...wakers })] as const] : [];
+      return shown ? [[channelName, describeWakers(wakers)] as const] : [];
     });
 
     out(

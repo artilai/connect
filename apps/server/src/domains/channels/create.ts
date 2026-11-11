@@ -26,14 +26,18 @@ type CreateChannelsOptions = {
 const channelSchema = z.object({
   kind: z.string(),
   name: z.string(),
-  recipients: z.string(),
-  senders: z.string(),
-  credentials: z.string(),
+  labels: z.object({ contact: z.string(), token: z.string().optional() }),
+  limits: z.object({
+    recipients: z.number(),
+    text: z.number(),
+    files: z.number(),
+    fileSize: z.number().optional(),
+  }),
   disconnect: z.function(),
   start: z.function(),
-  readSender: z.function(),
+  parseSender: z.function(),
+  parseRecipient: z.function(),
   recipientWritesFirst: z.function(),
-  prepare: z.function(),
   send: z.function(),
 });
 

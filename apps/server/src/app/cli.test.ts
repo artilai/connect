@@ -370,7 +370,7 @@ test("adds a sender to an account's list on the channel it names", async () => {
   expect(await cli(dataDir, "account", "list")).toContain("woken on Test by @adalovelace");
   await expect(
     cli(dataDir, "account", "allow", "Codex", "not a sender!", "--channel", "test"),
-  ).rejects.toThrow("not a sender! is not a name, @handle or -group");
+  ).rejects.toThrow("not a sender! is not a Test name, @handle or -group");
   await expect(cli(dataDir, "account", "allow", "Codex", "@AdaLovelace")).rejects.toThrow(
     "Codex is connected to no channel; name one with --channel",
   );
@@ -427,7 +427,7 @@ test("lists the server's accounts by name at the Message URL", async () => {
   );
   expect(await cli(dataDir, "account", "list")).toContain("woken on Message URL only by Claude");
   await expect(cli(dataDir, "account", "allow", "Codex", "nobody", ...onUrl)).rejects.toThrow(
-    "nobody is not an account of this server, by its name or id",
+    "nobody is not a Message URL account name or id",
   );
 
   await cli(dataDir, "account", "remove", "Claude", "--yes");
@@ -495,7 +495,7 @@ test("connects an account to a channel the config loads, and disconnects it", as
   await loadEchoChannel(dataDir);
 
   await expect(cli(dataDir, "account", "connect", "Codex", "echo")).rejects.toThrow(
-    "Not a terminal, so pipe it in: The address's credentials",
+    "Not a terminal, so pipe it in: Echo token",
   );
   await expect(cli(dataDir, "account", "connect", "Codex", "url")).rejects.toThrow(
     "Every account has its Message URL already; there is nothing to connect",

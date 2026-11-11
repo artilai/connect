@@ -1,7 +1,63 @@
-import type { Channel } from "@artil/channels/contract";
+import type { Channel, OutboundFile } from "@artil/channels/contract";
 import { AppError } from "@artil/errors";
+import { formatBytes } from "@artil/utils/text";
 
 import type { ChannelKind } from "./schema";
+
+function invalid(message: string) {
+  return new AppError({ code: "invalid_input", message });
+}
+
+type ReadRecipientsOptions = { channel: Channel; to: readonly string[] };
+
+// Whom a message goes to, as the channel writes them.
+export function readRecipients({ channel, to }: ReadRecipientsOptions) {
+  const { name, labels, limits } = channel;
+
+  if (to.length > limits.recipients) {
+    throw invalid(
+      limits.recipients === 1
+        ? `A ${name} message goes to one recipient`
+        : `A ${name} message goes to at most ${limits.recipients} recipients`,
+    );
+  }
+
+  return to.map((recipient) => {
+    const read = channel.parseRecipient(recipient);
+
+    if (!read) throw invalid(`${recipient} is not a ${name} ${labels.contact}`);
+
+    return read;
+  });
+}
+
+type CheckLimitsOptions = {
+  channel: Channel;
+  text: string;
+  files: readonly Pick<OutboundFile, "name" | "size">[];
+};
+
+// What a message carries, against what its channel takes.
+export function checkLimits({ channel, text, files }: CheckLimitsOptions) {
+  const { name, limits } = channel;
+  const { fileSize } = limits;
+
+  if (text.length > limits.text) {
+    throw invalid(`A ${name} message holds at most ${limits.text} characters`);
+  }
+
+  if (files.length > limits.files) {
+    throw invalid(`A ${name} message carries up to ${limits.files} files`);
+  }
+
+  const tooBig = fileSize && files.find(({ size }) => size > fileSize);
+
+  if (tooBig) {
+    throw invalid(
+      `${tooBig.name} is ${formatBytes(tooBig.size)}; ${name} takes files of up to ${formatBytes(fileSize)}`,
+    );
+  }
+}
 
 // The server's channels, which the rest of the server reaches by their kind.
 export function createChannelsService(channels: ReadonlyMap<ChannelKind, Channel>) {
@@ -9,10 +65,6 @@ export function createChannelsService(channels: ReadonlyMap<ChannelKind, Channel
     list: () => [...channels.values()],
 
     find: (kind: ChannelKind) => channels.get(kind),
-
-    // A sender on a list of the channel as a person knows them.
-    showSender: (kind: ChannelKind, sender: string) =>
-      channels.get(kind)?.showSender?.(sender) ?? sender,
 
     // A channel a person names by its kind, as the commands take one.
     get(kind: ChannelKind) {

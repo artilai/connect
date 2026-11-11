@@ -11,7 +11,7 @@ class FlakyChannel extends Channel<"test"> {
 
   readonly name = "Flaky";
 
-  readonly recipients = "anyone";
+  readonly labels = { contact: "name" };
 
   starts = 0;
 

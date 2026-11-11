@@ -43,6 +43,10 @@ export type SendOptions<Data = never> = {
 /** What a channel hands the server: new events come as new types. */
 export type ChannelEvent = { type: "message.received"; message: InboundMessage };
 
+export type ChannelLabels = { contact: string; token?: string };
+
+export type ChannelLimits = { recipients: number; text: number; files: number; fileSize?: number };
+
 /** An address the workspace holds with the provider, and what Artil needs to use it. */
 export type ConnectedAddress = { address: string; credentials: string };
 
@@ -78,19 +82,9 @@ export abstract class Channel<Kind extends string = string, Data = unknown> {
   readonly contractVersion = contractVersion;
   /** The name the server, its commands and its config know the channel by. */
   abstract readonly kind: Kind;
-  /** What people and agents call the channel, like Telegram. */
   abstract readonly name: string;
-  /** Whom a message on the channel can go to, as an agent names them in to before it sends. */
-  abstract readonly recipients: string;
-  /** How a person names a sender for the list of who wakes the agent, which readSender reads. */
-  readonly senders: string = "the sender as the channel writes them";
-  /** What a person gives to connect an address, like the bot's token. */
-  readonly credentials: string = "The address's credentials";
-  /**
-   * How a person gets them and what connecting does, in a few sentences the setup shows before it
-   * asks; empty when the credentials need no explaining.
-   */
-  readonly credentialsGuide: string = "";
+  abstract readonly labels: ChannelLabels;
+  readonly limits: ChannelLimits = { recipients: 1, text: 32_000, files: 10 };
 
   /**
    * Checks the credentials of an address the workspace already holds with the provider, and finds
@@ -114,25 +108,17 @@ export abstract class Channel<Kind extends string = string, Data = unknown> {
    */
   handleWebhook?(request: Request, options: HandleWebhookOptions): Promise<Response>;
 
-  /** Reads a sender a person wrote as the channel writes their address; null for none it can have. */
-  readSender(input: string): string | null {
+  parseSender(input: string): string | null {
     return input.trim() || null;
   }
 
-  /**
-   * Shows a sender on the list as a person knows them, like an account's name for the id the list
-   * keeps. A channel without it shows the sender as readSender wrote it.
-   */
-  showSender?(sender: string): string;
+  parseRecipient(input: string): string | null {
+    return input.trim() || null;
+  }
 
   /** Whether a recipient has to write to the address before the agent can write to them. */
   recipientWritesFirst(_recipient: string): boolean {
     return false;
-  }
-
-  /** Checks a message before it goes and puts it the way the channel sends it. */
-  prepare(message: OutboundMessage<Data>): OutboundMessage<Data> {
-    return message;
   }
 
   abstract send(options: SendOptions<Data>): Promise<{ id: string }>;

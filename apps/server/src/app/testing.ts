@@ -57,11 +57,10 @@ class TestChannel extends Channel<"test"> {
 
   readonly name = "Test";
 
-  readonly recipients = "someone who wrote to the address first, or another @address";
-
-  override readonly senders = "a name, @handle or -group";
-
-  override readonly credentials = "A word, which names the address @word";
+  readonly labels = {
+    contact: "name, @handle or -group",
+    token: "word, which names the address @word",
+  };
 
   readonly sent: SendOptions[] = [];
 
@@ -86,8 +85,12 @@ class TestChannel extends Channel<"test"> {
     return { address: `@${credentials}`, credentials };
   }
 
-  override readSender(input: string) {
+  override parseSender(input: string) {
     return /^(?:@?\w+|-\d+)$/v.test(input.trim()) ? input.trim().toLowerCase() : null;
+  }
+
+  override parseRecipient(input: string) {
+    return this.parseSender(input);
   }
 
   override recipientWritesFirst(recipient: string) {
@@ -152,7 +155,7 @@ class EchoChannel extends Channel {
   contractVersion = ${builtFor};
   kind = ${JSON.stringify(kind)};
   name = "Echo";
-  recipients = "any name";
+  labels = { contact: "name" };
 
   async connect(credentials) {
     return { address: "echo:" + credentials, credentials };
