@@ -2,7 +2,12 @@ import { createHmac } from "node:crypto";
 
 import { z } from "zod";
 
-import type { Channel, ChannelContext, ChannelDefinition } from "@artil/channels/contract";
+import {
+  type Channel,
+  type ChannelContext,
+  type ChannelDefinition,
+  contractVersion,
+} from "@artil/channels/contract";
 
 import type { ChannelKind } from "./schema";
 
@@ -19,6 +24,7 @@ type CreateChannelsOptions = {
 // A channel extends the contract's Channel from whichever copy of the package its module brought,
 // so the server checks its shape rather than its class.
 const channelSchema = z.object({
+  contractVersion: z.literal(contractVersion),
   kind: z.string(),
   name: z.string(),
   recipients: z.string(),
@@ -31,6 +37,23 @@ const channelSchema = z.object({
   prepare: z.function(),
   send: z.function(),
 });
+
+// The version of the contract a channel was built for, which the copy of the package it extends
+// gives it; a channel from before the contract had versions has none.
+const builtForSchema = z.object({ contractVersion: z.int() });
+
+type ContractMismatchOptions = { kind: string; builtFor: number };
+
+function contractMismatch({ kind, builtFor }: ContractMismatchOptions) {
+  const update =
+    builtFor < contractVersion
+      ? `update the ${kind} channel to one built for version ${contractVersion}`
+      : "update artil-server with: bun install --global @artil-ai/server";
+
+  return new Error(
+    `The ${kind} channel is built for version ${builtFor} of the channel contract, and this server takes version ${contractVersion}; ${update}`,
+  );
+}
 
 type ChannelSecretOptions = { secret: string; kind: string };
 
@@ -57,11 +80,17 @@ export function createChannels({
         log,
       });
 
+      const builtFor = builtForSchema.safeParse(channel).data?.contractVersion;
+
+      if (builtFor !== undefined && builtFor !== contractVersion) {
+        throw contractMismatch({ kind, builtFor });
+      }
+
       const channelCheck = channelSchema.safeParse(channel);
 
       if (!channelCheck.success) {
         throw new Error(
-          `The ${kind} channel does not extend Channel from @artil/channels: ${z.prettifyError(channelCheck.error)}`,
+          `The ${kind} channel does not extend Channel from version ${contractVersion} of @artil/channels: ${z.prettifyError(channelCheck.error)}`,
         );
       }
 

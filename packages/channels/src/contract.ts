@@ -1,3 +1,5 @@
+export const contractVersion = 1;
+
 /**
  * A file with a message: its description, and its bytes. One that came with a message has them
  * only when the channel hands them over.
@@ -101,6 +103,7 @@ export type HandleWebhookOptions = { credentialsOf: CredentialsOf; receive: Rece
  * defaults here; Kind names it, and Data is what only it takes with a message it sends.
  */
 export abstract class Channel<Kind extends string = string, Data = unknown> {
+  readonly contractVersion = contractVersion;
   /** The name the server, its commands and its config know the channel by. */
   abstract readonly kind: Kind;
   /** What people and agents call the channel, like Telegram. */

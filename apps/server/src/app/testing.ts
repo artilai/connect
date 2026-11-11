@@ -142,11 +142,14 @@ const contractPath = fileURLToPath(
   new URL("../../../../packages/channels/src/contract.ts", import.meta.url),
 );
 
-// The source of a channel of someone's own, as a module beside the server's data would hold one.
-export function channelModule(kind: string) {
+// The source of a channel of someone's own, as a module beside the server's data would hold one,
+// built for the contract's version unless a test names another.
+export function channelModule(kind: string, contractVersion?: number) {
+  const builtFor = contractVersion === undefined ? "" : `\n  contractVersion = ${contractVersion};`;
+
   return `import { Channel } from ${JSON.stringify(contractPath)};
 
-class EchoChannel extends Channel {
+class EchoChannel extends Channel {${builtFor}
   kind = ${JSON.stringify(kind)};
   name = "Echo";
   recipients = "any name";
