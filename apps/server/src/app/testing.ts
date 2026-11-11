@@ -6,6 +6,7 @@ import {
   Channel,
   type ChannelDefinition,
   type ChannelEvent,
+  contractVersion,
   type HandleWebhookOptions,
   type InboundFile,
   type OutboundMessage,
@@ -142,11 +143,13 @@ const contractPath = fileURLToPath(
   new URL("../../../../packages/channels/src/contract.ts", import.meta.url),
 );
 
-// The source of a channel of someone's own, as a module beside the server's data would hold one.
-export function channelModule(kind: string) {
+// The source of a channel of someone's own, as a module beside the server's data would hold one,
+// built for the contract's version unless a test names another.
+export function channelModule(kind: string, builtFor = contractVersion) {
   return `import { Channel } from ${JSON.stringify(contractPath)};
 
 class EchoChannel extends Channel {
+  contractVersion = ${builtFor};
   kind = ${JSON.stringify(kind)};
   name = "Echo";
   recipients = "any name";

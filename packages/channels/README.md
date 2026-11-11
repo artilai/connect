@@ -6,6 +6,8 @@ what only it takes with a message, and the server decides who a message wakes.
 
 ## Usage
 
-| Import                     | What it gives                                         |
-| -------------------------- | ----------------------------------------------------- |
-| `@artil/channels/contract` | `Channel`, `ChannelDefinition` and the message shapes |
+| Import                     | What it gives                                                            |
+| -------------------------- | ------------------------------------------------------------------------ |
+| `@artil/channels/contract` | `Channel`, `ChannelDefinition`, the message shapes and `contractVersion` |
+
+Raise `contractVersion` before a release that breaks channels built for the last one: the server loads only channels of its own version.

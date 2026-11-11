@@ -62,7 +62,7 @@ test("refuses a channel that does not extend Channel", async () => {
   const dataDir = await dataFolder({
     "plain-channel.ts": `export const channel = {
   kind: "plain",
-  create: () => ({ kind: "plain", send: async () => ({ externalId: "1" }) }),
+  create: () => ({ contractVersion: 1, kind: "plain", send: async () => ({ externalId: "1" }) }),
 };
 `,
   });
@@ -76,4 +76,38 @@ test("refuses a channel that does not extend Channel", async () => {
   expect(() =>
     createChannels({ definitions, publicUrl: undefined, secret: "s".repeat(32), log: () => {} }),
   ).toThrow("The plain channel does not extend Channel from @artil/channels");
+});
+
+test("refuses a channel built for another version of the contract, saying which to update", async () => {
+  const cases = [
+    {
+      kind: "older",
+      // A channel from before the contract had versions, which counts as version 0.
+      source: `export const channel = { kind: "older", create: () => ({ kind: "older" }) };\n`,
+      builtFor: 0,
+      update: "update the older channel to one built for version 1",
+    },
+    {
+      kind: "newer",
+      source: channelModule("newer", 2),
+      builtFor: 2,
+      update: "update artil-server with: bun install --global @artil-ai/server",
+    },
+  ];
+
+  for (const { kind, source, builtFor, update } of cases) {
+    const dataDir = await dataFolder({ [`${kind}-channel.ts`]: source });
+
+    const definitions = await loadChannels({
+      specifiers: [`./${kind}-channel.ts`],
+      dataDir,
+      builtInChannels,
+    });
+
+    expect(() =>
+      createChannels({ definitions, publicUrl: undefined, secret: "s".repeat(32), log: () => {} }),
+    ).toThrow(
+      `The ${kind} channel is built for version ${builtFor} of the channel contract, and this server takes version 1; ${update}`,
+    );
+  }
 });

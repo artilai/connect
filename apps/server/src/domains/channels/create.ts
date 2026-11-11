@@ -2,7 +2,12 @@ import { createHmac } from "node:crypto";
 
 import { z } from "zod";
 
-import type { Channel, ChannelContext, ChannelDefinition } from "@artil/channels/contract";
+import {
+  type Channel,
+  type ChannelContext,
+  type ChannelDefinition,
+  contractVersion,
+} from "@artil/channels/contract";
 
 import type { ChannelKind } from "./schema";
 
@@ -32,6 +37,23 @@ const channelSchema = z.object({
   send: z.function(),
 });
 
+// The version of the contract a channel was built for, which the copy of the package it extends
+// gives it; a channel from before the contract had versions has none, which counts as 0.
+const builtForSchema = z.object({ contractVersion: z.int() });
+
+type ContractMismatchOptions = { kind: string; builtFor: number };
+
+function contractMismatch({ kind, builtFor }: ContractMismatchOptions) {
+  const update =
+    builtFor < contractVersion
+      ? `update the ${kind} channel to one built for version ${contractVersion}`
+      : "update artil-server with: bun install --global @artil-ai/server";
+
+  return new Error(
+    `The ${kind} channel is built for version ${builtFor} of the channel contract, and this server takes version ${contractVersion}; ${update}`,
+  );
+}
+
 type ChannelSecretOptions = { secret: string; kind: string };
 
 // Each channel signs with a secret of its own, so none can make what another accepts.
@@ -56,6 +78,10 @@ export function createChannels({
         fetch,
         log,
       });
+
+      const builtFor = builtForSchema.safeParse(channel).data?.contractVersion ?? 0;
+
+      if (builtFor !== contractVersion) throw contractMismatch({ kind, builtFor });
 
       const channelCheck = channelSchema.safeParse(channel);
 
