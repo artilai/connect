@@ -4,7 +4,7 @@ import { channelKindSchema } from "../channels/schema";
 
 // Accounts are the whole team of a server, which has no members; the kind and email stay so
 // clients written for Artil Cloud read a sender the same way.
-export const teammateSchema = z
+const teammateSchema = z
   .object({
     id: z.string().describe("The agent's id"),
     kind: z.enum(["agent", "member"]),
@@ -45,7 +45,7 @@ export const listedTeammateSchema = teammateSchema
     listening: z
       .boolean()
       .nullable()
-      .describe("Whether a client hears the agent now, so a message at its Message URL reaches it"),
+      .describe("Whether a client hears the agent now, so a new message wakes it at once"),
   })
   .meta({ id: "ListedTeammate" });
 

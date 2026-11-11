@@ -30,8 +30,6 @@ type ReadChannelOptions = {
   channels: ChannelsService;
 };
 
-type ReadSenderOptions = { channel: Channel; who: string };
-
 type SayWokenOptions = { account: Account; channel: Channel; admit: Admit; changed: boolean };
 
 // The channel --channel names, or else the one the account is connected to, as allow and
@@ -61,20 +59,6 @@ export function createAccessCommands({
   channels,
   out,
 }: AccessCommandsOptions) {
-  // The sender as the channel writes it in from.
-  function readSender({ channel, who }: ReadSenderOptions) {
-    const sender = channel.parseSender(who);
-
-    if (!sender) {
-      throw new AppError({
-        code: "invalid_input",
-        message: `${who} is not a ${channel.name} ${channel.labels.contact}`,
-      });
-    }
-
-    return sender;
-  }
-
   // Anyone or the team, when a command names one of them rather than a sender.
   function readGroup(who: string) {
     return groups.find((group) => group === who.trim().toLowerCase());
@@ -112,7 +96,7 @@ export function createAccessCommands({
       return sayWoken({ account, channel, ...woken });
     }
 
-    const sender = readSender({ channel, who });
+    const sender = addresses.readSender({ channel, input: who });
     const added = access.addSender({ accountId: account.id, channel: channel.kind, sender });
     const shown = accounts.toSenderName(sender);
 
@@ -135,7 +119,7 @@ export function createAccessCommands({
       return sayWoken({ account, channel, ...woken });
     }
 
-    const sender = readSender({ channel, who });
+    const sender = addresses.readSender({ channel, input: who });
     const removed = access.removeSender({ accountId: account.id, channel: channel.kind, sender });
     const shown = accounts.toSenderName(sender);
 

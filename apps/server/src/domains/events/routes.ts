@@ -8,9 +8,8 @@ import { jsonResponse } from "../../platform/http/openapi";
 import { validateQuery } from "../../platform/http/validate";
 import type { AccountEnv } from "../accounts/schema";
 import type { ConnectionsService } from "../connections/service";
-import type { FileLinks } from "../files/schema";
 import type { TokensService } from "../tokens/service";
-import { type EventRecord, eventSchema, toEvent } from "./schema";
+import { eventSchema } from "./schema";
 import type { EventsService } from "./service";
 import { streamEvents } from "./stream";
 
@@ -53,19 +52,9 @@ type CreateEventRoutesOptions = {
   events: EventsService;
   connections: ConnectionsService;
   tokens: TokensService;
-  fileLinks: FileLinks;
 };
 
-export function createEventRoutes({
-  events,
-  connections,
-  tokens,
-  fileLinks,
-}: CreateEventRoutesOptions) {
-  function toClientEvent(event: EventRecord) {
-    return toEvent(event, fileLinks);
-  }
-
+export function createEventRoutes({ events, connections, tokens }: CreateEventRoutesOptions) {
   return new Hono<AccountEnv>()
     .get("/", docs.list, validateQuery(listSchema), (c) => {
       // Without a cursor the latest events come; the cursor 0 lists them from the first.
@@ -77,7 +66,7 @@ export function createEventRoutes({
           ? events.listLatest(accountId)
           : events.listAfter({ accountId, cursor: after });
 
-      return c.json(listedEvents.map(toClientEvent));
+      return c.json(listedEvents);
     })
     .get("/stream", docs.stream, validateQuery(streamSchema), (c) => {
       const lastEventId = cursorSchema.optional().safeParse(c.req.header("last-event-id"));
@@ -96,7 +85,6 @@ export function createEventRoutes({
         return streamEvents({
           c,
           events,
-          toClientEvent,
           resumeAfter: resumeAfter ?? events.findLastId(accountId),
           // A stream ends once its token is revoked.
           checkIn: () => tokens.isValid(tokenHash),
@@ -116,7 +104,6 @@ export function createEventRoutes({
       return streamEvents({
         c,
         events,
-        toClientEvent,
         resumeAfter: Math.max(resumeAfter ?? 0, currentConnection.startsAfter),
         checkIn: (cursor) => connections.checkIn({ accountId, id: connection, cursor }),
       });

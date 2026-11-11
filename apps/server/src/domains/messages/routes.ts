@@ -106,7 +106,6 @@ export function createMessageRoutes({ messages, channels, fileLinks }: CreateMes
       const sent = await messages.sendDraft({
         accountId: id,
         accountName: name,
-        client: c.var.actor.tokenName,
         draft,
         uploads: files,
       });

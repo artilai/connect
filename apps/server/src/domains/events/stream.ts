@@ -5,7 +5,6 @@ import { second } from "@artil/utils/time";
 
 import type { AccountEnv } from "../accounts/schema";
 import { createNotifier } from "./notifier";
-import type { Event, EventRecord } from "./schema";
 import type { EventsService } from "./service";
 
 const checkInInterval = 30 * second;
@@ -16,20 +15,12 @@ const heartbeatInterval = 5 * second;
 type StreamEventsOptions = {
   c: Context<AccountEnv>;
   events: EventsService;
-  // What a client sees of an event.
-  toClientEvent: (event: EventRecord) => Event;
   resumeAfter: number;
   // Says whether the stream may go on, given the last event it sent; once not, the stream ends.
   checkIn: (cursor: number) => boolean;
 };
 
-export function streamEvents({
-  c,
-  events,
-  toClientEvent,
-  resumeAfter,
-  checkIn,
-}: StreamEventsOptions) {
+export function streamEvents({ c, events, resumeAfter, checkIn }: StreamEventsOptions) {
   const accountId = c.var.account.id;
 
   return streamSSE(c, async (stream) => {
@@ -57,7 +48,7 @@ export function streamEvents({
             await stream.writeSSE({
               id: String(event.id),
               event: event.type,
-              data: JSON.stringify(toClientEvent(event)),
+              data: JSON.stringify(event),
             });
             cursor = event.id;
           }

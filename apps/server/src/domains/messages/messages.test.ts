@@ -351,7 +351,6 @@ test("writes first only to someone the channel lets it", async () => {
     .sendDraft({
       accountId: codex.id,
       accountName: "Codex",
-      client: null,
       draft: { channel: "test", to: ["ada"], text: "Hi" },
       uploads: [],
     })
@@ -360,6 +359,34 @@ test("writes first only to someone the channel lets it", async () => {
   expect(sent).toMatchObject({
     message: "ada has to write to @codex before Codex can write to them",
   });
+});
+
+test("takes one of the server's accounts by name for its address on the channel", async () => {
+  const server = await createTestServer();
+  const codex = server.account("Codex");
+  const claude = server.account("Claude");
+
+  await server.connectAddress({ account: codex, word: "codex" });
+
+  function sendToClaude() {
+    return codex.json(`/api/agents/${codex.id}/messages`, {
+      channel: "test",
+      to: ["Claude"],
+      text: "Hi",
+    });
+  }
+
+  const unconnected = await sendToClaude();
+
+  expect(unconnected.status).toBe(400);
+  expect(await unconnected.json()).toMatchObject({
+    error: { message: "Claude has no Test word" },
+  });
+
+  await server.connectAddress({ account: claude, word: "claude" });
+
+  expect((await sendToClaude()).status).toBe(201);
+  expect(server.testChannel.sent).toMatchObject([{ message: { to: ["@claude"] } }]);
 });
 
 test("keeps the files a message brings, behind a link", async () => {

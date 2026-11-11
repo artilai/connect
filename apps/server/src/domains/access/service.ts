@@ -1,7 +1,7 @@
 import { AppError } from "@artil/errors";
+import { channel as urlChannel } from "@artil/url-channel";
 
 import type { ChannelKind } from "../channels/schema";
-import { urlKind } from "../url/schema";
 import { admissionOf, admit } from "./admission";
 import type { AccessRepository } from "./repository";
 import type { Admit, Group } from "./schema";
@@ -44,7 +44,7 @@ function admitAfter({ current, group, allowed }: AdmitAfterOptions): Admit {
 export function createAccessService({ accessRepository }: CreateAccessServiceOptions) {
   // Only the server's accounts reach the Message URL, so it is never open to anyone.
   function setAdmit(options: SetAdmitOptions) {
-    if (options.channel === urlKind && options.admit === "anyone") {
+    if (options.channel === urlChannel.kind && options.admit === "anyone") {
       throw new AppError({
         code: "invalid_input",
         message: "Only the team or the senders you list can wake an agent at its Message URL",

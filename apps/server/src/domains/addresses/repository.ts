@@ -101,8 +101,8 @@ export function createAddressesRepository(db: Database) {
       });
     },
 
-    // An address the server gives the account by itself, like its Message URL, which takes no token
-    // and is there only for its messages; the first message adds it.
+    // An address the server gives the account by itself, like its Message URL, which takes no token;
+    // the first time the server needs it adds it.
     findOrAdd: ({ accountId, channel, value }: FindOrAddOptions) =>
       db
         .select()

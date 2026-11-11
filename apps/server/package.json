@@ -23,6 +23,7 @@
     "@artil/channels": "workspace:*",
     "@artil/errors": "workspace:*",
     "@artil/telegram-channel": "workspace:*",
+    "@artil/url-channel": "workspace:*",
     "@artil/utils": "workspace:*",
     "@clack/prompts": "^1.8.1",
     "@hono/zod-validator": "^0.9.1",

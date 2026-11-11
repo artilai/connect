@@ -126,7 +126,7 @@ export const messages = sqliteTable(
     direction: text("direction", { enum: ["inbound", "outbound"] }).notNull(),
     // The provider's id for the message, which a provider that delivers twice repeats. Bots number
     // their messages each on their own, so it tells messages apart only at one address. Both
-    // copies of a message on the Message URL hold the id of the one the account it went to received.
+    // copies of a message on the Message URL hold the one id the channel gave it.
     externalId: text("external_id"),
     // Who sent an inbound message, or the group it came in, or the recipients of an outbound one.
     counterpart: text("counterpart").notNull(),
@@ -186,12 +186,7 @@ export const events = sqliteTable(
     type: text("type", { enum: ["message.received"] }).notNull(),
     channel: text("channel").notNull(),
     messageId: text("message_id").notNull(),
-    // A message on the Message URL comes whole in its event too, which names its sender.
-    text: encryptedText("events", "text"),
-    sender: text("sender", { mode: "json" }).$type<{ id: string; name: string }>(),
-    thread: text("thread"),
     toThread: text("to_thread"),
-    client: text("client"),
     createdAt: createdAt(),
   },
   (table) => [index("events_account_id_id_idx").on(table.accountId, table.id)],

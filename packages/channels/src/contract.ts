@@ -23,13 +23,12 @@ export type InboundMessage = {
   replyTo?: string;
 };
 
-export type OutboundMessage<Data = never> = {
+export type OutboundMessage = {
   from: string;
   to: string[];
   text: string;
   files: OutboundFile[];
   replyTo?: string;
-  channelData?: Data;
 };
 
 export type ChannelEvent = { type: "message.received"; message: InboundMessage };
@@ -54,9 +53,13 @@ export type HandleWebhookOptions = {
   receive: ReceiveEvents;
 };
 
-export type SendOptions<Data = never> = { message: OutboundMessage<Data>; token: string | null };
+export type SendOptions = {
+  message: OutboundMessage;
+  token: string | null;
+  deliver: (message: InboundMessage) => Promise<void>;
+};
 
-export abstract class Channel<Data = unknown> {
+export abstract class Channel {
   readonly contractVersion = contractVersion;
   abstract readonly kind: string;
   abstract readonly name: string;
@@ -83,5 +86,5 @@ export abstract class Channel<Data = unknown> {
     return false;
   }
 
-  abstract send(options: SendOptions<Data>): Promise<{ id: string }>;
+  abstract send(options: SendOptions): Promise<{ id: string }>;
 }

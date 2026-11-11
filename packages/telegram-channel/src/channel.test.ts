@@ -63,6 +63,11 @@ const outbound: OutboundMessage = {
   replyTo: "42:7",
 };
 
+// Telegram sends through its provider, so it never hands a message back to the server.
+async function deliver() {
+  throw new Error("Telegram handed a message back to the server");
+}
+
 const parsing = setup().channel;
 
 test("connects a bot at its @username, in lowercase, with its token", async () => {
@@ -227,7 +232,7 @@ test("quotes the message a reply answers above its text", async () => {
 test("sends to one chat as the bot, answering by Telegram's id for the message", async () => {
   const { channel, sent } = setup();
 
-  await channel.send({ message: outbound, token: "123456:ABC" });
+  await channel.send({ message: outbound, token: "123456:ABC", deliver });
 
   expect(sent).toEqual([
     { token: "123456:ABC", chat: "42", text: "On my way", files: [], replyTo: "42:7" },
@@ -293,7 +298,7 @@ test("carries one chat, 4096 characters and up to 10 files of up to 50 MB each",
   const { channel, sent } = setup();
   const photo = { name: "a.png", type: "image/png", size: 1, content: new Uint8Array(1) };
 
-  await channel.send({ message: { ...outbound, files: [photo] }, token: "123456:ABC" });
+  await channel.send({ message: { ...outbound, files: [photo] }, token: "123456:ABC", deliver });
 
   expect(sent).toMatchObject([{ files: [photo] }]);
   expect(channel.limits).toEqual({ recipients: 1, text: 4096, files: 10, fileSize: 50_000_000 });
