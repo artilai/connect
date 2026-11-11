@@ -125,6 +125,7 @@ function received({
   text,
   files,
   quote,
+  replyTo,
 }: InboundTelegram) {
   return {
     type: "message.received",
@@ -143,6 +144,7 @@ function received({
       group: group ? { address: chat, name: group.title } : undefined,
       text: withQuote(text, quote),
       files,
+      replyTo: replyTo ?? undefined,
     },
   } satisfies ChannelEvent;
 }

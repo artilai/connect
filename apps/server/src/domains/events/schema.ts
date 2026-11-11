@@ -12,8 +12,13 @@ import { teammateSchema, toTeammate } from "../team/schema";
 
 export type EventRow = typeof events.$inferSelect;
 
-// A message the event points at, which the client reads.
-type Arrival = { type: "message.received"; channel: ChannelKind; messageId: string };
+// A message the event points at, which the client reads, and the thread of the client it is for.
+type Arrival = {
+  type: "message.received";
+  channel: ChannelKind;
+  messageId: string;
+  toThread: string | null;
+};
 
 // A message on the Message URL, which the event also brings whole: with its sender, the sender's
 // thread to answer in, the account's thread it is for, and the client the sender wrote it in.
@@ -65,8 +70,9 @@ export const eventSchema = z
     toThread: z
       .string()
       .nullable()
-      .optional()
-      .describe("The thread of the agent's client a relayed message is for"),
+      .describe(
+        "The thread of the agent's client the message is for: the one that wrote what it answers, or else the last one whose message reached its sender",
+      ),
     client: z
       .string()
       .nullable()

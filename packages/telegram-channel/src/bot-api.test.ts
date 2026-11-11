@@ -213,6 +213,7 @@ test("reads a private message from a webhook with the bot's secret", async () =>
         text: "Hi",
         files: [],
         quote: null,
+        replyTo: null,
       },
     },
   ]);
@@ -251,6 +252,7 @@ test("reads what tags the bot in a group or answers it, and skips the rest of th
         text: "@acmesupportbot are you there?",
         files: [],
         quote: null,
+        replyTo: null,
       },
     },
   ]);
@@ -420,7 +422,7 @@ test("fails an update whose file Telegram could not hand over yet, so Telegram s
   await expect(telegram.verifyEvents(update(voice))).rejects.toThrow("Bad Gateway");
 });
 
-test("keeps the message a reply answers, or only the part the sender quoted", async () => {
+test("keeps the message a reply answers by its id, and what it says or the part the sender quoted", async () => {
   const { telegram } = setup();
 
   const fromEve = {
@@ -433,7 +435,9 @@ test("keeps the message a reply answers, or only the part the sender quoted", as
   const reply = { ...fromAda, text: "Right?", reply_to_message: fromEve };
 
   expect(await telegram.verifyEvents(update(reply))).toMatchObject([
-    { message: { text: "Right?", quote: { fromName: "Eve", text: fromEve.text } } },
+    {
+      message: { text: "Right?", quote: { fromName: "Eve", text: fromEve.text }, replyTo: "42:6" },
+    },
   ]);
   expect(
     await telegram.verifyEvents(

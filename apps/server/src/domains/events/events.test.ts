@@ -10,7 +10,7 @@ function addEvent({ server, accountId }: AddEventOptions) {
 
   server.services.events.add({
     accountId,
-    event: { type: "message.received", channel: "test", messageId },
+    event: { type: "message.received", channel: "test", messageId, toThread: null },
   });
 
   return messageId;

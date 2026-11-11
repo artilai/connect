@@ -91,6 +91,7 @@ test("turns messages to the bot into received messages from their chat, named wi
         text: "Hi",
         files: [],
         quote: null,
+        replyTo: null,
       },
     },
     {
@@ -107,6 +108,7 @@ test("turns messages to the bot into received messages from their chat, named wi
         text: "Done",
         files: [],
         quote: null,
+        replyTo: null,
       },
     },
   ]);
@@ -154,6 +156,7 @@ test("turns updates it asks Telegram for into received messages", async () => {
         text: "Hi",
         files: [],
         quote: null,
+        replyTo: null,
       },
     },
   ]);
@@ -202,6 +205,7 @@ test("quotes the message a reply answers above its text", async () => {
     text: "Right?",
     files: [],
     quote: { fromName: "Eve", text: "Your username is @AdaLovelace.\nYour ID is 42." },
+    replyTo: "42:6",
   };
 
   const { channel } = setup([
@@ -213,6 +217,7 @@ test("quotes the message a reply answers above its text", async () => {
     {
       message: {
         text: "Eve wrote:\n> Your username is @AdaLovelace.\n> Your ID is 42.\n\nRight?",
+        replyTo: "42:6",
       },
     },
     { message: { text: "> Hi" } },
@@ -254,6 +259,7 @@ test("turns a message in a group into one from whoever wrote it, which an answer
         text: "@acmesupportbot are you there?",
         files: [],
         quote: null,
+        replyTo: null,
       },
     },
   ]);

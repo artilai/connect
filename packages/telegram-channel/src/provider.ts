@@ -20,6 +20,8 @@ export type InboundTelegram = {
   text: string;
   files: InboundFile[];
   quote: TelegramQuote | null;
+  // The id of the message this one answers, in the same chat.
+  replyTo: string | null;
 };
 
 // The message a reply answers, or only the part of it the sender quoted.

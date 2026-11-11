@@ -4,6 +4,7 @@ import type { OutboundFile } from "@artil/channels/contract";
 
 import { labelSchema } from "../../platform/http/validate";
 import { attachmentsSchema } from "../files/schema";
+import { threadSchema } from "../messages/schema";
 
 // The Message URL's kind, as the API and the artil CLI name it.
 export const urlKind = "url";
@@ -34,8 +35,6 @@ export type UrlDelivery = UrlData & {
   text: string;
   files: OutboundFile[];
 };
-
-const threadSchema = labelSchema("A thread", 128);
 
 export const urlMessageSchema = z.object({
   text: z

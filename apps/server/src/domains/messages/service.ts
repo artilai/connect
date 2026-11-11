@@ -96,10 +96,17 @@ export function createMessagesService({
   function toRecords(rows: MessageRow[]): MessageRecord[] {
     const attachmentsByMessage = files.describeByMessages(rows.map(({ id }) => id));
 
-    return rows.map(({ accountId: _accountId, externalId: _externalId, ...message }) => ({
-      ...message,
-      attachments: attachmentsByMessage.get(message.id) ?? [],
-    }));
+    return rows.map(
+      ({
+        accountId: _accountId,
+        externalId: _externalId,
+        clientThread: _clientThread,
+        ...message
+      }) => ({
+        ...message,
+        attachments: attachmentsByMessage.get(message.id) ?? [],
+      }),
+    );
   }
 
   function find(options: FindOptions) {
@@ -219,6 +226,7 @@ export function createMessagesService({
       counterpart: message.to.join(recipientSeparator),
       to: message.to,
       text: message.text,
+      clientThread: draft.thread,
       status: "sending",
     });
 
@@ -276,6 +284,24 @@ export function createMessagesService({
       group
         ? `${named} wrote to ${accountName} in ${group.name ?? group.address} on ${channelName} but neither is on its list; let them in with: ${allowCommand(from.address)}, or everyone in the group with: ${allowCommand(group.address)}`
         : `${named} wrote to ${accountName} on ${channelName} but is not on its list; let them in with: ${allowCommand(from.address)}`,
+    );
+  }
+
+  type FindThreadToWakeOptions = { addressId: string; counterpart: string; replyTo?: string };
+
+  // The thread of the account's client a message is for: the one that wrote what it answers, or
+  // else the last one whose message reached whoever sent it, or the group it came in.
+  function findThreadToWake({ addressId, counterpart, replyTo }: FindThreadToWakeOptions) {
+    const answered = replyTo
+      ? messagesRepository.findByExternalId({
+          addressId,
+          direction: "outbound",
+          externalId: replyTo,
+        })
+      : undefined;
+
+    return (
+      answered?.clientThread ?? messagesRepository.findLastClientThread({ addressId, counterpart })
     );
   }
 
@@ -337,7 +363,16 @@ export function createMessagesService({
     await files.save({ accountId, messageId: id, uploads: message.files });
 
     if (!refusal) {
-      events.add({ accountId, event: { type: "message.received", channel, messageId: id } });
+      const toThread = findThreadToWake({
+        addressId: address.id,
+        counterpart,
+        replyTo: message.replyTo,
+      });
+
+      events.add({
+        accountId,
+        event: { type: "message.received", channel, messageId: id, toThread },
+      });
     }
   }
 
@@ -453,7 +488,7 @@ export function createMessagesService({
         from: accountId,
         to: recipients.to,
         text: draft.text,
-        thread: null,
+        thread: draft.thread ?? null,
         toThread: urlAnswer?.toThread ?? null,
         client,
         attachments: draft.attachments ?? [],
@@ -461,7 +496,7 @@ export function createMessagesService({
       });
 
       const row = messagesRepository.findByExternalId({
-        accountId,
+        addressId: urlAddressOf(accountId).id,
         direction: "outbound",
         externalId: event.messageId,
       });

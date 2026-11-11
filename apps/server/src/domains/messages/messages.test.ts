@@ -1,6 +1,8 @@
-import { expect, test } from "bun:test";
+import { expect, setSystemTime, test } from "bun:test";
 
 import { z } from "zod";
+
+import { minute } from "@artil/utils/time";
 
 import { createTestServer, listen, testWebhookHeader } from "../../app/testing";
 
@@ -202,6 +204,72 @@ test("answers a message the way it came", async () => {
       token: "codex",
     },
   ]);
+});
+
+test("wakes the client thread that wrote what a message answers, or else the last one that wrote to its sender", async () => {
+  const server = await createTestServer();
+  const codex = server.account("Codex");
+  const address = await server.connectAddress({ account: codex, word: "codex" });
+
+  server.services.access.setAdmit({ accountId: codex.id, channel: "test", admit: "anyone" });
+
+  function sendFrom(thread: string) {
+    return codex.json(`/api/agents/${codex.id}/messages`, {
+      channel: "test",
+      to: ["@ada"],
+      text: "Hi",
+      thread,
+    });
+  }
+
+  await sendFrom("review");
+
+  // The second message goes a minute later, so it is the last one.
+  setSystemTime(new Date(Date.now() + minute));
+
+  try {
+    await sendFrom("deploy");
+  } finally {
+    setSystemTime();
+  }
+
+  const fromAda = { to: [address], from: "@ada" };
+
+  server.testChannel.queue("codex", { id: "1", ...fromAda, text: "Approved", replyTo: "out-1" });
+  server.testChannel.queue("codex", { id: "2", ...fromAda, text: "Anything else?" });
+  server.testChannel.queue("codex", { id: "3", to: [address], from: "@eve", text: "Hello" });
+  await server.deliverQueued();
+
+  const events = await (await codex.call(`/api/agents/${codex.id}/events?after=0`)).json();
+
+  expect(events).toMatchObject([
+    { toThread: "review" },
+    { toThread: "deploy" },
+    { toThread: null },
+  ]);
+});
+
+test("wakes no client thread whose message did not reach the sender", async () => {
+  const server = await createTestServer();
+  const codex = server.account("Codex");
+  const address = await server.connectAddress({ account: codex, word: "codex" });
+
+  server.services.access.setAdmit({ accountId: codex.id, channel: "test", admit: "anyone" });
+  server.testChannel.down = true;
+
+  await codex.json(`/api/agents/${codex.id}/messages`, {
+    channel: "test",
+    to: ["@ada"],
+    text: "Hi",
+    thread: "review",
+  });
+
+  server.testChannel.queue("codex", { id: "1", to: [address], from: "@ada", text: "Hello" });
+  await server.deliverQueued();
+
+  const events = await (await codex.call(`/api/agents/${codex.id}/events?after=0`)).json();
+
+  expect(events).toMatchObject([{ toThread: null }]);
 });
 
 test("keeps a message in a group as the group's, naming who wrote it, and answers in the group", async () => {

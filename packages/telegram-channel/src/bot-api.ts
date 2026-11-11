@@ -80,6 +80,7 @@ const messageSchema = z.object({
   media_group_id: z.string().optional(),
   reply_to_message: z
     .object({
+      message_id: z.number(),
       from: userSchema.optional(),
       text: z.string().optional(),
       caption: z.string().optional(),
@@ -553,6 +554,7 @@ function toInbound({ bot, message, from, inGroup, files }: ToInboundOptions): In
     text: text ?? caption ?? "",
     files,
     quote: quoteOf(message),
+    replyTo: message.reply_to_message ? idOf(chat.id, message.reply_to_message.message_id) : null,
   };
 }
 
