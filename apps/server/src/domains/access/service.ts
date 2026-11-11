@@ -21,11 +21,10 @@ type DecideOptions = {
   channel: ChannelKind;
   from: string;
   // Another address the sender goes by on the channel, which the list can name in place of from.
-  handle: string | null;
+  username: string | null;
   // The group the message came in, which the list can name to let in everyone in it.
   group: string | null;
   fromSelf: boolean;
-  spam: boolean;
   fromTeam: boolean;
   fromVerified: boolean;
   // Whether the sender counts as on the account's list, whatever the list says.

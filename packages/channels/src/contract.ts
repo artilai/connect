@@ -10,62 +10,34 @@ export type InboundFile = Attachment & { content: Uint8Array | null };
 
 export type OutboundFile = Attachment & { content: Uint8Array };
 
-/** Whom a message came from, as the channel knows them. */
 export type Sender = {
-  /** The sender's address on the channel, as the channel writes it and as an answer goes to it. */
   address: string;
-  /** The name the sender goes by, when the channel tells it. */
   name: string | null;
-  /**
-   * Another address the sender goes by on the channel, like a username, which a list of senders
-   * may name in place of the address. The sender can change it, and someone else can then take it.
-   */
-  handle: string | null;
-  /** Whether the channel vouches for who sent the message. */
+  username: string | null;
   verified: boolean;
 };
 
-/**
- * The account as it writes on the channel: its address there, what the provider needs to send from
- * it, like a bot's token, and its name.
- */
-export type Author = { address: string; name: string; credentials: string | null };
-
-/**
- * A message as it reached one of the account's addresses: what every channel has, whatever else its
- * provider adds.
- */
 export type InboundMessage = {
-  /** The channel's own id for the message, which an answer names it by. */
-  externalId: string;
-  /** The account's address the message came to. */
-  to: string;
-  /** Whoever wrote the message. */
+  id: string;
   from: Sender;
-  /**
-   * The group the message came in, by its address there, which an answer goes to, and its name. A
-   * message without one came straight to the account's address.
-   */
+  to: string[];
   group?: { address: string; name: string | null };
   text: string;
   files: InboundFile[];
-  /** Whether the provider marked the message as spam, on a channel whose provider does. */
-  spam?: boolean;
 };
 
-/** A message the account sends, as the server hands it to the channel. */
 export type OutboundMessage<Data = never> = {
-  from: Author;
+  from: string;
   to: string[];
   text: string;
   files: OutboundFile[];
-  /**
-   * The message this one answers, by the channel's own id for it, so the channel can thread the
-   * answer the way it threads.
-   */
-  inReplyTo: { externalId: string } | null;
-  /** What only the message's channel takes, in the shape that channel names. */
+  replyTo?: string;
   channelData?: Data;
+};
+
+export type SendOptions<Data = never> = {
+  message: OutboundMessage<Data>;
+  credentials: string | null;
 };
 
 /** What a channel hands the server: new events come as new types. */
@@ -163,7 +135,7 @@ export abstract class Channel<Kind extends string = string, Data = unknown> {
     return message;
   }
 
-  abstract send(message: OutboundMessage<Data>): Promise<{ externalId: string }>;
+  abstract send(options: SendOptions<Data>): Promise<{ id: string }>;
 }
 
 /** What the server hands a channel it creates. */

@@ -19,7 +19,6 @@ export const defaultAccess: Access = { admit: "team", senders: [] };
 const refusalReasons = new Map<string, string>(
   Object.entries({
     self: "it came from the account itself",
-    spam: "it was marked as spam",
     sender: "the sender is not on its list",
     outsider: "the sender is not on its team",
     unverified: "the channel could not confirm who sent it",

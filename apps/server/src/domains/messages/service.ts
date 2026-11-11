@@ -7,6 +7,7 @@ import type { Upload } from "../../platform/storage";
 import type { Refusal } from "../access/schema";
 import type { AccessService } from "../access/service";
 import type { AccountsService } from "../accounts/service";
+import type { ConnectedAddress } from "../addresses/schema";
 import type { AddressesService } from "../addresses/service";
 import type { ChannelKind } from "../channels/schema";
 import type { ChannelsService } from "../channels/service";
@@ -41,7 +42,7 @@ type ReceiveOptions = { channel: ChannelKind; message: InboundMessage };
 type Recipients = {
   channel: ChannelKind;
   to: string[];
-  inReplyTo: { externalId: string } | null;
+  replyTo?: string;
 };
 
 type SendDraftOptions = {
@@ -117,7 +118,7 @@ export function createMessagesService({
         });
       }
 
-      return { channel: draft.channel, to: draft.to, inReplyTo: null };
+      return { channel: draft.channel, to: draft.to };
     }
 
     const repliedMessage = messagesRepository.find({ accountId, id: draft.replyTo });
@@ -128,8 +129,7 @@ export function createMessagesService({
       channel: repliedMessage.channel,
       to: draft.to ?? replyRecipients(repliedMessage),
       // The channel threads the answer by its own id for the message, when it gave one.
-      inReplyTo:
-        repliedMessage.externalId === null ? null : { externalId: repliedMessage.externalId },
+      ...(repliedMessage.externalId !== null && { replyTo: repliedMessage.externalId }),
     };
   }
 
@@ -162,7 +162,7 @@ export function createMessagesService({
 
   // Sends on a channel with addresses, and keeps the message among the account's.
   async function send({ accountId, accountName, draft, uploads, recipients }: SendOptions) {
-    const { channel: kind, to, inReplyTo } = recipients;
+    const { channel: kind, to, replyTo } = recipients;
     const channel = channels.find(kind);
 
     if (!channel) throw missingChannel(kind);
@@ -186,11 +186,11 @@ export function createMessagesService({
     if (outgoingFiles.length > 0 && !files.enabled) throw files.unavailableError();
 
     const prepared = channel.prepare({
-      from: { address: address.value, name: accountName, credentials: address.credentials },
+      from: address.value,
       to,
       text: draft.text,
       files: outgoingFiles,
-      inReplyTo,
+      ...(replyTo !== undefined && { replyTo }),
     });
 
     for (const recipient of prepared.to) {
@@ -223,7 +223,10 @@ export function createMessagesService({
     try {
       await files.save({ accountId, messageId: id, uploads: outgoingFiles });
 
-      const { externalId } = await channel.send(prepared);
+      const { id: externalId } = await channel.send({
+        message: prepared,
+        credentials: address.credentials,
+      });
 
       messagesRepository.markSent(id, externalId);
     } catch (cause) {
@@ -249,13 +252,13 @@ export function createMessagesService({
 
   type LogKeptOutOptions = { accountId: string; channel: ChannelKind; message: InboundMessage };
 
-  // Lets them in by their address, which stays theirs, where a handle can pass to someone else; in
-  // a group, everyone in it by the group's.
+  // Lets them in by their address, which stays theirs, where a username can pass to someone
+  // else; in a group, everyone in it by the group's.
   function logKeptOut({ accountId, channel, message }: LogKeptOutOptions) {
     const accountName = accounts.findById(accountId)?.name ?? accountId;
     const channelName = channels.find(channel)?.name ?? channel;
     const { from, group } = message;
-    const goesBy = from.handle ?? from.address;
+    const goesBy = from.username ?? from.address;
     const named = from.name ? `${from.name} (${goesBy})` : goesBy;
 
     // A sender that starts with a dash, like a group's id, reads as no flag only after --.
@@ -274,6 +277,68 @@ export function createMessagesService({
     );
   }
 
+  type ReceiveAtOptions = ReceiveOptions & { address: ConnectedAddress };
+
+  async function receiveAt({ channel, message, address }: ReceiveAtOptions) {
+    if (messagesRepository.hasReceived({ addressId: address.id, externalId: message.id })) return;
+
+    const accountId = address.accountId;
+    const { from, group } = message;
+    const sender = addresses.findByValue({ channel, value: from.address });
+
+    // A message in a group is the group's, which an answer goes to, and names who wrote it.
+    const counterpart = group?.address ?? from.address;
+
+    const { refusal, admission } = access.decide({
+      accountId,
+      channel,
+      from: from.address,
+      username: from.username,
+      group: group?.address ?? null,
+      fromSelf: sender?.accountId === accountId,
+      // Another account's address on the server is the team's.
+      fromTeam: sender !== undefined,
+      fromVerified: from.verified,
+    });
+
+    // The first time someone the list keeps out writes, or a group, the log says how to let
+    // them in.
+    if (
+      refusal &&
+      keptOut.has(refusal) &&
+      !messagesRepository.hasReceivedFrom({ accountId, channel, counterpart })
+    ) {
+      logKeptOut({ accountId, channel, message });
+    }
+
+    const id = crypto.randomUUID();
+
+    // Stored before anything waits, so a message delivered twice at once is taken once.
+    messagesRepository.add({
+      id,
+      accountId,
+      addressId: address.id,
+      channel,
+      direction: "inbound",
+      externalId: message.id,
+      counterpart,
+      counterpartName: group ? group.name : from.name,
+      author: group ? from.address : null,
+      authorName: group ? from.name : null,
+      to: message.to,
+      text: message.text,
+      status: refusal ? "refused" : "received",
+      refusal,
+      admission,
+    });
+
+    await files.save({ accountId, messageId: id, uploads: message.files });
+
+    if (!refusal) {
+      events.add({ accountId, event: { type: "message.received", channel, messageId: id } });
+    }
+  }
+
   return {
     find,
 
@@ -285,73 +350,14 @@ export function createMessagesService({
     list: ({ accountId, filter }: ListOptions) =>
       toRecords(messagesRepository.list({ accountId, filter })),
 
-    // Takes a message a channel brought: it wakes the agent of the account the address belongs to
-    // when its senders may, and stays in the account's messages either way.
+    // Takes a message a channel brought to the addresses it went to: it wakes the agent of each
+    // account one of them belongs to when its senders may, and stays in the account's messages
+    // either way.
     receive: async ({ channel, message }: ReceiveOptions) => {
-      const address = addresses.findByValue({ channel, value: message.to });
+      for (const value of message.to) {
+        const address = addresses.findByValue({ channel, value });
 
-      if (
-        !address ||
-        messagesRepository.hasReceived({ addressId: address.id, externalId: message.externalId })
-      ) {
-        return;
-      }
-
-      const accountId = address.accountId;
-      const { from, group } = message;
-      const sender = addresses.findByValue({ channel, value: from.address });
-
-      // A message in a group is the group's, which an answer goes to, and names who wrote it.
-      const counterpart = group?.address ?? from.address;
-
-      const { refusal, admission } = access.decide({
-        accountId,
-        channel,
-        from: from.address,
-        handle: from.handle,
-        group: group?.address ?? null,
-        fromSelf: sender?.accountId === accountId,
-        spam: message.spam ?? false,
-        // Another account's address on the server is the team's.
-        fromTeam: sender !== undefined,
-        fromVerified: from.verified,
-      });
-
-      // The first time someone the list keeps out writes, or a group, the log says how to let
-      // them in.
-      if (
-        refusal &&
-        keptOut.has(refusal) &&
-        !messagesRepository.hasReceivedFrom({ accountId, channel, counterpart })
-      ) {
-        logKeptOut({ accountId, channel, message });
-      }
-
-      const id = crypto.randomUUID();
-
-      // Stored before anything waits, so a message delivered twice at once is taken once.
-      messagesRepository.add({
-        id,
-        accountId,
-        addressId: address.id,
-        channel,
-        direction: "inbound",
-        externalId: message.externalId,
-        counterpart,
-        counterpartName: group ? group.name : from.name,
-        author: group ? from.address : null,
-        authorName: group ? from.name : null,
-        to: [message.to],
-        text: message.text,
-        status: refusal ? "refused" : "received",
-        refusal,
-        admission,
-      });
-
-      await files.save({ accountId, messageId: id, uploads: message.files });
-
-      if (!refusal) {
-        events.add({ accountId, event: { type: "message.received", channel, messageId: id } });
+        if (address) await receiveAt({ channel, message, address });
       }
     },
 
@@ -433,7 +439,7 @@ export function createMessagesService({
         draft.replyTo === undefined ? undefined : findUrlAnswer({ accountId, id: draft.replyTo });
 
       const recipients = urlAnswer
-        ? { channel: url.kind, to: urlAnswer.to, inReplyTo: null }
+        ? { channel: url.kind, to: urlAnswer.to }
         : resolveRecipients(accountId, draft);
 
       checkCarried(draft, recipients.channel);
@@ -443,7 +449,7 @@ export function createMessagesService({
       }
 
       const event = await url.relay({
-        sender: { id: accountId, name: accountName },
+        from: accountId,
         to: recipients.to,
         text: draft.text,
         thread: null,

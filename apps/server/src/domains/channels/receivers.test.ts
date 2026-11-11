@@ -24,9 +24,9 @@ class FlakyChannel extends Channel<"test"> {
       {
         type: "message.received",
         message: {
-          externalId: "1",
-          to: "@codex",
-          from: { address: "ada", name: null, handle: null, verified: true },
+          id: "1",
+          to: ["@codex"],
+          from: { address: "ada", name: null, username: null, verified: true },
           text: "Hi",
           files: [],
         },
@@ -35,7 +35,7 @@ class FlakyChannel extends Channel<"test"> {
   }
 
   async send() {
-    return { externalId: "1" };
+    return { id: "1" };
   }
 }
 

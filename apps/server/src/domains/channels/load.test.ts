@@ -62,7 +62,7 @@ test("refuses a channel that does not extend Channel", async () => {
   const dataDir = await dataFolder({
     "plain-channel.ts": `export const channel = {
   kind: "plain",
-  create: () => ({ contractVersion: 1, kind: "plain", send: async () => ({ externalId: "1" }) }),
+  create: () => ({ contractVersion: 1, kind: "plain", send: async () => ({ id: "1" }) }),
 };
 `,
   });

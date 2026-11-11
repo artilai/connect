@@ -42,7 +42,7 @@ export function createUrlRoutes({ url, fileLinks }: CreateUrlRoutesOptions) {
       const { draft, files } = c.req.valid("json");
 
       const event = await url.relay({
-        sender: { id: actor.accountId, name: actor.accountName },
+        from: actor.accountId,
         to: [accountId],
         text: draft.text ?? "",
         thread: draft.thread ?? null,

@@ -4,6 +4,7 @@ import {
   type ConnectedAddress,
   type HandleWebhookOptions,
   type OutboundMessage,
+  type SendOptions,
   type StartOptions,
 } from "@artil/channels/contract";
 import { AppError } from "@artil/errors";
@@ -94,15 +95,15 @@ export class TelegramChannel extends Channel<"telegram"> {
     return prepareTelegram(message);
   }
 
-  send({ from, to, text, files, inReplyTo }: OutboundMessage) {
-    if (!from.credentials) throw new Error("A Telegram bot sends with its token");
+  send({ message: { to, text, files, replyTo }, credentials }: SendOptions) {
+    if (!credentials) throw new Error("A Telegram bot sends with its token");
 
     return this.#provider.send({
-      token: from.credentials,
+      token: credentials,
       chat: onlyChat(to),
       text,
       files,
-      inReplyTo: inReplyTo?.externalId ?? null,
+      replyTo: replyTo ?? null,
     });
   }
 }
@@ -155,7 +156,7 @@ function prepareTelegram(message: OutboundMessage) {
 }
 
 function received({
-  externalId,
+  id,
   bot,
   chat,
   group,
@@ -170,13 +171,13 @@ function received({
   return {
     type: "message.received",
     message: {
-      externalId,
-      to: atUsername(bot),
+      id,
+      to: [atUsername(bot)],
       from: {
         address: fromBot ? atUsername(fromBot) : senderId,
         // A person shows by their name and @username, the way Telegram shows them.
         name: fromName && username ? `${fromName} (@${username})` : fromName,
-        handle: username ? atUsername(username) : null,
+        username: username ? atUsername(username) : null,
         // Telegram vouches for who sent each message to the bot.
         verified: true,
       },

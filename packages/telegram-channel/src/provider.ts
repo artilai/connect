@@ -3,7 +3,7 @@ import type { InboundFile, OutboundFile } from "@artil/channels/contract";
 // A message someone sent a bot: in a private chat with it, or in a group where it tags the bot or
 // answers it.
 export type InboundTelegram = {
-  externalId: string;
+  id: string;
   bot: string;
   // The chat it came in: a person's private chat with the bot, which goes by their user id, or a
   // group.
@@ -33,7 +33,7 @@ export type OutgoingTelegram = {
   text: string;
   files: OutboundFile[];
   // The id of the message this one answers, as Telegram gave it, which the answer quotes.
-  inReplyTo: string | null;
+  replyTo: string | null;
 };
 
 export type TelegramUpdates = {
@@ -57,5 +57,5 @@ export type TelegramProvider = {
   // Keeps the bot's updates coming: points Telegram at the server's webhook, or asks Telegram for
   // them until the signal aborts on a server Telegram cannot reach.
   start: (updates: TelegramUpdates) => Promise<void>;
-  send: (message: OutgoingTelegram) => Promise<{ externalId: string }>;
+  send: (message: OutgoingTelegram) => Promise<{ id: string }>;
 };
