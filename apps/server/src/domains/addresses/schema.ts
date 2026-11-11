@@ -5,15 +5,10 @@ import { channelKindSchema } from "../channels/schema";
 
 export type AddressRecord = typeof addresses.$inferSelect;
 
-export type ConnectedAddress = AddressRecord & { credentials: string };
+export type ConnectedAddress = AddressRecord & { token: string };
 
 export function isConnected(address: AddressRecord): address is ConnectedAddress {
-  return address.credentials !== null;
-}
-
-// A connected address as its channel takes it, to let go of it.
-export function toChannelAddress({ value, credentials }: ConnectedAddress) {
-  return { address: value, credentials };
+  return address.token !== null;
 }
 
 export const addressSchema = z

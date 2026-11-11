@@ -6,8 +6,10 @@ what only it takes with a message, and the server decides who a message wakes.
 
 ## Usage
 
-| Import                     | What it gives                                                            |
-| -------------------------- | ------------------------------------------------------------------------ |
-| `@artil/channels/contract` | `Channel`, `ChannelDefinition`, the message shapes and `contractVersion` |
+| Import                     | What it gives                                       |
+| -------------------------- | --------------------------------------------------- |
+| `@artil/channels/contract` | `Channel`, the message shapes and `contractVersion` |
 
-Raise `contractVersion` before a release that breaks channels built for the last one: the server loads only channels of its own version.
+A channel's package exports the channel itself, named `channel`, which the server loads.
+
+A release that breaks channels built for the last one raises `contractVersion` by one, and the pull requests before it leave it as it is: the server loads only channels of its own version.

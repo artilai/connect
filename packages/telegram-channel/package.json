@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/definition.ts"
+    ".": "./src/index.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit"

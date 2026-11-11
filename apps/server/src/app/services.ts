@@ -33,6 +33,8 @@ type CreateServicesOptions = {
   secret: string;
   // Where clients reach the server, which file links point at.
   baseUrl: string;
+  // The server's address on the internet, where providers post; none in local mode.
+  publicUrl: string | undefined;
   store: FileStore | undefined;
   // The channels the config loads; the server carries the Message URL itself.
   channels: ReadonlyMap<ChannelKind, Channel>;
@@ -44,6 +46,7 @@ export function createServices({
   db,
   secret,
   baseUrl,
+  publicUrl,
   store,
   channels: loadedChannels,
   log,
@@ -83,9 +86,11 @@ export function createServices({
   });
 
   // Every channel behind the one interface, whatever carries its messages.
-  const channels = createChannelsService(
-    new Map<ChannelKind, Channel>([...loadedChannels, [url.kind, url]]),
-  );
+  const channels = createChannelsService({
+    channels: new Map<ChannelKind, Channel>([...loadedChannels, [url.kind, url]]),
+    publicUrl,
+    secret,
+  });
 
   const addresses = createAddressesService({
     addressesRepository: createAddressesRepository(db),

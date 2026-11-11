@@ -35,17 +35,13 @@ async function readBody(body: RequestInit["body"]) {
   return Object.fromEntries(await Promise.all(fields));
 }
 
-type SetupOptions = { answers?: Record<string, Answer>; webhook?: boolean };
+type SetupOptions = { answers?: Record<string, Answer> };
 
-function setup({ answers = {}, webhook = true }: SetupOptions = {}) {
+function setup({ answers = {} }: SetupOptions = {}) {
   const requests: { method: string; body: unknown }[] = [];
   const tokens: string[] = [];
 
   const botApi = createBotApi({
-    ...(webhook && {
-      webhook: { url: "https://artil.test/api/channels/telegram", secret: webhookSecret },
-    }),
-    sleep: async () => {},
     fetch: async (url, init) => {
       const [, owner = "", path = ""] = /\/file\/bot([^\/]+)\/(.+)$/v.exec(url) ?? [];
 
@@ -72,10 +68,11 @@ function setup({ answers = {}, webhook = true }: SetupOptions = {}) {
     },
   });
 
-  // Reads updates the way the channel does, with the tokens of the bots Artil holds.
+  // Reads updates the way the channel does, with the server's secret and the tokens of the bots
+  // Artil holds.
   const telegram = {
     ...botApi,
-    verifyEvents: (request: Request) => botApi.verifyEvents(request, tokenOf),
+    verifyEvents: (request: Request) => botApi.verifyEvents({ request, webhookSecret, tokenOf }),
   };
 
   return { telegram, botApi, requests, tokens };
@@ -138,24 +135,22 @@ test("checks a bot's token and finds its username", async () => {
 
 type StartOptions = { telegram: ReturnType<typeof setup>["telegram"] };
 
-// Starts the bot the way the server does once it connects, and notes what failed on the way.
-async function start({ telegram }: StartOptions) {
-  const errors: unknown[] = [];
-
-  await telegram.start({
+// Starts the bot the way the server does once it connects, on a server Telegram can reach.
+function start({ telegram }: StartOptions) {
+  return telegram.start({
     token,
+    webhookUrl: "https://artil.test/api/channels/telegram",
+    webhookSecret,
     signal: new AbortController().signal,
     onEvents: async () => {},
-    onError: (cause) => errors.push(cause),
   });
-
-  return errors;
 }
 
 test("points the bot's messages at Artil under a secret of its own", async () => {
   const { telegram, requests } = setup({ answers: { getMe: botAnswer } });
 
-  expect(await start({ telegram })).toEqual([]);
+  await start({ telegram });
+
   expect(requests).toEqual([
     { method: "getMe", body: {} },
     {
@@ -169,20 +164,12 @@ test("points the bot's messages at Artil under a secret of its own", async () =>
   ]);
 });
 
-test("points the bot at the webhook again until Telegram takes it", async () => {
-  const badGateway = { ok: false, description: "Bad Gateway" };
-
-  const { telegram, requests } = setup({
-    answers: {
-      getMe: botAnswer,
-      setWebhook: { body: [badGateway, badGateway, { ok: true, result: true }] },
-    },
+test("ends a start Telegram does not take, for the server to start again", async () => {
+  const { telegram } = setup({
+    answers: { getMe: botAnswer, setWebhook: { body: { ok: false, description: "Bad Gateway" } } },
   });
 
-  const errors = await start({ telegram });
-
-  expect(errors.map(String)).toEqual(["Error: Bad Gateway", "Error: Bad Gateway"]);
-  expect(requests.filter(({ method }) => method === "setWebhook")).toHaveLength(3);
+  await expect(start({ telegram })).rejects.toThrow("Bad Gateway");
 });
 
 test("refuses a token Telegram does not know", async () => {
@@ -346,7 +333,9 @@ test("describes the files of a bot Artil holds no token for, with their caption 
     },
   ];
 
-  expect(await botApi.verifyEvents(update(voice), noToken)).toMatchObject([
+  expect(
+    await botApi.verifyEvents({ request: update(voice), webhookSecret, tokenOf: noToken }),
+  ).toMatchObject([
     {
       message: {
         text: "",
@@ -354,7 +343,9 @@ test("describes the files of a bot Artil holds no token for, with their caption 
       },
     },
   ]);
-  expect(await botApi.verifyEvents(update(photo), noToken)).toMatchObject([
+  expect(
+    await botApi.verifyEvents({ request: update(photo), webhookSecret, tokenOf: noToken }),
+  ).toMatchObject([
     {
       message: {
         text: "The error",
@@ -644,18 +635,15 @@ type ReceiveOptions = {
 
 // Asks Telegram for updates, as many times as the test says.
 async function receive({ answers, polls, refusals = 0 }: ReceiveOptions) {
-  const { telegram, requests } = setup({
-    answers: { getMe: botAnswer, ...answers },
-    webhook: false,
-  });
+  const { telegram, requests } = setup({ answers: { getMe: botAnswer, ...answers } });
 
   const controller = new AbortController();
   const taken: unknown[] = [];
-  const errors: unknown[] = [];
   let refused = 0;
 
   await telegram.start({
     token,
+    webhookSecret,
     signal: controller.signal,
     onEvents: async (events) => {
       if (requests.filter(({ method }) => method === "getUpdates").length >= polls) {
@@ -671,14 +659,13 @@ async function receive({ answers, polls, refusals = 0 }: ReceiveOptions) {
 
       taken.push(...events);
     },
-    onError: (cause) => errors.push(cause),
   });
 
   const offsets = requests
     .filter(({ method }) => method === "getUpdates")
     .map(({ body }) => offsetSchema.parse(body).offset);
 
-  return { taken, errors, offsets, requests };
+  return { taken, offsets, requests };
 }
 
 function updates(...batches: { update_id: number; message?: Message }[][]) {
@@ -713,23 +700,25 @@ test("asks Telegram for private messages to the bot and confirms each batch it t
   ]);
 });
 
-test("asks for a batch again until it is taken, and goes on after Telegram fails", async () => {
-  const { taken, errors, offsets } = await receive({
-    polls: 4,
-    refusals: 1,
-    answers: {
-      getUpdates: {
-        body: [
-          { ok: false, description: "Bad Gateway" },
-          { ok: true, result: [{ update_id: 5, message: { ...fromAda, text: "Hi" } }] },
-          { ok: true, result: [{ update_id: 5, message: { ...fromAda, text: "Hi" } }] },
-          { ok: true, result: [] },
-        ],
-      },
-    },
+test("ends when Telegram fails or a batch is not taken, so the batch comes again", async () => {
+  const failing = setup({
+    answers: { getMe: botAnswer, getUpdates: { body: { ok: false, description: "Bad Gateway" } } },
   });
 
-  expect(taken).toHaveLength(1);
-  expect(errors.map(String)).toEqual(["Error: Bad Gateway", "Error: Could not store the batch"]);
-  expect(offsets).toEqual([0, 0, 0, 6]);
+  await expect(
+    failing.telegram.start({
+      token,
+      webhookSecret,
+      signal: new AbortController().signal,
+      onEvents: async () => {},
+    }),
+  ).rejects.toThrow("Bad Gateway");
+
+  await expect(
+    receive({
+      polls: 2,
+      refusals: 1,
+      answers: { getUpdates: updates([{ update_id: 5, message: { ...fromAda, text: "Hi" } }]) },
+    }),
+  ).rejects.toThrow("Could not store the batch");
 });

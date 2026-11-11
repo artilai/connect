@@ -1,6 +1,6 @@
 import { parseArgs } from "node:util";
 
-import type { ChannelDefinition } from "@artil/channels/contract";
+import type { Channel } from "@artil/channels/contract";
 import { AppError } from "@artil/errors";
 
 import { createAccessCommands } from "../domains/access/commands";
@@ -62,7 +62,7 @@ type Environment = {
   version: string;
   interactive: boolean;
   // The channels the server comes with; the config loads others.
-  builtInChannels: readonly ChannelDefinition[];
+  builtInChannels: readonly Channel[];
   migrationsFolder: string;
   tailscale: Tailscale | undefined;
   // The artil CLI on this computer, which the setup offers when it is missing.

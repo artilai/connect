@@ -37,16 +37,16 @@ export function createAddressCommands({
     const account = accounts.getByIdOrName(name);
     const channel = addresses.getConnectable(kind);
 
-    const credentials = await readSecret({
+    const token = await readSecret({
       message: `${channel.name} ${channel.labels.token ?? "token"}`,
     });
 
-    if (!credentials) return;
+    if (!token) return;
 
     const { address, replaced } = await addresses.connect({
       accountId: account.id,
       kind,
-      credentials: credentials.trim(),
+      token: token.trim(),
     });
 
     for (const old of replaced) out(`${old.value} no longer reaches ${account.name}.`);

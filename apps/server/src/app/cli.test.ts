@@ -8,14 +8,14 @@ import { fileURLToPath } from "node:url";
 import { type Config, newConfig, pathsIn, readConfig, writeConfig } from "../platform/config";
 import { runCli } from "./cli";
 import { runningGreeting } from "./http";
-import { channelModule, findFreePort, testChannelDefinition } from "./testing";
+import { channelModule, createTestChannel, findFreePort } from "./testing";
 
 const migrationsFolder = fileURLToPath(new URL("../../migrations", import.meta.url));
 
 // What each run of artil-server here has: the test channel, and an artil CLI that is installed.
 const environment = {
   version: "0.0.0",
-  builtInChannels: [testChannelDefinition],
+  builtInChannels: [createTestChannel()],
   migrationsFolder,
   tailscale: undefined,
   artil: { installed: true, install: async () => {} },

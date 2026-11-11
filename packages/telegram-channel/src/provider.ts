@@ -38,10 +38,20 @@ export type OutgoingTelegram = {
 
 export type TelegramUpdates = {
   token: string;
+  // Where Telegram posts the bot's updates; without it, the provider asks Telegram for them.
+  webhookUrl?: string;
+  webhookSecret: string;
   signal: AbortSignal;
   // Takes a batch of updates; Telegram sends the batch again until this resolves.
   onEvents: (events: TelegramEvent[]) => Promise<void>;
-  onError: (cause: unknown) => void;
+};
+
+// An update Telegram posted to the server's webhook, with the token of each bot, to fetch the
+// files people send it.
+type TelegramWebhook = {
+  request: Request;
+  webhookSecret: string;
+  tokenOf: (bot: string) => Promise<string | null>;
 };
 
 export type TelegramProvider = {
@@ -50,10 +60,7 @@ export type TelegramProvider = {
   disconnect: (token: string) => Promise<void>;
   // Reads an update Telegram posted to the server's webhook, and fetches the files people send
   // the bot with the bot's token.
-  verifyEvents: (
-    request: Request,
-    tokenOf: (bot: string) => Promise<string | null>,
-  ) => Promise<TelegramEvent[]>;
+  verifyEvents: (webhook: TelegramWebhook) => Promise<TelegramEvent[]>;
   // Keeps the bot's updates coming: points Telegram at the server's webhook, or asks Telegram for
   // them until the signal aborts on a server Telegram cannot reach.
   start: (updates: TelegramUpdates) => Promise<void>;

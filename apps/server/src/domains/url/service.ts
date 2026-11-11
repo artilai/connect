@@ -45,7 +45,7 @@ type RelayOptions = {
 // whoever listens to that account, as long as its list lets the sender wake it. It is the server's own
 // channel: it extends Channel so that the commands, MCP and the setup describe it like the others,
 // and it has no provider, so it sends through the server's services and is the url domain's service.
-export class UrlChannel extends Channel<"url", UrlData> {
+export class UrlChannel extends Channel<UrlData> {
   readonly kind = urlKind;
 
   readonly name = "Message URL";
@@ -86,7 +86,7 @@ export class UrlChannel extends Channel<"url", UrlData> {
     checkLimits({ channel: this, text, files: outgoingFiles });
 
     const { event } = await this.send({
-      // The Message URL threads an answer by toThread, and needs no credentials.
+      // The Message URL threads an answer by toThread, and needs no token.
       message: {
         from,
         to: readRecipients({ channel: this, to }),
@@ -94,7 +94,7 @@ export class UrlChannel extends Channel<"url", UrlData> {
         files: outgoingFiles,
         channelData: { thread, toThread, client },
       },
-      credentials: null,
+      token: null,
     });
 
     return event;

@@ -6,7 +6,7 @@ import { TelegramChannel } from "./channel";
 import type { OutgoingTelegram, TelegramEvent, TelegramProvider } from "./provider";
 
 // Artil holds the bot at its @username, with its token.
-async function credentialsOf(address: string) {
+async function tokenOf(address: string) {
   return address === "@acmesupportbot" ? "123456:ABC" : null;
 }
 
@@ -20,8 +20,8 @@ function setup(inbound: TelegramEvent[] = []) {
     disconnect: async (token) => {
       disconnected.push(token);
     },
-    verifyEvents: async (_request, tokenOf) => {
-      tokens.push(await tokenOf("AcmeSupportBot"));
+    verifyEvents: async ({ tokenOf: botTokenOf }) => {
+      tokens.push(await botTokenOf("AcmeSupportBot"));
 
       return inbound;
     },
@@ -45,7 +45,8 @@ async function takeWebhook(channel: Channel) {
   const received: ChannelEvent[] = [];
 
   const response = await channel.handleWebhook(new Request("https://artil.test"), {
-    credentialsOf,
+    webhookSecret: "secret",
+    tokenOf,
     receive: async (events) => {
       received.push(...events);
     },
@@ -67,11 +68,9 @@ const parsing = setup().channel;
 test("connects a bot at its @username, in lowercase, with its token", async () => {
   const { channel, disconnected } = setup();
 
-  const connected = await channel.connect("123456:ABC");
+  expect(await channel.connect("123456:ABC")).toBe("@acmesupportbot");
 
-  expect(connected).toEqual({ address: "@acmesupportbot", credentials: "123456:ABC" });
-
-  await channel.disconnect(connected);
+  await channel.disconnect("123456:ABC");
 
   expect(disconnected).toEqual(["123456:ABC"]);
 });
@@ -162,12 +161,12 @@ test("turns updates it asks Telegram for into received messages", async () => {
   const received: unknown[] = [];
 
   await channel.start({
-    credentials: "123456:ABC",
+    token: "123456:ABC",
+    webhookSecret: "secret",
     signal: new AbortController().signal,
     receive: async (events) => {
       received.push(...events);
     },
-    onError: () => {},
   });
 
   expect(received).toEqual([
@@ -223,7 +222,7 @@ test("quotes the message a reply answers above its text", async () => {
 test("sends to one chat as the bot, answering by Telegram's id for the message", async () => {
   const { channel, sent } = setup();
 
-  await channel.send({ message: outbound, credentials: "123456:ABC" });
+  await channel.send({ message: outbound, token: "123456:ABC" });
 
   expect(sent).toEqual([
     { token: "123456:ABC", chat: "42", text: "On my way", files: [], replyTo: "42:7" },
@@ -288,7 +287,7 @@ test("carries one chat, 4096 characters and up to 10 files of up to 50 MB each",
   const { channel, sent } = setup();
   const photo = { name: "a.png", type: "image/png", size: 1, content: new Uint8Array(1) };
 
-  await channel.send({ message: { ...outbound, files: [photo] }, credentials: "123456:ABC" });
+  await channel.send({ message: { ...outbound, files: [photo] }, token: "123456:ABC" });
 
   expect(sent).toMatchObject([{ files: [photo] }]);
   expect(channel.limits).toEqual({ recipients: 1, text: 4096, files: 10, fileSize: 50_000_000 });

@@ -1,11 +1,11 @@
 import { hostname } from "node:os";
 
-import type { ChannelContext, ChannelDefinition } from "@artil/channels/contract";
+import type { Channel } from "@artil/channels/contract";
 import { messageOf } from "@artil/errors";
 import { hour, second } from "@artil/utils/time";
 
-import { createChannels } from "../domains/channels/create";
 import { createReceivers } from "../domains/channels/receivers";
+import type { ChannelKind } from "../domains/channels/schema";
 import { createPasswordCheck } from "../domains/sign-in/password";
 import type { Config } from "../platform/config";
 import { openDatabase } from "../platform/db/connection";
@@ -26,13 +26,12 @@ type StartServerOptions = {
   // Opens the server to the internet in public mode.
   tailscale: Tailscale | undefined;
   // The channels the config loads, beside the Message URL.
-  channels: readonly ChannelDefinition[];
+  channels: ReadonlyMap<ChannelKind, Channel>;
   // Reads the hash of the sign-in page's password for each sign-in, so a new one counts at once.
   password: () => Promise<string | null>;
   log: (line: string) => void;
-  // Tests swap these for fakes.
+  // Tests swap it for a fake bucket.
   store?: FileStore | undefined;
-  fetch?: ChannelContext["fetch"];
 };
 
 // Starts the server: the database, the channels, the HTTP API on the local port, and Funnel in public
@@ -42,11 +41,10 @@ export async function startServer({
   databasePath,
   migrationsFolder,
   tailscale,
-  channels: definitions,
+  channels,
   password,
   log,
   store = config.s3 ? createS3Store(config.s3) : undefined,
-  fetch,
 }: StartServerOptions) {
   // What the server opens closes in reverse when it stops, or at once when starting it fails, so a
   // server that did not start lets go of its port.
@@ -77,18 +75,11 @@ export async function startServer({
 
   const baseUrl = publicUrl ?? `http://localhost:${port}`;
 
-  const channels = createChannels({
-    definitions,
-    publicUrl,
-    secret: config.secret,
-    log,
-    ...(fetch && { fetch }),
-  });
-
   const services = createServices({
     db: database.db,
     secret: config.secret,
     baseUrl,
+    publicUrl,
     store,
     channels,
     log,
@@ -109,6 +100,8 @@ export async function startServer({
     .map((channel) =>
       createReceivers({
         channel,
+        webhookUrl: services.channels.webhookUrlOf(channel.kind),
+        webhookSecret: services.channels.webhookSecretOf(channel.kind),
         addresses: services.addresses,
         receive: services.messages.receive,
         log,

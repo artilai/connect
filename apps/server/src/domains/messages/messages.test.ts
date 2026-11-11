@@ -199,7 +199,7 @@ test("answers a message the way it came", async () => {
   expect(server.testChannel.sent).toMatchObject([
     {
       message: { from: address, to: ["ada"], text: "All green", replyTo: "1" },
-      credentials: "codex",
+      token: "codex",
     },
   ]);
 });
@@ -393,7 +393,7 @@ test("takes what a channel's provider posts to its webhook, signed", async () =>
     });
   }
 
-  expect((await post("webhook-secret")).status).toBe(204);
+  expect((await post(server.services.channels.webhookSecretOf("test"))).status).toBe(204);
   expect(server.services.messages.list({ accountId: codex.id, filter: {} })).toHaveLength(1);
   expect((await post("forged")).status).toBe(401);
   expect((await server.call("/api/channels/url", { method: "POST" })).status).toBe(404);

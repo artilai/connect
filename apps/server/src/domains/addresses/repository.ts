@@ -9,7 +9,7 @@ type ConnectOptions = {
   accountId: string;
   channel: ChannelKind;
   value: string;
-  credentials: string;
+  token: string;
 };
 
 type FindByValueOptions = { channel: ChannelKind; value: string };
@@ -18,7 +18,7 @@ type FindByAccountOptions = { accountId: string; channel: ChannelKind };
 
 type FindOrAddOptions = { accountId: string; channel: ChannelKind; value: string };
 
-const connectedWhere = isNotNull(addresses.credentials);
+const connectedWhere = isNotNull(addresses.token);
 
 // Each lookup finds connected addresses only; a disconnected one stays only for its messages.
 export function createAddressesRepository(db: Database) {
@@ -59,7 +59,7 @@ export function createAddressesRepository(db: Database) {
     // Gives the account the address in place of its other one on the channel, which it lets go of;
     // a row the account held before comes back, and a new one keeps another account's messages
     // apart.
-    connect({ accountId, channel, value, credentials }: ConnectOptions) {
+    connect({ accountId, channel, value, token }: ConnectOptions) {
       return db.transaction((tx) => {
         const replaced = tx
           .select()
@@ -77,7 +77,7 @@ export function createAddressesRepository(db: Database) {
 
         if (replaced.length > 0) {
           tx.update(addresses)
-            .set({ credentials: null })
+            .set({ token: null })
             .where(
               inArray(
                 addresses.id,
@@ -94,15 +94,15 @@ export function createAddressesRepository(db: Database) {
         );
 
         const address =
-          tx.update(addresses).set({ credentials }).where(accountAddressWhere).returning().get() ??
-          tx.insert(addresses).values({ accountId, channel, value, credentials }).returning().get();
+          tx.update(addresses).set({ token }).where(accountAddressWhere).returning().get() ??
+          tx.insert(addresses).values({ accountId, channel, value, token }).returning().get();
 
         return { address, replaced };
       });
     },
 
-    // An address the server gives the account by itself, like its Message URL, which takes no
-    // credentials and is there only for its messages; the first message adds it.
+    // An address the server gives the account by itself, like its Message URL, which takes no token
+    // and is there only for its messages; the first message adds it.
     findOrAdd: ({ accountId, channel, value }: FindOrAddOptions) =>
       db
         .select()
@@ -116,13 +116,13 @@ export function createAddressesRepository(db: Database) {
         )
         .get() ?? db.insert(addresses).values({ accountId, channel, value }).returning().get(),
 
-    // Keeps the address and its messages, without the credentials that let it send.
+    // Keeps the address and its messages, without the token that lets it send.
     disconnect(options: FindByAccountOptions) {
       const address = findByAccount(options);
 
       if (!address) return undefined;
 
-      db.update(addresses).set({ credentials: null }).where(eq(addresses.id, address.id)).run();
+      db.update(addresses).set({ token: null }).where(eq(addresses.id, address.id)).run();
 
       return address;
     },

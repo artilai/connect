@@ -1,3 +1,5 @@
+import { createHmac } from "node:crypto";
+
 import type { Channel, OutboundFile } from "@artil/channels/contract";
 import { AppError } from "@artil/errors";
 import { formatBytes } from "@artil/utils/text";
@@ -59,12 +61,30 @@ export function checkLimits({ channel, text, files }: CheckLimitsOptions) {
   }
 }
 
+type CreateChannelsServiceOptions = {
+  channels: ReadonlyMap<ChannelKind, Channel>;
+  // The server's address on the internet, where providers post; none in local mode.
+  publicUrl: string | undefined;
+  secret: string;
+};
+
 // The server's channels, which the rest of the server reaches by their kind.
-export function createChannelsService(channels: ReadonlyMap<ChannelKind, Channel>) {
+export function createChannelsService({
+  channels,
+  publicUrl,
+  secret,
+}: CreateChannelsServiceOptions) {
   return {
     list: () => [...channels.values()],
 
     find: (kind: ChannelKind) => channels.get(kind),
+
+    // Where the channel's provider posts to the server; none on a computer nothing can reach.
+    webhookUrlOf: (kind: ChannelKind) => publicUrl && `${publicUrl}/api/channels/${kind}`,
+
+    // Each channel signs with a secret of its own, so none can make what another accepts.
+    webhookSecretOf: (kind: ChannelKind) =>
+      createHmac("sha256", secret).update(`channel:${kind}`).digest("base64url"),
 
     // A channel a person names by its kind, as the commands take one.
     get(kind: ChannelKind) {

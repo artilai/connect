@@ -1,12 +1,13 @@
-import { expect, test } from "bun:test";
+import { expect, setSystemTime, test } from "bun:test";
 
 import { Channel, type StartOptions } from "@artil/channels/contract";
+import { minute, second } from "@artil/utils/time";
 
 import { createTestServer } from "../../app/testing";
 import { createReceivers } from "./receivers";
 
 // A channel whose provider is down the first time it starts.
-class FlakyChannel extends Channel<"test"> {
+class FlakyChannel extends Channel {
   readonly kind = "test";
 
   readonly name = "Flaky";
@@ -50,6 +51,8 @@ test("starts a channel again on an address after its start fails", async () => {
 
   const receivers = createReceivers({
     channel,
+    webhookUrl: undefined,
+    webhookSecret: "secret",
     addresses: server.services.addresses,
     receive: async (options) => {
       await server.services.messages.receive(options);
@@ -68,4 +71,64 @@ test("starts a channel again on an address after its start fails", async () => {
   expect(server.services.messages.list({ accountId: codex.id, filter: {} })).toMatchObject([
     { text: "Hi" },
   ]);
+});
+
+// A channel that fails three times, the third after it ran for a while, and then stays up.
+class FailingChannel extends Channel {
+  readonly kind = "test";
+
+  readonly name = "Failing";
+
+  readonly labels = { contact: "name" };
+
+  readonly #started = Promise.withResolvers<void>();
+
+  readonly up = this.#started.promise;
+
+  starts = 0;
+
+  override async start() {
+    this.starts += 1;
+
+    if (this.starts === 3) setSystemTime(new Date(Date.now() + 2 * minute));
+
+    if (this.starts <= 3) throw new Error("The provider is down");
+
+    this.#started.resolve();
+  }
+
+  async send() {
+    return { id: "1" };
+  }
+}
+
+test("waits longer after each failed start, and from the first wait after one that ran a while", async () => {
+  const server = await createTestServer();
+  const codex = server.account("Codex");
+  const channel = new FailingChannel();
+  const waits: number[] = [];
+
+  await server.connectAddress({ account: codex, word: "codex" });
+
+  const receivers = createReceivers({
+    channel,
+    webhookUrl: undefined,
+    webhookSecret: "secret",
+    addresses: server.services.addresses,
+    receive: server.services.messages.receive,
+    log: () => {},
+    sleep: async (milliseconds) => {
+      waits.push(milliseconds);
+    },
+  });
+
+  try {
+    receivers.sync();
+    await channel.up;
+  } finally {
+    receivers.stop();
+    setSystemTime();
+  }
+
+  expect(waits).toEqual([second, 2 * second, second]);
 });

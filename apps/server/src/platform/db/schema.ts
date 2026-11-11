@@ -87,13 +87,14 @@ export const addresses = sqliteTable(
       .references(() => accounts.id, { onDelete: "cascade" }),
     channel: text("channel").notNull(),
     value: text("value").notNull(),
-    credentials: encryptedText("addresses", "credentials"),
+    // The column keeps its old name, which the key that encrypts it is made from.
+    token: encryptedText("addresses", "credentials"),
     createdAt: createdAt(),
   },
   (table) => [
     uniqueIndex("addresses_channel_value_idx")
       .on(table.channel, table.value)
-      .where(sql`${table.credentials} is not null`),
+      .where(sql`${table.token} is not null`),
     index("addresses_account_id_idx").on(table.accountId),
   ],
 );
