@@ -52,13 +52,11 @@ export function createReceivers({
   // again, so a channel that gives up on an error comes back; one that returns is done, like a
   // channel whose provider posts to the webhook from then on.
   async function run({ value, token }: ConnectedAddress, signal: AbortSignal) {
-    function report(cause: unknown) {
-      log(`${value} on ${channel.kind}: ${messageOf(cause, String(cause))}`);
-    }
-
     let retryDelay = firstRetryDelay;
 
     while (!signal.aborted) {
+      const startedAt = Date.now();
+
       try {
         await channel.start({
           token,
@@ -72,7 +70,11 @@ export function createReceivers({
       } catch (cause) {
         if (signal.aborted) return;
 
-        report(cause);
+        log(`${value} on ${channel.kind}: ${messageOf(cause, String(cause))}`);
+
+        // A start that ran a while before it failed was well, so the waits begin again.
+        if (Date.now() - startedAt > longestRetryDelay) retryDelay = firstRetryDelay;
+
         await sleep(retryDelay, signal);
         retryDelay = Math.min(retryDelay * 2, longestRetryDelay);
       }
