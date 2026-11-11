@@ -13,7 +13,7 @@ import {
   text,
 } from "@clack/prompts";
 
-import type { Channel, ChannelDefinition } from "@artil/channels/contract";
+import type { Channel } from "@artil/channels/contract";
 import { messageOf } from "@artil/errors";
 import { shellQuoted } from "@artil/utils/shell";
 
@@ -85,8 +85,8 @@ async function createAccounts(context: CommandContext) {
 
 type SetUpChannelOptions = { context: CommandContext; channel: Channel };
 
-// Offers an address of a channel that takes credentials to each account without one, in turn, and
-// lets someone wake the agent there.
+// Offers an address of a channel that takes a token to each account without one, in turn, and lets
+// someone wake the agent there.
 async function setUpChannel({ context, channel }: SetUpChannelOptions) {
   function accountsWithout() {
     return context.accounts
@@ -120,7 +120,7 @@ async function setUpChannel({ context, channel }: SetUpChannelOptions) {
 
     if (!account) return;
 
-    const credentials = requireAnswer(
+    const token = requireAnswer(
       await password({
         message: `${channel.name} ${channel.labels.token ?? "token"}`,
         validate: validateNotEmpty,
@@ -135,7 +135,7 @@ async function setUpChannel({ context, channel }: SetUpChannelOptions) {
       const { address } = await context.addresses.connect({
         accountId: account.id,
         kind: channel.kind,
-        credentials: credentials.trim(),
+        token: token.trim(),
       });
 
       progressSpinner.stop(`${address.value} now reaches ${account.name} on ${channel.name}`);
@@ -343,7 +343,7 @@ async function installArtilCli(artil: ArtilCli) {
 type RunSetupOptions = {
   paths: Paths;
   config: Config | undefined;
-  builtInChannels: readonly ChannelDefinition[];
+  builtInChannels: readonly Channel[];
   artil: ArtilCli;
   migrationsFolder: string;
   tailscale: Tailscale | undefined;

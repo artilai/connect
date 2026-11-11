@@ -5,9 +5,9 @@ or by asking for updates, and sends them back.
 
 ## Usage
 
-| Import                    | What it gives                                                 |
-| ------------------------- | ------------------------------------------------------------- |
-| `@artil/telegram-channel` | `channel`, the definition the server creates the channel from |
+| Import                    | What it gives                           |
+| ------------------------- | --------------------------------------- |
+| `@artil/telegram-channel` | `channel`, the channel the server loads |
 
 A bot connects with its token: open @BotFather in Telegram, send `/newbot` to
 make a bot or `/mybots` to pick one you have, tap API Token and copy it. People

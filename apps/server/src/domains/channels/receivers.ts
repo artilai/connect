@@ -23,6 +23,9 @@ const longestRetryDelay = minute;
 
 type CreateReceiversOptions = {
   channel: Channel;
+  // Where the channel's provider posts, which a channel on a server nothing can reach goes without.
+  webhookUrl: string | undefined;
+  webhookSecret: string;
   addresses: AddressesService;
   receive: Receive;
   log: (line: string) => void;
@@ -30,12 +33,14 @@ type CreateReceiversOptions = {
   sleep?: (milliseconds: number, signal: AbortSignal) => Promise<void>;
 };
 
-type RunningReceiver = { credentials: string; controller: AbortController };
+type RunningReceiver = { token: string; controller: AbortController };
 
 // Starts the channel on each address connected to it, as the addresses the database holds change;
 // the channel chooses how their messages come.
 export function createReceivers({
   channel,
+  webhookUrl,
+  webhookSecret,
   addresses,
   receive,
   log,
@@ -46,7 +51,7 @@ export function createReceivers({
   // Keeps the channel started on the address until the signal aborts. A start that fails is tried
   // again, so a channel that gives up on an error comes back; one that returns is done, like a
   // channel whose provider posts to the webhook from then on.
-  async function run({ value, credentials }: ConnectedAddress, signal: AbortSignal) {
+  async function run({ value, token }: ConnectedAddress, signal: AbortSignal) {
     function report(cause: unknown) {
       log(`${value} on ${channel.kind}: ${messageOf(cause, String(cause))}`);
     }
@@ -56,10 +61,11 @@ export function createReceivers({
     while (!signal.aborted) {
       try {
         await channel.start({
-          credentials,
+          token,
+          ...(webhookUrl && { webhookUrl }),
+          webhookSecret,
           signal,
           receive: (events) => receiveEvents({ receive, channel: channel.kind, events }),
-          onError: report,
         });
 
         return;
@@ -76,7 +82,7 @@ export function createReceivers({
   function startReceiver(address: ConnectedAddress) {
     const controller = new AbortController();
 
-    runningReceivers.set(address.id, { credentials: address.credentials, controller });
+    runningReceivers.set(address.id, { token: address.token, controller });
     void run(address, controller.signal);
   }
 
@@ -84,9 +90,9 @@ export function createReceivers({
     sync() {
       const connectedAddresses = addresses.listConnected(channel.kind);
 
-      for (const [id, { credentials, controller }] of runningReceivers) {
+      for (const [id, { token, controller }] of runningReceivers) {
         const stillConnected = connectedAddresses.some(
-          (address) => address.id === id && address.credentials === credentials,
+          (address) => address.id === id && address.token === token,
         );
 
         if (!stillConnected) {

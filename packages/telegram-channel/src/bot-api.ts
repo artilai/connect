@@ -2,9 +2,9 @@ import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 
 import { z } from "zod";
 
-import type { ChannelContext, InboundFile, OutboundFile } from "@artil/channels/contract";
+import type { InboundFile, OutboundFile } from "@artil/channels/contract";
 import { AppError } from "@artil/errors";
-import { abortableSleep, minute, second } from "@artil/utils/time";
+import { minute, second } from "@artil/utils/time";
 
 import type {
   InboundTelegram,
@@ -25,10 +25,6 @@ const fileTimeout = minute;
 const pollSeconds = 50;
 
 const pollTimeout = (pollSeconds + 10) * second;
-
-const firstRetryDelay = second;
-
-const longestRetryDelay = minute;
 
 // The longest caption a file carries; a longer text goes as a message of its own.
 const maxCaption = 1024;
@@ -133,16 +129,9 @@ type CallOptions<T> = {
   signal?: AbortSignal;
 };
 
-// Where Telegram posts a bot's updates when the server has a public address, under a secret
-// only the server can derive for each bot.
-type WebhookOptions = { url: string; secret: string };
-
 type Options = {
-  // Without a webhook, the server asks Telegram for each bot's updates instead.
-  webhook?: WebhookOptions | undefined;
-  fetch?: ChannelContext["fetch"];
-  // Waits between failed requests to Telegram; tests make it instant.
-  sleep?: (milliseconds: number, signal: AbortSignal) => Promise<void>;
+  // Tests swap it for a fake Telegram.
+  fetch?: (url: string, init: RequestInit) => Promise<Response>;
 };
 
 class TelegramError extends Error {
@@ -155,9 +144,7 @@ class TelegramError extends Error {
 }
 
 export function createBotApi({
-  webhook,
   fetch = (url, init) => globalThis.fetch(url, init),
-  sleep = abortableSleep,
 }: Options = {}): TelegramProvider {
   // The albums in groups that tagged a bot, until when the rest of their files come along.
   const taggedAlbums = new Map<string, number>();
@@ -229,10 +216,16 @@ export function createBotApi({
     }
   }
 
-  type PointOptions = { token: string; username: string; at: WebhookOptions };
+  // Where Telegram posts a bot's updates, under a secret only the server can derive for each bot.
+  type PointOptions = {
+    token: string;
+    username: string;
+    webhookUrl: string;
+    webhookSecret: string;
+  };
 
-  async function pointAtServer({ token, username, at }: PointOptions) {
-    const url = new URL(at.url);
+  async function pointAtServer({ token, username, webhookUrl, webhookSecret }: PointOptions) {
+    const url = new URL(webhookUrl);
     url.searchParams.set("bot", username);
 
     await call({
@@ -241,7 +234,7 @@ export function createBotApi({
       schema: z.literal(true),
       body: {
         url: url.href,
-        secret_token: secretFor(at.secret, username),
+        secret_token: secretFor(webhookSecret, username),
         allowed_updates: ["message"],
       },
     });
@@ -401,69 +394,50 @@ export function createBotApi({
     return [{ type: "received", message: toInbound({ bot, message, from, inGroup, files }) }];
   }
 
-  function verify(request: Request) {
+  type VerifyOptions = { request: Request; webhookSecret: string };
+
+  function verify({ request, webhookSecret }: VerifyOptions) {
     const bot = new URL(request.url).searchParams.get("bot");
     const secret = request.headers.get(secretHeader);
 
-    if (!webhook || !bot || !secret || !sameSecret(secret, secretFor(webhook.secret, bot))) {
+    if (!bot || !secret || !sameSecret(secret, secretFor(webhookSecret, bot))) {
       throw new AppError({ code: "unauthorized", message: "Invalid webhook secret" });
     }
 
     return bot;
   }
 
-  // Keeps the bot's updates coming, trying again after each failure until the signal aborts. With
-  // a webhook, Telegram posts them once it takes the webhook; without one, the server asks for them.
-  async function start({ token, signal, onEvents, onError }: TelegramUpdates) {
+  // Keeps the bot's updates coming until the signal aborts. With a webhook, Telegram posts them once
+  // it takes the webhook; without one, the server asks for them. A failure ends it, and the server
+  // starts it again.
+  async function start({ token, webhookUrl, webhookSecret, signal, onEvents }: TelegramUpdates) {
+    const { username } = await findBot(token);
+
+    if (webhookUrl) return pointAtServer({ token, username, webhookUrl, webhookSecret });
+
+    // A bot hands its updates out only while no webhook takes them.
+    await stopWebhook(token);
+
     let offset = 0;
-    let retryDelay = firstRetryDelay;
-    // The bot's username, once Telegram hands its updates out.
-    let polledBot: string | undefined;
 
     while (!signal.aborted) {
-      try {
-        if (!polledBot) {
-          const { username } = await findBot(token);
+      const updates = await call({
+        token,
+        method: "getUpdates",
+        schema: updatesSchema,
+        body: { offset, timeout: pollSeconds, allowed_updates: ["message"] },
+        signal,
+      });
 
-          if (webhook) {
-            await pointAtServer({ token, username, at: webhook });
+      const events = await Promise.all(
+        updates.map(({ message }) => read({ bot: username, message, token })),
+      );
 
-            return;
-          }
+      await onEvents(events.flat());
 
-          // A bot hands its updates out only while no webhook takes them.
-          await stopWebhook(token);
-          polledBot = username;
-        }
+      const last = updates.at(-1);
 
-        const updates = await call({
-          token,
-          method: "getUpdates",
-          schema: updatesSchema,
-          body: { offset, timeout: pollSeconds, allowed_updates: ["message"] },
-          signal,
-        });
-
-        const bot = polledBot;
-
-        const events = await Promise.all(
-          updates.map(({ message }) => read({ bot, message, token })),
-        );
-
-        await onEvents(events.flat());
-
-        const last = updates.at(-1);
-
-        if (last) offset = last.update_id + 1;
-
-        retryDelay = firstRetryDelay;
-      } catch (cause) {
-        if (signal.aborted) return;
-
-        onError(cause);
-        await sleep(retryDelay, signal);
-        retryDelay = Math.min(retryDelay * 2, longestRetryDelay);
-      }
+      if (last) offset = last.update_id + 1;
     }
   }
 
@@ -474,8 +448,8 @@ export function createBotApi({
       await stopWebhook(token);
     },
 
-    verifyEvents: async (request, tokenOf) => {
-      const bot = verify(request);
+    verifyEvents: async ({ request, webhookSecret, tokenOf }) => {
+      const bot = verify({ request, webhookSecret });
       const update = updateSchema.safeParse(await request.json().catch(() => null));
 
       if (!update.success) {

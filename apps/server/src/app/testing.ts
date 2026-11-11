@@ -4,7 +4,6 @@ import { z } from "zod";
 
 import {
   Channel,
-  type ChannelDefinition,
   type ChannelEvent,
   contractVersion,
   type HandleWebhookOptions,
@@ -50,9 +49,9 @@ export const testWebhookHeader = "x-test-secret";
 
 // A channel of the contract that tests drive in place of a provider, so the server is tested
 // through the contract alone. An address is a word with an @ before it, which the server starts
-// on to hand over what a test queued for it; a webhook takes a message posted with the secret,
-// and the channel keeps what the server sends.
-class TestChannel extends Channel<"test"> {
+// on to hand over what a test queued for it; a webhook takes a message posted with the channel's
+// webhook secret, and the channel keeps what the server sends.
+class TestChannel extends Channel {
   readonly kind = "test";
 
   readonly name = "Test";
@@ -70,22 +69,15 @@ class TestChannel extends Channel<"test"> {
   // What the server started on, which a test waits for.
   readonly started: Promise<void>[] = [];
 
-  readonly #secret: string;
-
   readonly #queued = new Map<string, ChannelEvent[]>();
-
-  constructor(secret: string) {
-    super();
-    this.#secret = secret;
-  }
 
   // Queues a message for the address the word names, which comes when the server starts on it.
   queue(word: string, inbound: TestInbound) {
     this.#queued.set(word, [...(this.#queued.get(word) ?? []), toTestEvent(inbound)]);
   }
 
-  override async connect(credentials: string) {
-    return { address: `@${credentials}`, credentials };
+  override async connect(token: string) {
+    return `@${token}`;
   }
 
   override parseSender(input: string) {
@@ -100,10 +92,10 @@ class TestChannel extends Channel<"test"> {
     return !recipient.startsWith("@");
   }
 
-  override start({ credentials, receive }: StartOptions) {
-    const events = this.#queued.get(credentials) ?? [];
+  override start({ token, receive }: StartOptions) {
+    const events = this.#queued.get(token) ?? [];
 
-    this.#queued.delete(credentials);
+    this.#queued.delete(token);
 
     const handedOver = receive(events);
 
@@ -112,8 +104,8 @@ class TestChannel extends Channel<"test"> {
     return handedOver;
   }
 
-  override async handleWebhook(request: Request, { receive }: HandleWebhookOptions) {
-    if (request.headers.get(testWebhookHeader) !== this.#secret) {
+  override async handleWebhook(request: Request, { webhookSecret, receive }: HandleWebhookOptions) {
+    if (request.headers.get(testWebhookHeader) !== webhookSecret) {
       throw new AppError({ code: "unauthorized", message: "Invalid webhook secret" });
     }
 
@@ -160,8 +152,8 @@ class EchoChannel extends Channel {
   name = "Echo";
   labels = { contact: "name" };
 
-  async connect(credentials) {
-    return { address: "echo:" + credentials, credentials };
+  async connect(token) {
+    return "echo:" + token;
   }
 
   async send() {
@@ -169,15 +161,14 @@ class EchoChannel extends Channel {
   }
 }
 
-export const channel = { kind: ${JSON.stringify(kind)}, create: () => new EchoChannel() };
+export const channel = new EchoChannel();
 `;
 }
 
-// The test channel as a config loads one, for tests of the commands.
-export const testChannelDefinition = {
-  kind: "test",
-  create: ({ secret }) => new TestChannel(secret),
-} satisfies ChannelDefinition<"test">;
+// The test channel as the server comes with one, for tests of the commands.
+export function createTestChannel() {
+  return new TestChannel();
+}
 
 // A port nothing listens on now, for a test that starts the server on a port of its own.
 export async function findFreePort() {
@@ -208,7 +199,7 @@ export async function createTestServer({
   files = true,
 }: CreateTestServerOptions = {}) {
   const database = openDatabase({ path: ":memory:", migrationsFolder, secret });
-  const testChannel = new TestChannel("webhook-secret");
+  const testChannel = new TestChannel();
   const memory = createMemoryStore();
   const baseUrl = publicUrl ?? origin;
   const hashed = password ? await hashPassword(password) : null;
@@ -221,6 +212,7 @@ export async function createTestServer({
     db: database.db,
     secret,
     baseUrl,
+    publicUrl,
     store: files ? memory.store : undefined,
     channels,
     log: (line) => logs.push(line),
@@ -272,7 +264,7 @@ export async function createTestServer({
     const { address } = await services.addresses.connect({
       accountId: owner.id,
       kind: "test",
-      credentials: word,
+      token: word,
     });
 
     return address.value;
@@ -283,6 +275,8 @@ export async function createTestServer({
   async function deliverQueued() {
     const receivers = createReceivers({
       channel: testChannel,
+      webhookUrl: services.channels.webhookUrlOf("test"),
+      webhookSecret: services.channels.webhookSecretOf("test"),
       addresses: services.addresses,
       receive: services.messages.receive,
       log: () => {},

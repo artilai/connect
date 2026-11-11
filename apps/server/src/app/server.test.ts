@@ -2,6 +2,7 @@ import { expect, test } from "bun:test";
 import { fileURLToPath } from "node:url";
 
 import { newConfig } from "../platform/config";
+import { createTailscale } from "../platform/tailscale";
 import { startServer } from "./server";
 import { findFreePort } from "./testing";
 
@@ -11,24 +12,19 @@ test("lets go of its port when it fails to start", async () => {
   const port = await findFreePort();
 
   const start = startServer({
-    config: { ...newConfig({ channels: [] }), port },
+    // Public mode fails once the server has taken its port, on a computer Tailscale is not on.
+    config: { ...newConfig({ channels: [] }), port, public: true },
     databasePath: ":memory:",
     migrationsFolder,
-    tailscale: undefined,
-    // A channel of someone's own that fails once the server has taken its port.
-    channels: [
-      {
-        kind: "broken",
-        create: () => {
-          throw new Error("The broken channel does not start");
-        },
-      },
-    ],
+    tailscale: createTailscale({
+      run: async () => ({ code: 1, stdout: "", stderr: "not running" }),
+    }),
+    channels: new Map(),
     password: async () => null,
     log: () => {},
   });
 
-  await expect(start).rejects.toThrow("The broken channel does not start");
+  await expect(start).rejects.toThrow("Tailscale could not tell its status: not running");
 
   const nextServer = Bun.serve({ hostname: "127.0.0.1", port, fetch: () => new Response() });
 

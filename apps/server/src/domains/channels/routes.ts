@@ -24,8 +24,8 @@ export function createChannelRoutes({ channels, addresses, receive }: CreateChan
     }
 
     return channel.handleWebhook(c.req.raw, {
-      credentialsOf: async (value) =>
-        addresses.findByValue({ channel: kind, value })?.credentials ?? null,
+      webhookSecret: channels.webhookSecretOf(kind),
+      tokenOf: async (value) => addresses.findByValue({ channel: kind, value })?.token ?? null,
       receive: (events) => receiveEvents({ receive, channel: kind, events }),
     });
   });

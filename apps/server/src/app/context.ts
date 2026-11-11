@@ -1,6 +1,5 @@
-import type { ChannelDefinition } from "@artil/channels/contract";
+import type { Channel } from "@artil/channels/contract";
 
-import { createChannels } from "../domains/channels/create";
 import { loadChannels } from "../domains/channels/load";
 import type { Config, Paths } from "../platform/config";
 import { openDatabase } from "../platform/db/connection";
@@ -11,7 +10,7 @@ import { createServices } from "./services";
 type OpenCommandContextOptions = {
   paths: Paths;
   config: Config;
-  builtInChannels: readonly ChannelDefinition[];
+  builtInChannels: readonly Channel[];
   migrationsFolder: string;
   tailscale: Tailscale | undefined;
   out: (line: string) => void;
@@ -29,16 +28,10 @@ export async function openCommandContext({
 }: OpenCommandContextOptions) {
   const database = openDatabase({ path: paths.database, migrationsFolder, secret: config.secret });
 
-  // A command connects addresses; the running server starts them.
-  const channels = createChannels({
-    definitions: await loadChannels({
-      specifiers: config.channels,
-      dataDir: paths.dataDir,
-      builtInChannels,
-    }),
-    publicUrl: undefined,
-    secret: config.secret,
-    log: out,
+  const channels = await loadChannels({
+    specifiers: config.channels,
+    dataDir: paths.dataDir,
+    builtInChannels,
   });
 
   const localUrl = `http://localhost:${config.port}`;
@@ -47,6 +40,8 @@ export async function openCommandContext({
     db: database.db,
     secret: config.secret,
     baseUrl: localUrl,
+    // A command connects addresses; the running server starts them, where providers post.
+    publicUrl: undefined,
     // Removing an account removes its files from the bucket.
     store: config.s3 ? createS3Store(config.s3) : undefined,
     channels,

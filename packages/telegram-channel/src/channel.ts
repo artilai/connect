@@ -1,7 +1,6 @@
 import {
   Channel,
   type ChannelEvent,
-  type ConnectedAddress,
   type HandleWebhookOptions,
   type SendOptions,
   type StartOptions,
@@ -13,7 +12,7 @@ import type { InboundTelegram, TelegramProvider, TelegramQuote } from "./provide
 
 // Telegram through a provider, the Bot API in the server: a bot is an address, and a chat with it,
 // private or in a group, is whom a message goes to.
-export class TelegramChannel extends Channel<"telegram"> {
+export class TelegramChannel extends Channel {
   readonly kind = "telegram";
 
   readonly name = "Telegram";
@@ -34,26 +33,32 @@ export class TelegramChannel extends Channel<"telegram"> {
   }
 
   override async connect(token: string) {
-    return { address: atUsername(await this.#provider.connect(token)), credentials: token };
+    return atUsername(await this.#provider.connect(token));
   }
 
-  override async disconnect({ credentials }: ConnectedAddress) {
-    await this.#provider.disconnect(credentials);
+  override async disconnect(token: string) {
+    await this.#provider.disconnect(token);
   }
 
-  override start({ credentials, signal, receive, onError }: StartOptions) {
+  override start({ token, webhookUrl, webhookSecret, signal, receive }: StartOptions) {
     return this.#provider.start({
-      token: credentials,
+      token,
+      ...(webhookUrl && { webhookUrl }),
+      webhookSecret,
       signal,
       onEvents: (events) => receive(events.map(({ message }) => received(message))),
-      onError,
     });
   }
 
-  override async handleWebhook(request: Request, { credentialsOf, receive }: HandleWebhookOptions) {
-    const events = await this.#provider.verifyEvents(request, (bot) =>
-      credentialsOf(atUsername(bot)),
-    );
+  override async handleWebhook(
+    request: Request,
+    { webhookSecret, tokenOf, receive }: HandleWebhookOptions,
+  ) {
+    const events = await this.#provider.verifyEvents({
+      request,
+      webhookSecret,
+      tokenOf: (bot) => tokenOf(atUsername(bot)),
+    });
 
     await receive(events.map(({ message }) => received(message)));
 
@@ -84,11 +89,11 @@ export class TelegramChannel extends Channel<"telegram"> {
     return !chat.startsWith("@");
   }
 
-  send({ message: { to, text, files, replyTo }, credentials }: SendOptions) {
-    if (!credentials) throw new Error("A Telegram bot sends with its token");
+  send({ message: { to, text, files, replyTo }, token }: SendOptions) {
+    if (!token) throw new Error("A Telegram bot sends with its token");
 
     return this.#provider.send({
-      token: credentials,
+      token,
       chat: onlyChat(to),
       text,
       files,

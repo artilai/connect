@@ -3,11 +3,10 @@ import { mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { channelModule, testChannelDefinition } from "../../app/testing";
-import { createChannels } from "./create";
+import { channelModule, createTestChannel } from "../../app/testing";
 import { loadChannels } from "./load";
 
-const builtInChannels = [testChannelDefinition];
+const builtInChannels = [createTestChannel()];
 
 async function dataFolder(files: Record<string, string> = {}) {
   const dataDir = await mkdtemp(join(tmpdir(), "artil-server-channels-"));
@@ -20,13 +19,13 @@ async function dataFolder(files: Record<string, string> = {}) {
 test("loads a built-in channel by its kind, and one of someone's own by its path", async () => {
   const dataDir = await dataFolder({ "echo-channel.ts": channelModule("echo") });
 
-  const definitions = await loadChannels({
+  const channels = await loadChannels({
     specifiers: ["test", "./echo-channel.ts"],
     dataDir,
     builtInChannels,
   });
 
-  expect(definitions.map(({ kind }) => kind)).toEqual(["test", "echo"]);
+  expect([...channels.keys()]).toEqual(["test", "echo"]);
 });
 
 test("says where it looked for a channel it cannot find", async () => {
@@ -42,7 +41,7 @@ test("refuses a module that defines no channel", async () => {
 
   await expect(
     loadChannels({ specifiers: ["./notes.ts"], dataDir, builtInChannels }),
-  ).rejects.toThrow("./notes.ts does not export a channel definition named channel");
+  ).rejects.toThrow("./notes.ts does not export a channel named channel");
 });
 
 test("takes one channel of each kind, and leaves url to the Message URL", async () => {
@@ -61,21 +60,16 @@ test("takes one channel of each kind, and leaves url to the Message URL", async 
 test("refuses a channel that does not extend Channel", async () => {
   const dataDir = await dataFolder({
     "plain-channel.ts": `export const channel = {
+  contractVersion: 1,
   kind: "plain",
-  create: () => ({ contractVersion: 1, kind: "plain", send: async () => ({ id: "1" }) }),
+  send: async () => ({ id: "1" }),
 };
 `,
   });
 
-  const definitions = await loadChannels({
-    specifiers: ["./plain-channel.ts"],
-    dataDir,
-    builtInChannels,
-  });
-
-  expect(() =>
-    createChannels({ definitions, publicUrl: undefined, secret: "s".repeat(32), log: () => {} }),
-  ).toThrow("The plain channel does not extend Channel from @artil/channels");
+  await expect(
+    loadChannels({ specifiers: ["./plain-channel.ts"], dataDir, builtInChannels }),
+  ).rejects.toThrow("The plain channel does not extend Channel from @artil/channels");
 });
 
 test("refuses a channel built for another version of the contract, saying which to update", async () => {
@@ -83,7 +77,7 @@ test("refuses a channel built for another version of the contract, saying which 
     {
       kind: "older",
       // A channel from before the contract had versions, which counts as version 0.
-      source: `export const channel = { kind: "older", create: () => ({ kind: "older" }) };\n`,
+      source: `export const channel = { kind: "older" };\n`,
       builtFor: 0,
       update: "update the older channel to one built for version 1",
     },
@@ -98,15 +92,9 @@ test("refuses a channel built for another version of the contract, saying which 
   for (const { kind, source, builtFor, update } of cases) {
     const dataDir = await dataFolder({ [`${kind}-channel.ts`]: source });
 
-    const definitions = await loadChannels({
-      specifiers: [`./${kind}-channel.ts`],
-      dataDir,
-      builtInChannels,
-    });
-
-    expect(() =>
-      createChannels({ definitions, publicUrl: undefined, secret: "s".repeat(32), log: () => {} }),
-    ).toThrow(
+    await expect(
+      loadChannels({ specifiers: [`./${kind}-channel.ts`], dataDir, builtInChannels }),
+    ).rejects.toThrow(
       `The ${kind} channel is built for version ${builtFor} of the channel contract, and this server takes version 1; ${update}`,
     );
   }

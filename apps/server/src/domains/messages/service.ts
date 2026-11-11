@@ -227,7 +227,7 @@ export function createMessagesService({
 
       const { id: externalId } = await channel.send({
         message,
-        credentials: address.credentials,
+        token: address.token,
       });
 
       messagesRepository.markSent(id, externalId);
