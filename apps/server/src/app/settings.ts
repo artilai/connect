@@ -11,7 +11,7 @@ export const settingFlags = ["public", "local", "port", "password"];
 type SettingsChange = {
   public: boolean;
   local: boolean;
-  port: string | undefined;
+  port?: string;
   password: boolean;
 };
 

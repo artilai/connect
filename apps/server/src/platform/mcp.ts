@@ -30,7 +30,7 @@ export const actingAccountField = {
     .describe("The id of the account to act as, from status; these tools act as one account"),
 };
 
-type ActingAccountOptions = { agent: string | undefined; signedInAccountId: string };
+type ActingAccountOptions = { agent?: string; signedInAccountId: string };
 
 export function actingAccountId({ agent, signedInAccountId }: ActingAccountOptions) {
   if ((agent ?? signedInAccountId) !== signedInAccountId) {

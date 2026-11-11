@@ -21,11 +21,11 @@ type AccessCommandsOptions = {
 type Account = { id: string; name: string };
 
 // Whom a command lets wake the account's agent or keeps out, on the channel --channel names.
-type WhoOptions = { name: string; who: string; kind: ChannelKind | undefined };
+type WhoOptions = { name: string; who: string; kind?: ChannelKind };
 
 type ReadChannelOptions = {
   account: Account;
-  kind: ChannelKind | undefined;
+  kind?: ChannelKind;
   addresses: AddressesService;
   channels: ChannelsService;
 };

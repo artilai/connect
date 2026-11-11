@@ -130,7 +130,7 @@ function toTestEvent({ files = [], ...inbound }: TestInbound): ChannelEvent {
       id,
       to,
       from: { address: from, name: null, username, verified: true },
-      ...(group && { group }),
+      group,
       text,
       files,
     },

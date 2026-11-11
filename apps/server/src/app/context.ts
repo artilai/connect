@@ -12,7 +12,7 @@ type OpenCommandContextOptions = {
   config: Config;
   builtInChannels: readonly Channel[];
   migrationsFolder: string;
-  tailscale: Tailscale | undefined;
+  tailscale?: Tailscale;
   out: (line: string) => void;
 };
 
@@ -40,8 +40,6 @@ export async function openCommandContext({
     db: database.db,
     secret: config.secret,
     baseUrl: localUrl,
-    // A command connects addresses; the running server starts them, where providers post.
-    publicUrl: undefined,
     // Removing an account removes its files from the bucket.
     store: config.s3 ? createS3Store(config.s3) : undefined,
     channels,

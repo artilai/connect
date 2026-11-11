@@ -12,7 +12,7 @@ type CreateFileLinksOptions = { secret: string; apiUrl: string; now?: () => numb
 type LinkOptions = {
   fileId: string;
   // A file the server keeps only for a while can have a link that works as long as it is there.
-  until?: number | undefined;
+  until?: number;
 };
 
 // Signs links to files so that whoever holds one can download the file until it expires, with

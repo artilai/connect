@@ -64,7 +64,7 @@ export function checkLimits({ channel, text, files }: CheckLimitsOptions) {
 type CreateChannelsServiceOptions = {
   channels: ReadonlyMap<ChannelKind, Channel>;
   // The server's address on the internet, where providers post; none in local mode.
-  publicUrl: string | undefined;
+  publicUrl?: string;
   secret: string;
 };
 

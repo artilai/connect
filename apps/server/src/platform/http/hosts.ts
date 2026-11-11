@@ -6,7 +6,7 @@ const loopbackNames = new Set(["localhost", "127.0.0.1", "[::1]"]);
 
 type CreateHostsOptions = {
   // The https address Tailscale Funnel gives the server in public mode.
-  publicUrl: string | undefined;
+  publicUrl?: string;
 };
 
 // The server answers only at its own addresses, so a site whose name a browser resolves to this

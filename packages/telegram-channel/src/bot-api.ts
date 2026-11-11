@@ -248,7 +248,7 @@ export function createBotApi({
     token: string;
     chat: string;
     text: string;
-    reply: ReplyParameters | undefined;
+    reply?: ReplyParameters;
   };
 
   function sendMessage({ token, chat, text, reply }: SendOptions) {
@@ -259,7 +259,7 @@ export function createBotApi({
       body: {
         chat_id: /^-?\d+$/v.test(chat) ? Number(chat) : chat,
         text,
-        ...(reply && { reply_parameters: reply }),
+        reply_parameters: reply,
       },
     });
   }
@@ -269,7 +269,7 @@ export function createBotApi({
     chat: string;
     files: OutboundFile[];
     caption: string | null;
-    reply: ReplyParameters | undefined;
+    reply?: ReplyParameters;
   };
 
   // Files go as documents, which keep their names and bytes: one alone, several as an album, with
@@ -376,7 +376,7 @@ export function createBotApi({
     );
   }
 
-  type ReadOptions = { bot: string; message: Message | undefined; token: string | null };
+  type ReadOptions = { bot: string; message?: Message; token: string | null };
 
   // A private chat with the bot reaches the account, and in a group what tags the bot or answers it.
   async function read({ bot, message, token }: ReadOptions): Promise<TelegramEvent[]> {
