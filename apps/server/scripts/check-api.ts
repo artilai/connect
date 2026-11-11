@@ -1,6 +1,7 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 
 import { $ } from "bun";
 import { z } from "zod";
@@ -50,8 +51,11 @@ try {
   await Bun.write(join(folder, "cloud.json"), JSON.stringify({ ...answered, paths: shared }));
   await Bun.write(join(folder, "server.json"), JSON.stringify(ours));
 
+  // What this server takes beyond the cloud on purpose, which no client of the cloud's API loses.
+  const ignored = fileURLToPath(new URL("check-api.ignore", import.meta.url));
+
   const result =
-    await $`oasdiff breaking ${join(folder, "cloud.json")} ${join(folder, "server.json")} --fail-on ERR`.nothrow();
+    await $`oasdiff breaking ${join(folder, "cloud.json")} ${join(folder, "server.json")} --fail-on ERR --err-ignore ${ignored}`.nothrow();
 
   if (result.exitCode !== 0) {
     console.error(

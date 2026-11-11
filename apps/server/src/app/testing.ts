@@ -57,6 +57,7 @@ class TestChannel extends Channel {
   readonly name = "Test";
 
   readonly labels = {
+    address: "word",
     contact: "name, @handle or -group",
     token: "word, which names the address @word",
   };
@@ -150,7 +151,7 @@ class EchoChannel extends Channel {
   contractVersion = ${builtFor};
   kind = ${JSON.stringify(kind)};
   name = "Echo";
-  labels = { contact: "name" };
+  labels = { address: "echo address", contact: "name" };
 
   async connect(token) {
     return "echo:" + token;

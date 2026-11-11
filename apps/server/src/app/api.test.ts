@@ -41,6 +41,59 @@ test("lists the team with each account's addresses and whether it listens", asyn
   ]);
 });
 
+test("lists the server's channels with the words and limits a client works with", async () => {
+  const server = await createTestServer();
+  const codex = server.account("Codex");
+
+  const channels = await (await codex.call(`/api/agents/${codex.id}/channels`)).json();
+
+  expect(channels).toEqual([
+    {
+      kind: "test",
+      name: "Test",
+      labels: {
+        address: "word",
+        contact: "name, @handle or -group",
+        token: "word, which names the address @word",
+      },
+      limits: { recipients: 1, text: 100, files: 2, fileSize: 10 },
+    },
+    {
+      kind: "url",
+      name: "Message URL",
+      labels: { address: "account id", contact: "account name or id" },
+      limits: { recipients: 1, text: 2000, files: 10 },
+    },
+  ]);
+});
+
+test("sends on a channel by any kind the server has, and says where the rest are", async () => {
+  const server = await createTestServer();
+  const codex = server.account("Codex");
+
+  await server.connectAddress({ account: codex, word: "codex" });
+
+  async function send(channel: string) {
+    const response = await codex.json(`/api/agents/${codex.id}/messages`, {
+      channel,
+      to: ["@ada"],
+      text: "Hi",
+    });
+
+    return { status: response.status, body: await response.json() };
+  }
+
+  expect(await send("test")).toMatchObject({ status: 201, body: { channel: "test" } });
+  expect(await send("email")).toMatchObject({
+    status: 403,
+    body: { error: { message: "Email is only in Artil Cloud (artil.ai)" } },
+  });
+  expect(await send("slack")).toMatchObject({
+    status: 400,
+    body: { error: { message: "This server has no slack channel" } },
+  });
+});
+
 test("keeps an account's own routes to its own token", async () => {
   const server = await createTestServer();
   const codex = server.account("Codex");

@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 import { admissions, type messages, refusals } from "../../platform/db/schema";
-import { apiChannelKinds, type ChannelKind, channelKindSchema } from "../channels/schema";
+import { channelKindSchema } from "../channels/schema";
 import {
   attachmentSchema,
   attachmentsSchema,
@@ -29,7 +29,12 @@ const maxText = 32_000;
 export const draftSchema = z.object({
   replyTo: z.uuid("replyTo must be a message id").optional(),
   forward: z.uuid("forward must be a message id").optional(),
-  channel: z.enum(apiChannelKinds).optional(),
+  channel: z
+    .string()
+    .trim()
+    .min(1)
+    .optional()
+    .describe("The channel to start a conversation on, by its kind, from listChannels"),
   to: z
     .array(z.string().trim().min(1).max(320))
     .min(1, "Give at least one recipient")
@@ -41,10 +46,7 @@ export const draftSchema = z.object({
   attachments: attachmentsSchema.optional(),
 });
 
-// What the API's requests take; MCP sends on any channel of the server.
-export type Draft = Omit<z.infer<typeof draftSchema>, "channel"> & {
-  channel?: ChannelKind;
-};
+export type Draft = z.infer<typeof draftSchema>;
 
 export const messageSchema = z
   .object({

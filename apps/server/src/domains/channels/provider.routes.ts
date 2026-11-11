@@ -7,14 +7,18 @@ import type { Receive } from "../messages/service";
 import { receiveEvents } from "./receivers";
 import type { ChannelsService } from "./service";
 
-type CreateChannelRoutesOptions = {
+type CreateProviderRoutesOptions = {
   channels: ChannelsService;
   addresses: AddressesService;
   receive: Receive;
 };
 
 // Where a channel's provider posts what reaches its addresses, at /api/channels/<kind>.
-export function createChannelRoutes({ channels, addresses, receive }: CreateChannelRoutesOptions) {
+export function createProviderRoutes({
+  channels,
+  addresses,
+  receive,
+}: CreateProviderRoutesOptions) {
   return new Hono().post("/:kind", (c) => {
     const kind = c.req.param("kind");
     const channel = channels.find(kind);

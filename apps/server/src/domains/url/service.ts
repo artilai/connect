@@ -50,7 +50,7 @@ export class UrlChannel extends Channel<UrlData> {
 
   readonly name = "Message URL";
 
-  readonly labels = { contact: "account name or id" };
+  readonly labels = { address: "account id", contact: "account name or id" };
 
   override readonly limits = { recipients: 1, text: maxUrlText, files: 10 };
 
