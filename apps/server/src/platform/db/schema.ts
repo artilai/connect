@@ -14,7 +14,7 @@ import { encryptedText } from "./encryption";
 // agent, and how one that did got in.
 export const admits = ["anyone", "team", "list"] as const;
 
-export const refusals = ["self", "spam", "sender", "outsider", "unverified"] as const;
+export const refusals = ["self", "sender", "outsider", "unverified"] as const;
 
 export const admissions = ["team", "listed", "anyone"] as const;
 

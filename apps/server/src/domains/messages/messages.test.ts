@@ -15,7 +15,7 @@ test("wakes the agent with a message from a sender on its list", async () => {
 
   const stream = await listen(codex);
 
-  server.testChannel.queue("codex", { id: "1", to: address, from: "ada", text: "Deploy it" });
+  server.testChannel.queue("codex", { id: "1", to: [address], from: "ada", text: "Deploy it" });
   await server.deliverQueued();
 
   const event = await stream.next();
@@ -46,7 +46,7 @@ test("lets a sender in by the handle the channel tells", async () => {
   const address = await server.connectAddress({ account: codex, word: "codex" });
 
   server.services.access.addSender({ accountId: codex.id, channel: "test", sender: "@ada" });
-  server.testChannel.queue("codex", { id: "1", to: address, from: "42", fromHandle: "@ada" });
+  server.testChannel.queue("codex", { id: "1", to: [address], from: "42", username: "@ada" });
   await server.deliverQueued();
 
   expect(server.services.messages.list({ accountId: codex.id, filter: {} })).toMatchObject([
@@ -59,7 +59,7 @@ test("keeps a stranger's message without waking the agent", async () => {
   const codex = server.account("Codex");
   const address = await server.connectAddress({ account: codex, word: "codex" });
 
-  server.testChannel.queue("codex", { id: "1", to: address, from: "stranger", text: "Hello?" });
+  server.testChannel.queue("codex", { id: "1", to: [address], from: "stranger", text: "Hello?" });
   await server.deliverQueued();
 
   const [message] = listedSchema.parse(
@@ -74,7 +74,7 @@ test("says in the log how to let a stranger in, the first time they write", asyn
   const server = await createTestServer();
   const codex = server.account("Codex");
   const address = await server.connectAddress({ account: codex, word: "codex" });
-  const fromAda = { to: address, from: "42", fromHandle: "@ada" };
+  const fromAda = { to: [address], from: "42", username: "@ada" };
 
   server.testChannel.queue("codex", { id: "1", ...fromAda, text: "Hello?" });
   server.testChannel.queue("codex", { id: "2", ...fromAda, text: "Still there?" });
@@ -92,10 +92,10 @@ test("says in the log how to let in someone in a group, or everyone in it, the f
   const server = await createTestServer();
   const codex = server.account("Codex");
   const address = await server.connectAddress({ account: codex, word: "codex" });
-  const inLaunch = { to: address, group: { address: "-10042", name: "Launch" } };
+  const inLaunch = { to: [address], group: { address: "-10042", name: "Launch" } };
 
-  server.testChannel.queue("codex", { id: "1", ...inLaunch, from: "42", fromHandle: "@ada" });
-  server.testChannel.queue("codex", { id: "2", ...inLaunch, from: "43", fromHandle: "@eve" });
+  server.testChannel.queue("codex", { id: "1", ...inLaunch, from: "42", username: "@ada" });
+  server.testChannel.queue("codex", { id: "2", ...inLaunch, from: "43", username: "@eve" });
   await server.deliverQueued();
 
   expect(server.logs).toEqual([
@@ -112,7 +112,7 @@ test("wakes the agent with a stranger's message once anyone may", async () => {
   const address = await server.connectAddress({ account: codex, word: "codex" });
 
   server.services.access.setAdmit({ accountId: codex.id, channel: "test", admit: "anyone" });
-  server.testChannel.queue("codex", { id: "1", to: address, from: "stranger", text: "Hello?" });
+  server.testChannel.queue("codex", { id: "1", to: [address], from: "stranger", text: "Hello?" });
   await server.deliverQueued();
 
   const [message] = listedSchema.parse(
@@ -127,13 +127,31 @@ test("takes a message its channel hands over twice once", async () => {
   const server = await createTestServer();
   const codex = server.account("Codex");
   const address = await server.connectAddress({ account: codex, word: "codex" });
-  const message = { id: "7", to: address, from: "stranger", text: "Hi" };
+  const message = { id: "7", to: [address], from: "stranger", text: "Hi" };
 
   server.testChannel.queue("codex", message);
   server.testChannel.queue("codex", message);
   await server.deliverQueued();
 
   expect(server.services.messages.list({ accountId: codex.id, filter: {} })).toHaveLength(1);
+});
+
+test("takes a message at each of the server's addresses it went to", async () => {
+  const server = await createTestServer();
+  const codex = server.account("Codex");
+  const claude = server.account("Claude");
+  const codexAddress = await server.connectAddress({ account: codex, word: "codex" });
+  const claudeAddress = await server.connectAddress({ account: claude, word: "claude" });
+  const to = [codexAddress, "@someone", claudeAddress];
+
+  server.testChannel.queue("codex", { id: "1", to, from: "ada", text: "Hi both" });
+  await server.deliverQueued();
+
+  for (const account of [codex, claude]) {
+    expect(server.services.messages.list({ accountId: account.id, filter: {} })).toMatchObject([
+      { direction: "inbound", to, text: "Hi both" },
+    ]);
+  }
 });
 
 test("takes the same message id at two addresses as two messages", async () => {
@@ -144,7 +162,7 @@ test("takes the same message id at two addresses as two messages", async () => {
     const word = name.toLowerCase();
     const address = await server.connectAddress({ account, word });
 
-    server.testChannel.queue(word, { id: "1", to: address, from: "ada", text: `Hi ${name}` });
+    server.testChannel.queue(word, { id: "1", to: [address], from: "ada", text: `Hi ${name}` });
   }
 
   await server.deliverQueued();
@@ -161,7 +179,7 @@ test("answers a message the way it came", async () => {
   const codex = server.account("Codex");
   const address = await server.connectAddress({ account: codex, word: "codex" });
 
-  server.testChannel.queue("codex", { id: "1", to: address, from: "ada", text: "Status?" });
+  server.testChannel.queue("codex", { id: "1", to: [address], from: "ada", text: "Status?" });
   await server.deliverQueued();
 
   const [received] = server.services.messages.list({ accountId: codex.id, filter: {} });
@@ -180,10 +198,8 @@ test("answers a message the way it came", async () => {
   });
   expect(server.testChannel.sent).toMatchObject([
     {
-      from: { address, credentials: "codex" },
-      to: ["ada"],
-      text: "All green",
-      inReplyTo: { externalId: "1" },
+      message: { from: address, to: ["ada"], text: "All green", replyTo: "1" },
+      credentials: "codex",
     },
   ]);
 });
@@ -200,7 +216,7 @@ test("keeps a message in a group as the group's, naming who wrote it, and answer
 
   server.testChannel.queue("codex", {
     id: "7",
-    to: address,
+    to: [address],
     from: "42",
     group: launch,
     text: "Hi",
@@ -228,7 +244,7 @@ test("keeps a message in a group as the group's, naming who wrote it, and answer
   expect(reply.status).toBe(201);
   expect(await reply.json()).toMatchObject({ counterpart: "-10042", author: null });
   expect(server.testChannel.sent).toMatchObject([
-    { to: ["-10042"], text: "On it", inReplyTo: { externalId: "7" } },
+    { message: { to: ["-10042"], text: "On it", replyTo: "7" } },
   ]);
 
   stream.close();
@@ -241,8 +257,8 @@ test("wakes the agent from any group for someone on its list, and keeps the rest
   const launch = { address: "-10042", name: "Launch" };
 
   server.services.access.addSender({ accountId: codex.id, channel: "test", sender: "ada" });
-  server.testChannel.queue("codex", { id: "1", to: address, from: "ada", group: launch });
-  server.testChannel.queue("codex", { id: "2", to: address, from: "eve", group: launch });
+  server.testChannel.queue("codex", { id: "1", to: [address], from: "ada", group: launch });
+  server.testChannel.queue("codex", { id: "2", to: [address], from: "eve", group: launch });
   await server.deliverQueued();
 
   const messages = server.services.messages.list({ accountId: codex.id, filter: {} });
@@ -286,7 +302,7 @@ test("keeps the files a message brings, behind a link", async () => {
 
   server.testChannel.queue("codex", {
     id: "1",
-    to: address,
+    to: [address],
     from: "ada",
     files: [{ name: "report.txt", type: "text/plain", size: content.byteLength, content }],
   });
@@ -311,7 +327,7 @@ test("keeps a message, its files and the address's credentials encrypted at rest
 
   server.testChannel.queue("codex", {
     id: "1",
-    to: address,
+    to: [address],
     from: "ada",
     text: "Deploy it",
     files: [{ name: "report.txt", type: "text/plain", size: content.byteLength, content }],
@@ -351,7 +367,7 @@ test("keeps a file by its description when the bucket fails, so the message stil
 
   server.testChannel.queue("codex", {
     id: "1",
-    to: address,
+    to: [address],
     from: "ada",
     files: [{ name: "report.txt", type: "text/plain", size: content.byteLength, content }],
   });
@@ -373,7 +389,7 @@ test("takes what a channel's provider posts to its webhook, signed", async () =>
     return server.call("/api/channels/test", {
       method: "POST",
       headers: { "content-type": "application/json", [testWebhookHeader]: secret },
-      body: JSON.stringify({ id: "1", to: address, from: "ada", text: "Hi" }),
+      body: JSON.stringify({ id: "1", to: [address], from: "ada", text: "Hi" }),
     });
   }
 
@@ -389,12 +405,12 @@ test("lets a disconnected address go to another account, while its messages stay
   const claude = server.account("Claude");
   const address = await server.connectAddress({ account: codex, word: "bot" });
 
-  server.testChannel.queue("bot", { id: "1", to: address, from: "ada", text: "For Codex" });
+  server.testChannel.queue("bot", { id: "1", to: [address], from: "ada", text: "For Codex" });
   await server.deliverQueued();
   await server.services.addresses.disconnect({ accountId: codex.id, kind: "test" });
 
   await server.connectAddress({ account: claude, word: "bot" });
-  server.testChannel.queue("bot", { id: "2", to: address, from: "ada", text: "For Claude" });
+  server.testChannel.queue("bot", { id: "2", to: [address], from: "ada", text: "For Claude" });
   await server.deliverQueued();
 
   expect(server.services.messages.list({ accountId: codex.id, filter: {} })).toMatchObject([
@@ -411,7 +427,7 @@ test("pages back to nothing from a message the account does not have", async () 
   const codex = server.account("Codex");
   const address = await server.connectAddress({ account: codex, word: "codex" });
 
-  server.testChannel.queue("codex", { id: "1", to: address, from: "ada", text: "Hi" });
+  server.testChannel.queue("codex", { id: "1", to: [address], from: "ada", text: "Hi" });
   await server.deliverQueued();
 
   const listed = await codex.call(`/api/agents/${codex.id}/messages?before=${crypto.randomUUID()}`);

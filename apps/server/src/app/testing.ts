@@ -9,7 +9,7 @@ import {
   contractVersion,
   type HandleWebhookOptions,
   type InboundFile,
-  type OutboundMessage,
+  type SendOptions,
   type StartOptions,
 } from "@artil/channels/contract";
 import { AppError } from "@artil/errors";
@@ -34,10 +34,10 @@ type Json = string | number | boolean | null | readonly Json[] | { readonly [key
 
 const testInboundSchema = z.object({
   id: z.string(),
-  to: z.string(),
+  to: z.array(z.string()),
   from: z.string(),
   text: z.string().default(""),
-  fromHandle: z.string().nullable().default(null),
+  username: z.string().nullable().default(null),
   // The group the message came in, by its address and name.
   group: z.object({ address: z.string(), name: z.string().nullable() }).optional(),
 });
@@ -63,7 +63,7 @@ class TestChannel extends Channel<"test"> {
 
   override readonly credentials = "A word, which names the address @word";
 
-  readonly sent: OutboundMessage[] = [];
+  readonly sent: SendOptions[] = [];
 
   // What the server started on, which a test waits for.
   readonly started: Promise<void>[] = [];
@@ -116,22 +116,22 @@ class TestChannel extends Channel<"test"> {
     return new Response(null, { status: 204 });
   }
 
-  async send(message: OutboundMessage) {
-    this.sent.push(message);
+  async send(options: SendOptions) {
+    this.sent.push(options);
 
-    return { externalId: `out-${this.sent.length}` };
+    return { id: `out-${this.sent.length}` };
   }
 }
 
 function toTestEvent({ files = [], ...inbound }: TestInbound): ChannelEvent {
-  const { id, to, from, text, fromHandle, group } = testInboundSchema.parse(inbound);
+  const { id, to, from, text, username, group } = testInboundSchema.parse(inbound);
 
   return {
     type: "message.received",
     message: {
-      externalId: id,
+      id,
       to,
-      from: { address: from, name: null, handle: fromHandle, verified: true },
+      from: { address: from, name: null, username, verified: true },
       ...(group && { group }),
       text,
       files,
@@ -159,7 +159,7 @@ class EchoChannel extends Channel {
   }
 
   async send() {
-    return { externalId: "1" };
+    return { id: "1" };
   }
 }
 

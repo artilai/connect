@@ -1,4 +1,4 @@
-import { Channel, type OutboundMessage } from "@artil/channels/contract";
+import { Channel, type SendOptions } from "@artil/channels/contract";
 import { AppError } from "@artil/errors";
 
 import type { Upload } from "../../platform/storage";
@@ -30,7 +30,8 @@ type UrlChannelOptions = {
 };
 
 type RelayOptions = {
-  sender: { id: string; name: string };
+  // The account that sends.
+  from: string;
   // The one account the message goes to, which the channel checks.
   to: string[];
   text: string;
@@ -72,20 +73,22 @@ export class UrlChannel extends Channel<"url", UrlData> {
   }
 
   // Sends what an agent writes to another's Message URL, and returns the event the other got.
-  async relay({ sender, to, text, thread, toThread, client, attachments, uploads }: RelayOptions) {
+  async relay({ from, to, text, thread, toThread, client, attachments, uploads }: RelayOptions) {
     const attachedFiles = await this.#services.files.readAttachments({
-      accountId: sender.id,
+      accountId: from,
       attachments,
     });
 
     const { event } = await this.send({
-      // The Message URL has no credentials, and threads an answer by toThread instead.
-      from: { address: sender.id, name: sender.name, credentials: null },
-      to,
-      text,
-      files: [...attachedFiles, ...uploads],
-      inReplyTo: null,
-      channelData: { thread, toThread, client },
+      // The Message URL threads an answer by toThread, and needs no credentials.
+      message: {
+        from,
+        to,
+        text,
+        files: [...attachedFiles, ...uploads],
+        channelData: { thread, toThread, client },
+      },
+      credentials: null,
     });
 
     return event;
@@ -93,13 +96,8 @@ export class UrlChannel extends Channel<"url", UrlData> {
 
   // Beside the message's id every channel gives, the event the account got, which the server hands
   // back to the sender.
-  async send({
-    from,
-    to,
-    text,
-    files: uploads,
-    channelData = noThreads,
-  }: OutboundMessage<UrlData>) {
+  async send({ message }: SendOptions<UrlData>) {
+    const { from, to, text, files: uploads, channelData = noThreads } = message;
     const { accounts, access, connections, files, receiveRelay } = this.#services;
     const [recipientId, ...others] = to;
 
@@ -116,7 +114,7 @@ export class UrlChannel extends Channel<"url", UrlData> {
     }
 
     // Without a thread, an account writing to itself would only answer itself.
-    if (from.address === recipientId && channelData.thread === null) {
+    if (from === recipientId && channelData.thread === null) {
       throw invalid("An agent cannot send to its own Message URL, except from a thread to another");
     }
 
@@ -131,14 +129,13 @@ export class UrlChannel extends Channel<"url", UrlData> {
     const { refusal } = access.decide({
       accountId: recipient.id,
       channel: this.kind,
-      from: from.address,
-      handle: null,
+      from,
+      username: null,
       group: null,
       fromSelf: false,
-      spam: false,
       fromTeam: true,
       fromVerified: true,
-      listed: from.address === recipient.id,
+      listed: from === recipient.id,
     });
 
     if (refusal) {
@@ -158,13 +155,13 @@ export class UrlChannel extends Channel<"url", UrlData> {
     if (uploads.length > 0 && !files.enabled) throw files.unavailableError();
 
     const event = await receiveRelay({
-      from: { id: from.address, name: from.name },
+      from: { id: from, name: accounts.findById(from)?.name ?? from },
       to: recipient.id,
       text,
       files: uploads,
       ...channelData,
     });
 
-    return { externalId: event.messageId, event };
+    return { id: event.messageId, event };
   }
 }

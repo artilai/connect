@@ -5,10 +5,9 @@ import { describeRefusal } from "./schema";
 
 const ordinary = {
   fromSelf: false,
-  spam: false,
   access: { admit: "anyone" as const, senders: [] },
   from: "ada@example.com",
-  handle: null,
+  username: null,
   group: null,
   fromTeam: false,
   fromVerified: true,
@@ -22,9 +21,8 @@ test("wakes the agent for an ordinary message", () => {
   expect(admit(ordinary)).toBeNull();
 });
 
-test("does not wake the agent for its own messages, spam, strangers or unverified senders", () => {
+test("does not wake the agent for its own messages, strangers or unverified senders", () => {
   expect(admit({ ...ordinary, fromSelf: true })).toBe("self");
-  expect(admit({ ...ordinary, spam: true })).toBe("spam");
   expect(admit({ ...ordinary, access: list, from: "eve@example.com" })).toBe("sender");
   expect(admit({ ...ordinary, access: list, fromVerified: false })).toBe("unverified");
   expect(admit({ ...ordinary, access: team })).toBe("outsider");
@@ -33,25 +31,23 @@ test("does not wake the agent for its own messages, spam, strangers or unverifie
   );
 });
 
-test("names the loop before spam, spam before the sender, and the sender before verification", () => {
+test("names the loop before the sender, and the sender before verification", () => {
   const everything = {
     fromSelf: true,
-    spam: true,
     access: list,
     from: "eve@example.com",
-    handle: null,
+    username: null,
     group: null,
     fromTeam: false,
     fromVerified: false,
   };
 
   expect(admit(everything)).toBe("self");
-  expect(admit({ ...everything, fromSelf: false })).toBe("spam");
 
-  const notSpam = { ...everything, fromSelf: false, spam: false };
+  const notSelf = { ...everything, fromSelf: false };
 
-  expect(admit(notSpam)).toBe("sender");
-  expect(admit({ ...notSpam, from: "ada@example.com" })).toBe("unverified");
+  expect(admit(notSelf)).toBe("sender");
+  expect(admit({ ...notSelf, from: "ada@example.com" })).toBe("unverified");
 });
 
 test("lets anyone through an open channel, the verified team through a team one and verified listed senders through a list", () => {
@@ -78,12 +74,12 @@ test("names the team before the list, and anyone else or anyone unverified as an
 });
 
 test("lets a Telegram user through by the @username they go by", () => {
-  const ada = { ...ordinary, from: "42", handle: "@ada_lovelace" };
+  const ada = { ...ordinary, from: "42", username: "@ada_lovelace" };
   const listed = { admit: "list" as const, senders: ["@ada_lovelace"] };
 
   expect(admit({ ...ada, access: listed })).toBeNull();
   expect(admissionOf({ ...ada, access: listed })).toBe("listed");
-  expect(admit({ ...ada, handle: null, access: listed })).toBe("sender");
+  expect(admit({ ...ada, username: null, access: listed })).toBe("sender");
 });
 
 test("lets everyone in a group through once the group is on the list", () => {
@@ -96,6 +92,6 @@ test("lets everyone in a group through once the group is on the list", () => {
 });
 
 test("describes each refusal, and names one from a newer server by its code", () => {
-  expect(describeRefusal("spam")).toBe("Did not wake the agents: it was marked as spam.");
+  expect(describeRefusal("sender")).toBe("Did not wake the agents: the sender is not on its list.");
   expect(describeRefusal("quiet_hours")).toBe("Did not wake the agents: quiet_hours.");
 });

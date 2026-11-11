@@ -31,7 +31,7 @@ function setup(inbound: TelegramEvent[] = []) {
     send: async (message) => {
       sent.push(message);
 
-      return { externalId: "42:8" };
+      return { id: "42:8" };
     },
   };
 
@@ -55,11 +55,11 @@ async function takeWebhook(channel: Channel) {
 }
 
 const outbound: OutboundMessage = {
-  from: { address: "@acmesupportbot", name: "Support", credentials: "123456:ABC" },
+  from: "@acmesupportbot",
   to: [" 42 "],
   text: "On my way",
   files: [],
-  inReplyTo: { externalId: "42:7" },
+  replyTo: "42:7",
 };
 
 const preparing = setup().channel;
@@ -81,7 +81,7 @@ test("turns messages to the bot into received messages from their chat, named wi
     {
       type: "received",
       message: {
-        externalId: "42:7",
+        id: "42:7",
         bot: "AcmeSupportBot",
         chat: "42",
         group: null,
@@ -97,7 +97,7 @@ test("turns messages to the bot into received messages from their chat, named wi
     {
       type: "received",
       message: {
-        externalId: "99:3",
+        id: "99:3",
         bot: "AcmeSupportBot",
         chat: "99",
         group: null,
@@ -119,12 +119,12 @@ test("turns messages to the bot into received messages from their chat, named wi
     {
       type: "message.received",
       message: {
-        externalId: "42:7",
-        to: "@acmesupportbot",
+        id: "42:7",
+        to: ["@acmesupportbot"],
         from: {
           address: "42",
           name: "Ada Lovelace (@AdaLovelace)",
-          handle: "@adalovelace",
+          username: "@adalovelace",
           verified: true,
         },
         text: "Hi",
@@ -144,7 +144,7 @@ test("turns updates it asks Telegram for into received messages", async () => {
     {
       type: "received",
       message: {
-        externalId: "42:7",
+        id: "42:7",
         bot: "AcmeSupportBot",
         chat: "42",
         group: null,
@@ -174,7 +174,7 @@ test("turns updates it asks Telegram for into received messages", async () => {
     expect.objectContaining({
       type: "message.received",
       message: expect.objectContaining({
-        to: "@acmesupportbot",
+        to: ["@acmesupportbot"],
         from: expect.objectContaining({ address: "42" }),
         text: "Hi",
       }),
@@ -192,7 +192,7 @@ test("hands the provider the token of the bot's address to fetch files with", as
 
 test("quotes the message a reply answers above its text", async () => {
   const message = {
-    externalId: "42:9",
+    id: "42:9",
     bot: "AcmeSupportBot",
     chat: "42",
     group: null,
@@ -226,10 +226,10 @@ test("sends to one chat as the bot, answering by Telegram's id for the message",
 
   expect(message).toEqual({ ...outbound, to: ["42"] });
 
-  await channel.send(message);
+  await channel.send({ message, credentials: "123456:ABC" });
 
   expect(sent).toEqual([
-    { token: "123456:ABC", chat: "42", text: "On my way", files: [], inReplyTo: "42:7" },
+    { token: "123456:ABC", chat: "42", text: "On my way", files: [], replyTo: "42:7" },
   ]);
   expect(preparing.prepare({ ...outbound, to: ["@OpsBot"] }).to).toEqual(["@opsbot"]);
 });
@@ -239,7 +239,7 @@ test("turns a message in a group into one from whoever wrote it, which an answer
     {
       type: "received",
       message: {
-        externalId: "-10042:7",
+        id: "-10042:7",
         bot: "AcmeSupportBot",
         chat: "-10042",
         group: { title: "Launch" },
@@ -260,12 +260,12 @@ test("turns a message in a group into one from whoever wrote it, which an answer
     {
       type: "message.received",
       message: {
-        externalId: "-10042:7",
-        to: "@acmesupportbot",
+        id: "-10042:7",
+        to: ["@acmesupportbot"],
         from: {
           address: "42",
           name: "Ada Lovelace (@AdaLovelace)",
-          handle: "@adalovelace",
+          username: "@adalovelace",
           verified: true,
         },
         group: { address: "-10042", name: "Launch" },
@@ -295,7 +295,10 @@ test("sends up to 10 files of up to 50 MB each", async () => {
   const { channel, sent } = setup();
   const photo = { name: "a.png", type: "image/png", size: 1, content: new Uint8Array(1) };
 
-  await channel.send(preparing.prepare({ ...outbound, files: [photo] }));
+  await channel.send({
+    message: preparing.prepare({ ...outbound, files: [photo] }),
+    credentials: "123456:ABC",
+  });
 
   expect(sent).toMatchObject([{ files: [photo] }]);
   expect(() =>

@@ -323,8 +323,8 @@ export function createBotApi({
     return first;
   }
 
-  async function deliver({ token, chat, text, files, inReplyTo }: OutgoingTelegram) {
-    const reply = replyParameters(inReplyTo);
+  async function deliver({ token, chat, text, files, replyTo }: OutgoingTelegram) {
+    const reply = replyParameters(replyTo);
 
     if (files.length === 0) return sendMessage({ token, chat, text, reply });
 
@@ -497,7 +497,7 @@ export function createBotApi({
         throw isBotToBotDisabled(cause) ? new Error(botToBotDisabled) : cause;
       });
 
-      return { externalId: externalIdOf(sent.chat.id, sent.message_id) };
+      return { id: idOf(sent.chat.id, sent.message_id) };
     },
   };
 }
@@ -510,13 +510,13 @@ function isBotToBotDisabled(cause: unknown) {
 }
 
 // A message's id in Artil: Telegram numbers a bot's messages in each chat on its own.
-function externalIdOf(chat: number, messageId: number) {
+function idOf(chat: number, messageId: number) {
   return `${chat}:${messageId}`;
 }
 
 // What the answer quotes: the message's id in the chat it goes to, from the id Artil gave it.
-function replyParameters(inReplyTo: string | null): ReplyParameters | undefined {
-  const messageId = inReplyTo === null ? undefined : /^-?\d+:(\d+)$/v.exec(inReplyTo)?.[1];
+function replyParameters(replyTo: string | null): ReplyParameters | undefined {
+  const messageId = replyTo === null ? undefined : /^-?\d+:(\d+)$/v.exec(replyTo)?.[1];
 
   return messageId === undefined
     ? undefined
@@ -570,7 +570,7 @@ function toInbound({ bot, message, from, inGroup, files }: ToInboundOptions): In
   const { message_id, chat, text, caption } = message;
 
   return {
-    externalId: externalIdOf(chat.id, message_id),
+    id: idOf(chat.id, message_id),
     bot,
     chat: String(chat.id),
     group: inGroup ? { title: chat.title ?? null } : null,

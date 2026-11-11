@@ -215,7 +215,7 @@ test("reads a private message from a webhook with the bot's secret", async () =>
     {
       type: "received",
       message: {
-        externalId: "42:7",
+        id: "42:7",
         bot: "AcmeSupportBot",
         chat: "42",
         group: null,
@@ -253,7 +253,7 @@ test("reads what tags the bot in a group or answers it, and skips the rest of th
     {
       type: "received",
       message: {
-        externalId: "-10042:7",
+        id: "-10042:7",
         bot: "AcmeSupportBot",
         chat: "-10042",
         group: { title: "Launch" },
@@ -312,7 +312,7 @@ test("takes every file of an album that tagged the bot in a group, and none of o
 
   expect(await telegram.verifyEvents(update(tagged))).toHaveLength(1);
   expect(await telegram.verifyEvents(update(file(9, "album-1")))).toMatchObject([
-    { message: { externalId: "-10042:9", files: [{ name: "9.log" }] } },
+    { message: { id: "-10042:9", files: [{ name: "9.log" }] } },
   ]);
   expect(await telegram.verifyEvents(update(file(10, "album-2")))).toEqual([]);
 });
@@ -471,12 +471,12 @@ test("sends a message to a chat and keeps its id", async () => {
     },
   });
 
-  const hello = { token, text: "Hello", files: [], inReplyTo: null };
+  const hello = { token, text: "Hello", files: [], replyTo: null };
 
-  expect(await telegram.send({ ...hello, chat: "42" })).toEqual({ externalId: "42:8" });
-  expect(await telegram.send({ ...hello, chat: "@opsbot" })).toEqual({ externalId: "42:8" });
-  expect(await telegram.send({ ...hello, chat: "42", inReplyTo: "42:7" })).toEqual({
-    externalId: "42:8",
+  expect(await telegram.send({ ...hello, chat: "42" })).toEqual({ id: "42:8" });
+  expect(await telegram.send({ ...hello, chat: "@opsbot" })).toEqual({ id: "42:8" });
+  expect(await telegram.send({ ...hello, chat: "42", replyTo: "42:7" })).toEqual({
+    id: "42:8",
   });
   await telegram.send({ ...hello, chat: "-10042" });
   expect(requests).toEqual([
@@ -514,9 +514,9 @@ test("sends a file as a document, with the text as its caption", async () => {
       chat: "42",
       text: "The notes",
       files: [fileOf("a.pdf", "A")],
-      inReplyTo: null,
+      replyTo: null,
     }),
-  ).toEqual({ externalId: "42:9" });
+  ).toEqual({ id: "42:9" });
   expect(requests).toEqual([
     {
       method: "sendDocument",
@@ -547,9 +547,9 @@ test("sends several files as an album, with the caption under the last", async (
   const files = [fileOf("a.pdf", "A"), fileOf("b.pdf", "B")];
 
   expect(
-    await telegram.send({ token, chat: "42", text: "The notes", files, inReplyTo: null }),
+    await telegram.send({ token, chat: "42", text: "The notes", files, replyTo: null }),
   ).toEqual({
-    externalId: "42:9",
+    id: "42:9",
   });
   expect(requests).toEqual([
     {
@@ -574,7 +574,7 @@ test("sends a text too long for a caption before its files", async () => {
 
   const text = "a".repeat(1025);
 
-  await telegram.send({ token, chat: "42", text, files: [fileOf("a.pdf", "A")], inReplyTo: null });
+  await telegram.send({ token, chat: "42", text, files: [fileOf("a.pdf", "A")], replyTo: null });
 
   expect(requests).toEqual([
     { method: "sendMessage", body: { chat_id: 42, text } },
@@ -596,7 +596,7 @@ test("fails a send with Telegram's reason", async () => {
   });
 
   await expect(
-    telegram.send({ token, chat: "42", text: "Hello", files: [], inReplyTo: null }),
+    telegram.send({ token, chat: "42", text: "Hello", files: [], replyTo: null }),
   ).rejects.toThrow("Forbidden: bot was blocked by the user");
 });
 
@@ -611,7 +611,7 @@ test("says how to let bots write to each other when Telegram refuses one", async
   });
 
   await expect(
-    telegram.send({ token, chat: "@opsbot", text: "Hello", files: [], inReplyTo: null }),
+    telegram.send({ token, chat: "@opsbot", text: "Hello", files: [], replyTo: null }),
   ).rejects.toThrow(
     "Telegram passes messages between bots only when both turn on Bot-to-Bot Communication Mode in @BotFather",
   );
@@ -625,7 +625,7 @@ test("keeps the token out of a failure to reach Telegram", async () => {
   });
 
   const failure = await telegram
-    .send({ token, chat: "42", text: "Hello", files: [], inReplyTo: null })
+    .send({ token, chat: "42", text: "Hello", files: [], replyTo: null })
     .catch((cause: unknown) => cause);
 
   expect(failure).toBeInstanceOf(Error);
@@ -700,7 +700,7 @@ test("asks Telegram for private messages to the bot and confirms each batch it t
   });
 
   expect(taken).toEqual([
-    { type: "received", message: expect.objectContaining({ externalId: "42:7", text: "Hi" }) },
+    { type: "received", message: expect.objectContaining({ id: "42:7", text: "Hi" }) },
   ]);
   expect(offsets).toEqual([0, 12, 13]);
   expect(requests.slice(0, 3)).toEqual([
