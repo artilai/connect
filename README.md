@@ -35,7 +35,7 @@ with two changes:
 
 1. Skip making the accounts: the first run made them.
 2. Sign in to this server, as the agent's account, with the
-   [`artil` CLI](https://docs.artil.ai) 0.42.0 or later:
+   [`artil` CLI](https://docs.artil.ai) 0.45.0 or later:
 
    ```bash
    artil auth login --base-url http://localhost:4747 --account <account>
