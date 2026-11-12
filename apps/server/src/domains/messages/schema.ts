@@ -17,7 +17,7 @@ export type MessageRow = typeof messages.$inferSelect;
 
 export type MessageRecord = Omit<
   MessageRow,
-  "accountId" | "externalId" | "externalThread" | "clientThread"
+  "accountId" | "externalId" | "externalThread" | "clientThread" | "answeredAt"
 > & {
   attachments: MessageAttachment[];
 };

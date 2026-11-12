@@ -103,6 +103,7 @@ export function createMessagesService({
         externalId: _externalId,
         externalThread: _externalThread,
         clientThread: _clientThread,
+        answeredAt: _answeredAt,
         ...message
       }) => ({
         ...message,
@@ -141,9 +142,12 @@ export function createMessagesService({
     };
   }
 
+  // The receipts on their way to each message's sender, by the message's id.
+  const receiptsInFlight = new Map<string, Promise<void>>();
+
   // Shows the sender of a message that woke the agent what the agent did with it, where its channel
-  // can. Nothing waits for it, and a channel that fails only says so in the log.
-  async function sendReceipt({ receipt, message }: SendReceiptOptions) {
+  // can; a channel that fails only says so in the log.
+  async function showReceipt({ receipt, message }: SendReceiptOptions) {
     const channel = channels.find(message.channel);
     const mark = receipts[receipt];
 
@@ -158,6 +162,20 @@ export function createMessagesService({
         `${channel.name} did not show ${message.counterpart} that the agent ${receipt} their message: ${messageOf(cause, String(cause))}`,
       );
     }
+  }
+
+  // Nothing waits for a receipt, and each waits for the one before it on the same message, so a slow
+  // read cannot land after the answer.
+  function sendReceipt(options: SendReceiptOptions) {
+    const { id } = options.message;
+    const previous = receiptsInFlight.get(id) ?? Promise.resolve();
+    const shown = previous.then(() => showReceipt(options));
+
+    receiptsInFlight.set(id, shown);
+
+    void shown.finally(() => {
+      if (receiptsInFlight.get(id) === shown) receiptsInFlight.delete(id);
+    });
   }
 
   // Sends on the channel from the account's address there, and keeps the message among the
@@ -254,7 +272,10 @@ export function createMessagesService({
           });
     }
 
-    if (answered) void sendReceipt({ receipt: "answered", message: answered });
+    if (answered) {
+      messagesRepository.markAnswered(answered.id);
+      sendReceipt({ receipt: "answered", message: answered });
+    }
 
     const sent = find({ accountId, id });
 
@@ -454,11 +475,12 @@ export function createMessagesService({
   }
 
   return {
-    // A message of the account. Reading one that woke the agent shows its sender the agent read it.
+    // A message of the account. Reading one that woke the agent shows its sender the agent read it,
+    // until the agent answers it.
     read(options: FindOptions) {
       const row = messagesRepository.find(options);
 
-      if (row) void sendReceipt({ receipt: "read", message: row });
+      if (row && !row.answeredAt) sendReceipt({ receipt: "read", message: row });
 
       return row && toRecords([row])[0];
     },

@@ -147,6 +147,8 @@ export const messages = sqliteTable(
     refusal: text("refusal", { enum: refusals }),
     admission: text("admission", { enum: admissions }),
     error: text("error"),
+    // When the agent last answered the message, after which its sender no longer sees it read.
+    answeredAt: timestamp("answered_at"),
     createdAt: createdAt(),
   },
   (table) => [

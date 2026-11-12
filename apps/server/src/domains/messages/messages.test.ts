@@ -206,7 +206,12 @@ test("answers a message the way it came", async () => {
   ]);
 });
 
-test("shows the sender of a message that woke the agent that the agent read it, then answered it", async () => {
+// Receipts go out once the agent has gone on, so a test lets them through before it looks.
+function receiptsShown() {
+  return Bun.sleep(0);
+}
+
+test("shows the sender of a message that woke the agent that the agent read it, until it answers", async () => {
   const server = await createTestServer();
   const codex = server.account("Codex");
   const address = await server.connectAddress({ account: codex, word: "codex" });
@@ -219,12 +224,41 @@ test("shows the sender of a message that woke the agent that the agent read it, 
   for (const { id } of server.services.messages.list({ accountId: codex.id, filter: {} })) {
     await codex.call(`/api/agents/${codex.id}/messages/${id}`);
     await codex.json(`/api/agents/${codex.id}/messages`, { replyTo: id, text: "On it" });
+    await codex.call(`/api/agents/${codex.id}/messages/${id}`);
   }
+
+  await receiptsShown();
 
   expect(server.testChannel.receipts).toEqual([
     { receipt: "read", id: "1", token: "codex" },
     { receipt: "answered", id: "1", token: "codex" },
   ]);
+});
+
+test("shows the sender a slow read receipt before the answer after it", async () => {
+  const server = await createTestServer();
+  const codex = server.account("Codex");
+  const address = await server.connectAddress({ account: codex, word: "codex" });
+
+  server.services.access.addSender({ accountId: codex.id, channel: "test", sender: "ada" });
+  server.testChannel.queue("codex", { id: "1", to: [address], from: "ada", text: "Status?" });
+  await server.deliverQueued();
+
+  const [received] = server.services.messages.list({ accountId: codex.id, filter: {} });
+  const { promise: slowRead, resolve: finishRead } = Promise.withResolvers<void>();
+
+  server.testChannel.readDelay = slowRead;
+
+  await codex.call(`/api/agents/${codex.id}/messages/${received?.id}`);
+  await codex.json(`/api/agents/${codex.id}/messages`, {
+    replyTo: received?.id ?? "",
+    text: "On it",
+  });
+  await receiptsShown();
+  finishRead();
+  await receiptsShown();
+
+  expect(server.testChannel.receipts.map(({ receipt }) => receipt)).toEqual(["read", "answered"]);
 });
 
 test("reads a message whose sender the channel cannot show it was read, and says so in the log", async () => {
@@ -241,6 +275,8 @@ test("reads a message whose sender the channel cannot show it was read, and says
   server.testChannel.down = true;
 
   const read = await codex.call(`/api/agents/${codex.id}/messages/${received?.id}`);
+
+  await receiptsShown();
 
   expect(read.status).toBe(200);
   expect(server.logs).toContain(

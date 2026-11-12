@@ -79,6 +79,9 @@ class TestChannel extends Channel {
   // Whether the provider is down, so that what the server sends, and the receipts it shows, fail.
   down = false;
 
+  // What a read receipt waits for before the channel shows it, as a slow provider would.
+  readDelay: Promise<void> | undefined;
+
   // What the server started on, which a test waits for.
   readonly started: Promise<void>[] = [];
 
@@ -139,6 +142,8 @@ class TestChannel extends Channel {
   }
 
   override async markRead(options: ReceiptOptions) {
+    await this.readDelay;
+
     this.#show("read", options);
   }
 
