@@ -15,6 +15,10 @@ A channel without a provider, like the Message URL, hands what it sends back to
 the server with `deliver`, which takes it as a message the server's accounts
 received.
 
+A channel whose provider threads messages, like Slack, names the thread of each
+message it takes and sends, and gets the thread of the message an answer
+answers.
+
 A channel that can show someone what the agent did with their message, like a
 reaction on Telegram, has `markRead` and `markAnswered`. The server calls them
 for a message that woke the agent, once the agent reads it and once it answers

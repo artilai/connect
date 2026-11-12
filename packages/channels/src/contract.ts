@@ -21,6 +21,9 @@ export type InboundMessage = {
   text: string;
   files: InboundFile[];
   replyTo?: string;
+  // The provider's thread the message is in, which every message in it names alike, like a Slack
+  // thread.
+  thread?: string;
 };
 
 export type OutboundMessage = {
@@ -29,7 +32,12 @@ export type OutboundMessage = {
   text: string;
   files: OutboundFile[];
   replyTo?: string;
+  // The thread of the message this one answers, which the answer goes in.
+  thread?: string;
 };
+
+// What the provider took: the message's id, and the thread it went in, on a provider with threads.
+export type SentMessage = { id: string; thread?: string };
 
 export type ChannelEvent = { type: "message.received"; message: InboundMessage };
 
@@ -88,7 +96,7 @@ export abstract class Channel {
     return false;
   }
 
-  abstract send(options: SendOptions): Promise<{ id: string }>;
+  abstract send(options: SendOptions): Promise<SentMessage>;
 
   markRead?(options: ReceiptOptions): Promise<void>;
 

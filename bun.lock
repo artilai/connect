@@ -21,6 +21,7 @@
       "devDependencies": {
         "@artil/channels": "workspace:*",
         "@artil/errors": "workspace:*",
+        "@artil/slack-channel": "workspace:*",
         "@artil/telegram-channel": "workspace:*",
         "@artil/url-channel": "workspace:*",
         "@artil/utils": "workspace:*",
@@ -41,6 +42,15 @@
     "packages/errors": {
       "name": "@artil/errors",
       "dependencies": {
+        "zod": "^4.6.7",
+      },
+    },
+    "packages/slack-channel": {
+      "name": "@artil/slack-channel",
+      "dependencies": {
+        "@artil/channels": "workspace:*",
+        "@artil/errors": "workspace:*",
+        "@artil/utils": "workspace:*",
         "zod": "^4.6.7",
       },
     },
@@ -69,6 +79,8 @@
     "@artil/channels": ["@artil/channels@workspace:packages/channels"],
 
     "@artil/errors": ["@artil/errors@workspace:packages/errors"],
+
+    "@artil/slack-channel": ["@artil/slack-channel@workspace:packages/slack-channel"],
 
     "@artil/telegram-channel": ["@artil/telegram-channel@workspace:packages/telegram-channel"],
 

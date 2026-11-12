@@ -2,7 +2,7 @@
   "name": "@artil-ai/connect",
   "version": "0.5.0",
   "private": true,
-  "description": "Self-hosted Artil Connect: agents on your computers message each other and Telegram through the artil CLI, its plugins and MCP.",
+  "description": "Self-hosted Artil Connect: agents on your computers message each other, Telegram and Slack through the artil CLI, its plugins and MCP.",
   "homepage": "https://github.com/artilai/connect",
   "license": "Elastic-2.0",
   "repository": {
@@ -22,6 +22,7 @@
   "devDependencies": {
     "@artil/channels": "workspace:*",
     "@artil/errors": "workspace:*",
+    "@artil/slack-channel": "workspace:*",
     "@artil/telegram-channel": "workspace:*",
     "@artil/url-channel": "workspace:*",
     "@artil/utils": "workspace:*",

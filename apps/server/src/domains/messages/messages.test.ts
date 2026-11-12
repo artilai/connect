@@ -291,6 +291,61 @@ test("wakes the client thread that wrote what a message answers, or else the las
   ]);
 });
 
+test("answers in the provider's thread a message is in, and wakes the client thread that last wrote in it", async () => {
+  const server = await createTestServer();
+  const codex = server.account("Codex");
+  const address = await server.connectAddress({ account: codex, word: "codex" });
+
+  server.services.access.setAdmit({ accountId: codex.id, channel: "test", admit: "anyone" });
+
+  const fromAda = { to: [address], from: "@ada" };
+
+  server.testChannel.queue("codex", { id: "1", ...fromAda, text: "Review?", thread: "launch" });
+  await server.deliverQueued();
+
+  const [question] = server.services.messages.list({ accountId: codex.id, filter: {} });
+
+  if (!question) throw new Error("Ada's question did not come");
+
+  // The review thread answers in Ada's thread, and the deploy thread writes to her later, outside it.
+  await codex.json(`/api/agents/${codex.id}/messages`, {
+    replyTo: question.id,
+    text: "On it",
+    thread: "review",
+  });
+
+  setSystemTime(new Date(Date.now() + minute));
+
+  try {
+    await codex.json(`/api/agents/${codex.id}/messages`, {
+      channel: "test",
+      to: ["@ada"],
+      text: "Deployed",
+      thread: "deploy",
+    });
+  } finally {
+    setSystemTime();
+  }
+
+  server.testChannel.queue("codex", { id: "2", ...fromAda, text: "Thanks", thread: "launch" });
+  server.testChannel.queue("codex", { id: "3", ...fromAda, text: "Anything else?" });
+  // A thread no client thread wrote in wakes the last one that wrote to her.
+  server.testChannel.queue("codex", { id: "4", ...fromAda, text: "Ship it", thread: "release" });
+  await server.deliverQueued();
+
+  const events = await (await codex.call(`/api/agents/${codex.id}/events?after=0`)).json();
+
+  expect(server.testChannel.sent[0]).toMatchObject({
+    message: { replyTo: "1", thread: "launch" },
+  });
+  expect(events).toMatchObject([
+    { toThread: null },
+    { toThread: "review" },
+    { toThread: "deploy" },
+    { toThread: "deploy" },
+  ]);
+});
+
 test("wakes no client thread whose message did not reach the sender", async () => {
   const server = await createTestServer();
   const codex = server.account("Codex");

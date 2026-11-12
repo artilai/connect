@@ -41,6 +41,8 @@ const testInboundSchema = z.object({
   // The group the message came in, by its address and name.
   group: z.object({ address: z.string(), name: z.string().nullable() }).optional(),
   replyTo: z.string().optional(),
+  // The provider's thread the message is in.
+  thread: z.string().optional(),
 });
 
 // A message someone sends to one of the test channel's addresses.
@@ -130,7 +132,10 @@ class TestChannel extends Channel {
 
     this.sent.push(options);
 
-    return { id: `out-${this.sent.length}` };
+    const id = `out-${this.sent.length}`;
+
+    // An answer goes in the thread of what it answers, and any other message starts a thread.
+    return { id, thread: options.message.thread ?? id };
   }
 
   override async markRead(options: ReceiptOptions) {
@@ -149,7 +154,7 @@ class TestChannel extends Channel {
 }
 
 function toTestEvent({ files = [], ...inbound }: TestInbound): ChannelEvent {
-  const { id, to, from, text, username, group, replyTo } = testInboundSchema.parse(inbound);
+  const { id, to, from, text, username, group, replyTo, thread } = testInboundSchema.parse(inbound);
 
   return {
     type: "message.received",
@@ -161,6 +166,7 @@ function toTestEvent({ files = [], ...inbound }: TestInbound): ChannelEvent {
       text,
       files,
       replyTo,
+      thread,
     },
   };
 }
