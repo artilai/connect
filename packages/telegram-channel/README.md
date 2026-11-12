@@ -3,11 +3,7 @@
 The Telegram channel: a bot that takes messages through the Bot API, by webhook
 or by asking for updates, and sends them back.
 
-## Usage
-
-| Import                    | What it gives                           |
-| ------------------------- | --------------------------------------- |
-| `@artil/telegram-channel` | `channel`, the channel the server loads |
+## Connect
 
 A bot connects with its token: open [@BotFather](https://t.me/BotFather) in
 Telegram, send `/newbot` to make a bot or `/mybots` to pick one you have, tap
@@ -28,3 +24,9 @@ has it.
 
 `artil-connect account show <account>` shows the bot and who may wake the agent,
 and `artil-connect account disconnect <account> telegram` disconnects it.
+
+## Usage
+
+| Import                    | What it gives                           |
+| ------------------------- | --------------------------------------- |
+| `@artil/telegram-channel` | `channel`, the channel the server loads |
