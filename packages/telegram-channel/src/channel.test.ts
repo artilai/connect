@@ -3,7 +3,12 @@ import { expect, test } from "bun:test";
 import type { ChannelEvent, OutboundMessage } from "@artil/channels/contract";
 
 import { TelegramChannel } from "./channel";
-import type { OutgoingTelegram, TelegramEvent, TelegramProvider } from "./provider";
+import type {
+  OutgoingTelegram,
+  TelegramEvent,
+  TelegramProvider,
+  TelegramReaction,
+} from "./provider";
 
 // Artil holds the bot at its @username, with its token.
 async function tokenOf(address: string) {
@@ -12,6 +17,7 @@ async function tokenOf(address: string) {
 
 function setup(inbound: TelegramEvent[] = []) {
   const sent: OutgoingTelegram[] = [];
+  const reactions: TelegramReaction[] = [];
   const disconnected: string[] = [];
   const tokens: (string | null)[] = [];
 
@@ -33,9 +39,12 @@ function setup(inbound: TelegramEvent[] = []) {
 
       return { id: "42:8" };
     },
+    react: async (reaction) => {
+      reactions.push(reaction);
+    },
   };
 
-  return { sent, disconnected, tokens, channel: new TelegramChannel(provider) };
+  return { sent, reactions, disconnected, tokens, channel: new TelegramChannel(provider) };
 }
 
 type Channel = ReturnType<typeof setup>["channel"];
@@ -236,6 +245,19 @@ test("sends to one chat as the bot, answering by Telegram's id for the message",
 
   expect(sent).toEqual([
     { token: "123456:ABC", chat: "42", text: "On my way", files: [], replyTo: "42:7" },
+  ]);
+});
+
+test("reacts with 👀 to a message the agent read until it answers, from a bot the account holds", async () => {
+  const { channel, reactions } = setup();
+
+  await channel.markRead({ id: "42:7", token: "123456:ABC" });
+  await channel.markAnswered({ id: "42:7", token: "123456:ABC" });
+  await channel.markRead({ id: "42:8", token: null });
+
+  expect(reactions).toEqual([
+    { token: "123456:ABC", id: "42:7", emoji: "👀" },
+    { token: "123456:ABC", id: "42:7", emoji: null },
   ]);
 });
 

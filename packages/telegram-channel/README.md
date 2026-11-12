@@ -13,3 +13,6 @@ A bot connects with its token: open @BotFather in Telegram, send `/newbot` to
 make a bot or `/mybots` to pick one you have, tap API Token and copy it. People
 then write to the bot first, in a private chat or by tagging it in a group it
 is in, and the agent answers them.
+
+Once the agent reads a message that woke it, its bot reacts to it with 👀 until
+the agent answers, so the sender knows the agent has it.

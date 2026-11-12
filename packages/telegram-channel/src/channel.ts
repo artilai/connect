@@ -2,6 +2,7 @@ import {
   Channel,
   type ChannelEvent,
   type HandleWebhookOptions,
+  type ReceiptOptions,
   type SendOptions,
   type StartOptions,
 } from "@artil/channels/contract";
@@ -100,6 +101,19 @@ export class TelegramChannel extends Channel {
       files,
       replyTo: replyTo ?? null,
     });
+  }
+
+  override markRead(options: ReceiptOptions) {
+    return this.#react(options, "👀");
+  }
+
+  override markAnswered(options: ReceiptOptions) {
+    return this.#react(options, null);
+  }
+
+  // A bot the account no longer holds has no token to react with.
+  async #react({ id, token }: ReceiptOptions, emoji: string | null) {
+    if (token) await this.#provider.react({ token, id, emoji });
   }
 }
 

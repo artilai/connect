@@ -22,4 +22,9 @@ A channel whose provider threads messages, like Slack, names the thread of each
 message it takes and sends, and gets the thread of the message an answer
 answers.
 
+A channel that can show someone what the agent did with their message, like a
+reaction on Telegram, has `markRead` and `markAnswered`. The server calls them
+for a message that woke the agent, once the agent reads it and once it answers
+it, and goes on without waiting for them.
+
 A release that breaks channels built for the last one raises `contractVersion` by one, and the pull requests before it leave it as it is: the server loads only channels of its own version.

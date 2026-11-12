@@ -38,6 +38,10 @@ export type OutgoingTelegram = {
   replyTo: string | null;
 };
 
+// The bot's reaction to a message it received, by the id Artil gave the message, like 👀, or none
+// to take its reaction off.
+export type TelegramReaction = { token: string; id: string; emoji: string | null };
+
 export type TelegramUpdates = {
   token: string;
   // Where Telegram posts the bot's updates; without it, the provider asks Telegram for them.
@@ -67,4 +71,5 @@ export type TelegramProvider = {
   // them until the signal aborts on a server Telegram cannot reach.
   start: (updates: TelegramUpdates) => Promise<void>;
   send: (message: OutgoingTelegram) => Promise<{ id: string }>;
+  react: (reaction: TelegramReaction) => Promise<void>;
 };

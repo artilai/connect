@@ -1,0 +1,1 @@
+ALTER TABLE `messages` ADD `answered_at` integer;

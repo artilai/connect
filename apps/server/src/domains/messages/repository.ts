@@ -195,6 +195,9 @@ export function createMessagesRepository(db: Database) {
 
     markFailed: (id: string, error: string) =>
       db.update(messages).set({ status: "failed", error }).where(eq(messages.id, id)).run(),
+
+    markAnswered: (id: string) =>
+      db.update(messages).set({ answeredAt: new Date() }).where(eq(messages.id, id)).run(),
   };
 }
 

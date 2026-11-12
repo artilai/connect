@@ -67,6 +67,8 @@ export type SendOptions = {
   deliver: (message: InboundMessage) => Promise<void>;
 };
 
+export type ReceiptOptions = { id: string; token: string | null };
+
 export abstract class Channel {
   readonly contractVersion = contractVersion;
   abstract readonly kind: string;
@@ -99,4 +101,8 @@ export abstract class Channel {
   }
 
   abstract send(options: SendOptions): Promise<SentMessage>;
+
+  markRead?(options: ReceiptOptions): Promise<void>;
+
+  markAnswered?(options: ReceiptOptions): Promise<void>;
 }

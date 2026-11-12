@@ -627,6 +627,34 @@ test("keeps the token out of a failure to reach Telegram", async () => {
   expect(String(failure)).not.toContain(token);
 });
 
+test("reacts to a message in its chat, and takes the reaction off", async () => {
+  const { telegram, requests } = setup();
+
+  await telegram.react({ token, id: "42:7", emoji: "👀" });
+  await telegram.react({ token, id: "-10042:7", emoji: null });
+
+  expect(requests).toEqual([
+    {
+      method: "setMessageReaction",
+      body: { chat_id: 42, message_id: 7, reaction: [{ type: "emoji", emoji: "👀" }] },
+    },
+    { method: "setMessageReaction", body: { chat_id: -10042, message_id: 7, reaction: [] } },
+  ]);
+});
+
+test("goes without a reaction Telegram refuses", async () => {
+  const { telegram } = setup({
+    answers: {
+      setMessageReaction: {
+        status: 400,
+        body: { ok: false, error_code: 400, description: "Bad Request: REACTION_INVALID" },
+      },
+    },
+  });
+
+  await expect(telegram.react({ token, id: "42:7", emoji: "👀" })).resolves.toBeUndefined();
+});
+
 const offsetSchema = z.object({ offset: z.number() });
 
 type ReceiveOptions = {

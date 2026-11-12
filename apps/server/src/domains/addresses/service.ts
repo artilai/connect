@@ -79,6 +79,7 @@ export function createAddressesService({
   }
 
   return {
+    findById: addressesRepository.findById,
     findByAccount,
     findByValue,
     listByAccount: addressesRepository.listByAccount,

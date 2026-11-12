@@ -43,6 +43,13 @@
       "when": 1794488407714,
       "tag": "0005_add_message_external_thread",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1794499303398,
+      "tag": "0006_add_message_answered_at",
+      "breakpoints": true
     }
   ]
 }
