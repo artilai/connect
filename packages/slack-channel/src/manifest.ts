@@ -29,7 +29,9 @@ function manifestOf(account: string) {
           "im:history",
           "im:write",
           "mpim:history",
+          "reactions:write",
           "users:read",
+          "users:read.email",
         ],
       },
     },
@@ -40,9 +42,12 @@ function manifestOf(account: string) {
   };
 }
 
-// A link that opens Slack's app creation with the account's app described already.
+// A link that opens Slack's app creation with the account's app described already. Brackets are
+// encoded too, which encodeURIComponent leaves, since a Markdown link ends at one.
 export function newAppLink(account: string) {
-  const manifest = encodeURIComponent(JSON.stringify(manifestOf(account)));
+  const manifest = encodeURIComponent(JSON.stringify(manifestOf(account)))
+    .replaceAll("(", "%28")
+    .replaceAll(")", "%29");
 
   return `https://api.slack.com/apps?new_app=1&manifest_json=${manifest}`;
 }

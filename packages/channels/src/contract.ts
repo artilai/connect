@@ -43,6 +43,10 @@ export type ChannelEvent = { type: "message.received"; message: InboundMessage }
 
 export type ChannelLabels = { address: string; contact: string; token?: string };
 
+// A part of the token connecting an address takes: what to call it, and how to get it, which a
+// terminal shows before it asks for it.
+export type TokenPart = { label: string; guide?: string };
+
 export type ChannelLimits = { recipients: number; text: number; files: number; fileSize?: number };
 
 type ReceiveEvents = (events: ChannelEvent[]) => Promise<void>;
@@ -78,9 +82,10 @@ export abstract class Channel {
 
   connect?(token: string): Promise<string>;
 
-  // How to get the token connecting an address for the account takes, in short lines the server
-  // shows before it asks.
-  tokenGuide?(account: string): string;
+  // The parts of the token connecting an address for the account takes, like a bot token and an
+  // app-level token, which a terminal asks for one by one and gives connect with a space between.
+  // Without them, a terminal asks for the token whole, by labels.token.
+  tokenParts?(account: string): TokenPart[];
 
   async disconnect(_token: string): Promise<void> {}
 

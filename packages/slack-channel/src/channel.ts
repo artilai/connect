@@ -1,14 +1,16 @@
 import {
   Channel,
   type ChannelEvent,
+  type ReceiptOptions,
   type SendOptions,
   type StartOptions,
 } from "@artil/channels/contract";
 import { AppError } from "@artil/errors";
+import { withQuotes } from "@artil/utils/text";
 
-import { readContact } from "./conversations";
+import { botAddress, channelAddress, readRecipient, readSender } from "./conversations";
 import { newAppLink } from "./manifest";
-import type { InboundSlack, SlackProvider, SlackQuote, SlackTokens } from "./provider";
+import type { InboundSlack, SlackPerson, SlackProvider, SlackTokens } from "./provider";
 
 // Slack through a provider, the Web API and Socket Mode in the server: an app's bot is an address,
 // and a person or a channel the bot is in is whom a message goes to.
@@ -19,7 +21,7 @@ export class SlackChannel extends Channel {
 
   readonly labels = {
     address: "bot",
-    contact: "member id or channel id",
+    contact: "email or #channel",
     token: "bot token and app-level token, with a space between",
   };
 
@@ -34,17 +36,25 @@ export class SlackChannel extends Channel {
   }
 
   override async connect(token: string) {
-    return this.#provider.connect(readTokens(token));
+    return botAddress(await this.#provider.connect(readTokens(token)));
   }
 
-  override tokenGuide(account: string) {
+  // The app for the account comes from a link, and its two tokens from its settings.
+  override tokenParts(account: string) {
     return [
-      "1. Create the app from this link:",
-      `   ${newAppLink(account)}`,
-      "2. Open Install App in its sidebar, choose Install to Workspace and Allow, and copy the Bot User OAuth Token it then shows.",
-      "3. Under Basic Information, generate an App-Level Token with the connections:write scope.",
-      "4. Give both tokens here, with a space between.",
-    ].join("\n");
+      {
+        label: "bot token (xoxb-…)",
+        guide: [
+          `1. [Create the app in Slack](${newAppLink(account)})`,
+          "2. Open Install App in its sidebar, choose Install to Workspace and Allow, and copy the Bot User OAuth Token it shows.",
+        ].join("\n"),
+      },
+      {
+        label: "app-level token (xapp-…)",
+        guide:
+          "3. Under Basic Information, generate an App-Level Token with the connections:write scope.",
+      },
+    ];
   }
 
   // The bot's messages come over Socket Mode, which the server opens, so Slack needs no webhook.
@@ -57,11 +67,11 @@ export class SlackChannel extends Channel {
   }
 
   override parseSender(input: string) {
-    return readContact(input) ?? null;
+    return readSender(input);
   }
 
   override parseRecipient(input: string) {
-    return readContact(input) ?? null;
+    return readRecipient(input);
   }
 
   async send({ message: { to, text, files, replyTo, thread }, token }: SendOptions) {
@@ -75,6 +85,20 @@ export class SlackChannel extends Channel {
       replyTo: replyTo ?? null,
       thread: thread ?? null,
     });
+  }
+
+  override markRead(options: ReceiptOptions) {
+    return this.#react(options, true);
+  }
+
+  override markAnswered(options: ReceiptOptions) {
+    return this.#react(options, false);
+  }
+
+  // The bot puts 👀 on a message while the agent has it, and takes it off once the agent answers. A
+  // bot the account no longer holds has no token to react with.
+  async #react({ id, token }: ReceiptOptions, on: boolean) {
+    if (token) await this.#provider.react({ token: readTokens(token).bot, id, name: "eyes", on });
   }
 }
 
@@ -108,50 +132,37 @@ function onlyConversation(to: string[]) {
   return conversation;
 }
 
-function received({
-  id,
-  bot,
-  group,
-  senderId,
-  senderName,
-  text,
-  files,
-  quotes,
-  thread,
-}: InboundSlack) {
+// A person goes by their email, a bot by its @username, and someone Slack tells neither of by their
+// member id.
+function addressOf({ id, email, botUsername }: SlackPerson) {
+  if (email) return email.toLowerCase();
+
+  return botUsername ? botAddress(botUsername) : id;
+}
+
+function received({ id, botUsername, group, sender, text, files, quotes, thread }: InboundSlack) {
+  // A channel goes by its #name, or by its id when Slack does not tell the name.
+  const channel = group?.name ? channelAddress(group.name) : null;
+
   return {
     type: "message.received",
     message: {
       id,
-      to: [bot],
+      to: [botAddress(botUsername)],
       from: {
-        address: senderId,
-        name: senderName,
-        // Slack has no handle of its own for a person, only the names they choose.
-        username: null,
+        address: addressOf(sender),
+        name: sender.name,
+        // Their member id, which a list may name in place of their email.
+        username: sender.id,
         // Slack vouches for who sent each message to the bot.
         verified: true,
       },
       // An answer to a message in a channel goes to the channel.
-      group: group ? { address: group.id, name: group.name } : undefined,
+      group: group ? { address: channel ?? group.id, name: channel } : undefined,
+      // A mention in a thread carries what was said there before it.
       text: withQuotes(text, quotes),
       files,
       thread,
     },
   } satisfies ChannelEvent;
-}
-
-// A mention in a thread carries what was said there before it as quotes above its text, the way a
-// Telegram reply quotes what it answers.
-function withQuotes(text: string, quotes: SlackQuote[]) {
-  const quoted = quotes.map(({ fromName, text: said }) => {
-    const lines = said
-      .split("\n")
-      .map((line) => `> ${line}`)
-      .join("\n");
-
-    return fromName ? `${fromName} wrote:\n${lines}` : lines;
-  });
-
-  return [...quoted, text].filter(Boolean).join("\n\n");
 }

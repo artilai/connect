@@ -7,9 +7,10 @@ import {
   type StartOptions,
 } from "@artil/channels/contract";
 import { AppError } from "@artil/errors";
+import { withQuotes } from "@artil/utils/text";
 
 import { atUsername, readChat, readSender } from "./chats";
-import type { InboundTelegram, TelegramProvider, TelegramQuote } from "./provider";
+import type { InboundTelegram, TelegramProvider } from "./provider";
 
 // Telegram through a provider, the Bot API in the server: a bot is an address, and a chat with it,
 // private or in a group, is whom a message goes to.
@@ -156,23 +157,10 @@ function received({
       },
       // An answer to a message in a group goes to the group.
       group: group ? { address: chat, name: group.title } : undefined,
-      text: withQuote(text, quote),
+      // A reply carries what it answers as a quote above its text.
+      text: withQuotes(text, quote ? [quote] : []),
       files,
       replyTo: replyTo ?? undefined,
     },
   } satisfies ChannelEvent;
-}
-
-// A reply carries what it answers as a quote above its text, the way an email reply does.
-function withQuote(text: string, quote: TelegramQuote | null) {
-  if (!quote) return text;
-
-  const lines = quote.text
-    .split("\n")
-    .map((line) => `> ${line}`)
-    .join("\n");
-
-  const quoted = quote.fromName ? `${quote.fromName} wrote:\n${lines}` : lines;
-
-  return [quoted, text].filter(Boolean).join("\n\n");
 }

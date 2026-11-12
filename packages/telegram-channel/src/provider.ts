@@ -1,4 +1,5 @@
 import type { InboundFile, OutboundFile } from "@artil/channels/contract";
+import type { Quote } from "@artil/utils/text";
 
 // A message someone sent a bot: in a private chat with it, or in a group where it tags the bot or
 // answers it.
@@ -19,13 +20,11 @@ export type InboundTelegram = {
   fromName: string | null;
   text: string;
   files: InboundFile[];
-  quote: TelegramQuote | null;
+  // The message a reply answers, or only the part of it the sender quoted.
+  quote: Quote | null;
   // The id of the message this one answers, in the same chat.
   replyTo: string | null;
 };
-
-// The message a reply answers, or only the part of it the sender quoted.
-export type TelegramQuote = { fromName: string | null; text: string };
 
 export type TelegramEvent = { type: "received"; message: InboundTelegram };
 

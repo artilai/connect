@@ -70,31 +70,42 @@ function setup({ answers = {}, heartbeat }: SetupOptions = {}) {
   return { slack, requests };
 }
 
-const botAnswer = { body: { ok: true, user_id: "U0BOT0001", bot_id: "B0BOT0001" } };
+const botAnswer = {
+  body: { ok: true, user_id: "U0BOT0001", user: "claude", bot_id: "B0BOT0001" },
+};
 
 const adaAnswer = {
-  body: { ok: true, user: { id: "U0ADA0001", name: "ada", real_name: "Ada Lovelace" } },
+  body: {
+    ok: true,
+    user: {
+      id: "U0ADA0001",
+      name: "ada",
+      real_name: "Ada Lovelace",
+      profile: { email: "ada@example.com" },
+    },
+  },
 };
+
+const ada = { id: "U0ADA0001", name: "Ada Lovelace", email: "ada@example.com", botUsername: null };
 
 const launchAnswer = { body: { ok: true, channel: { id: "C0LAUNCH01", name: "launch" } } };
 
-// The connection Slack opens for the app-level token, which names the app.
-function connectionAnswer(app: string) {
-  return { body: { ok: true, url: `wss://slack.test/link/?ticket=1&app_id=${app}` } };
-}
-
 const botInfoAnswer = { body: { ok: true, bot: { id: "B0BOT0001", app_id: "A0APP0001" } } };
 
+// What Slack answers a bot that opens a Socket Mode connection at the url.
+function connectingTo(url: string) {
+  return { "auth.test": botAnswer, "apps.connections.open": { body: { ok: true, url } } };
+}
+
 test("checks the app's tokens and finds its bot's member id", async () => {
+  const socket = socketMode();
+
   const { slack, requests } = setup({
-    answers: {
-      "auth.test": botAnswer,
-      "apps.connections.open": connectionAnswer("A0APP0001"),
-      "bots.info": botInfoAnswer,
-    },
+    answers: { ...connectingTo(socket.url), "bots.info": botInfoAnswer },
   });
 
-  expect(await slack.connect(tokens)).toBe("U0BOT0001");
+  expect(await slack.connect(tokens)).toBe("claude");
+  socket.stop();
   expect(requests).toEqual([
     { method: "auth.test", token: "xoxb-1-bot", body: {} },
     { method: "apps.connections.open", token: "xapp-1-app", body: {} },
@@ -103,12 +114,10 @@ test("checks the app's tokens and finds its bot's member id", async () => {
 });
 
 test("refuses tokens of two different apps", async () => {
+  const socket = socketMode({ app: "A0OTHER01" });
+
   const { slack } = setup({
-    answers: {
-      "auth.test": botAnswer,
-      "apps.connections.open": connectionAnswer("A0OTHER01"),
-      "bots.info": botInfoAnswer,
-    },
+    answers: { ...connectingTo(socket.url), "bots.info": botInfoAnswer },
   });
 
   await expect(slack.connect(tokens)).rejects.toMatchObject({
@@ -116,6 +125,7 @@ test("refuses tokens of two different apps", async () => {
     message:
       "The bot token and the app-level token belong to different Slack apps; give both of one app",
   });
+  socket.stop();
 });
 
 test("refuses a token Slack does not know", async () => {
@@ -142,9 +152,11 @@ async function until(done: () => boolean) {
   while (!done()) await Bun.sleep(1);
 }
 
-// Slack's side of Socket Mode: takes the server's connections, and keeps the ids of the envelopes
-// the server acknowledged.
-function socketMode() {
+type SocketModeOptions = { app?: string };
+
+// Slack's side of Socket Mode: greets each connection the server opens, naming the app it is for,
+// and keeps the ids of the envelopes the server acknowledged.
+function socketMode({ app = "A0APP0001" }: SocketModeOptions = {}) {
   const connections: ServerWebSocket[] = [];
   const acks: string[] = [];
 
@@ -155,6 +167,7 @@ function socketMode() {
     websocket: {
       open: (socket) => {
         connections.push(socket);
+        socket.send(JSON.stringify({ type: "hello", connection_info: { app_id: app } }));
       },
       message: (_socket, data) => {
         acks.push(JSON.parse(String(data)).envelope_id);
@@ -226,8 +239,7 @@ async function receive({ events, answers = {} }: ReceiveOptions) {
 
   const { slack, requests } = setup({
     answers: {
-      "auth.test": botAnswer,
-      "apps.connections.open": { body: { ok: true, url: socket.url } },
+      ...connectingTo(socket.url),
       "users.info": adaAnswer,
       "conversations.info": launchAnswer,
       ...answers,
@@ -247,8 +259,6 @@ async function receive({ events, answers = {} }: ReceiveOptions) {
 
   try {
     const connection = await socket.connection(0);
-
-    connection.send(JSON.stringify({ type: "hello", num_connections: 1 }));
 
     for (const [index, event] of events.entries()) {
       connection.send(envelope({ id: `envelope-${index}`, event }));
@@ -295,10 +305,9 @@ test("takes direct messages to the bot over Socket Mode, each in a thread of its
       type: "received",
       message: {
         id: "D0ADA0001:1700000000.000100",
-        bot: "U0BOT0001",
+        botUsername: "claude",
         group: null,
-        senderId: "U0ADA0001",
-        senderName: "Ada Lovelace",
+        sender: ada,
         text: "Is 1 < 2 && 3 > 2?",
         files: [],
         quotes: [],
@@ -329,10 +338,9 @@ test("takes what mentions the bot in a channel, by the channel's name and the th
       type: "received",
       message: {
         id: "C0LAUNCH01:1700000000.000300",
-        bot: "U0BOT0001",
-        group: { id: "C0LAUNCH01", name: "#launch" },
-        senderId: "U0ADA0001",
-        senderName: "Ada Lovelace",
+        botUsername: "claude",
+        group: { id: "C0LAUNCH01", name: "launch" },
+        sender: ada,
         text: "<@U0BOT0001> are you there?",
         files: [],
         quotes: [],
@@ -373,6 +381,7 @@ test("quotes what was said in a channel's thread since the bot last wrote there"
               { user: "U0EVE0001", text: "" },
               { bot_profile: { name: "CI" }, text: "Build 42 failed" },
             ],
+            response_metadata: { warnings: ["superfluous_charset"] },
           },
         },
       ],
@@ -414,7 +423,13 @@ test("goes without the names and the thread Slack does not give", async () => {
   });
 
   expect(taken).toMatchObject([
-    { message: { senderName: null, group: { id: "G0FRIENDS1", name: null }, quotes: [] } },
+    {
+      message: {
+        sender: { name: null, email: null },
+        group: { id: "G0FRIENDS1", name: null },
+        quotes: [],
+      },
+    },
   ]);
 });
 
@@ -475,11 +490,7 @@ test("acknowledges an envelope as it comes, and takes its event before connectin
   const socket = socketMode();
 
   const { slack } = setup({
-    answers: {
-      "auth.test": botAnswer,
-      "apps.connections.open": { body: { ok: true, url: socket.url } },
-      "users.info": adaAnswer,
-    },
+    answers: { ...connectingTo(socket.url), "users.info": adaAnswer },
   });
 
   const controller = new AbortController();
@@ -514,7 +525,7 @@ type StartFailingOptions = { url: string; heartbeat?: number; onEvents?: () => P
 function startFailing({ url, heartbeat, onEvents = async () => {} }: StartFailingOptions) {
   const { slack } = setup({
     heartbeat,
-    answers: { "auth.test": botAnswer, "apps.connections.open": { body: { ok: true, url } } },
+    answers: connectingTo(url),
   });
 
   return slack.start({ tokens, signal: new AbortController().signal, onEvents });
@@ -580,25 +591,23 @@ test("fails a connection that stops answering, as after the computer slept", asy
 
 const postedAnswer = { body: { ok: true, channel: "C0LAUNCH01", ts: "1700000000.000500" } };
 
-test("writes to a person in their direct message, in Markdown", async () => {
+const message = { token: "xoxb-1-bot", text: "**Done**", files: [], replyTo: null, thread: null };
+
+test("writes to a person by their email, in their direct message, in Markdown", async () => {
   const { slack, requests } = setup({
     answers: {
+      "users.lookupByEmail": { body: { ok: true, user: { id: "U0ADA0001" } } },
       "conversations.open": { body: { ok: true, channel: { id: "D0ADA0001" } } },
       "chat.postMessage": postedAnswer,
     },
   });
 
-  expect(
-    await slack.send({
-      token: "xoxb-1-bot",
-      to: "U0ADA0001",
-      text: "**Done**",
-      files: [],
-      replyTo: null,
-      thread: null,
-    }),
-  ).toEqual({ id: "D0ADA0001:1700000000.000500", thread: "D0ADA0001:1700000000.000500" });
+  expect(await slack.send({ ...message, to: "ada@example.com" })).toEqual({
+    id: "D0ADA0001:1700000000.000500",
+    thread: "D0ADA0001:1700000000.000500",
+  });
   expect(requests).toEqual([
+    { method: "users.lookupByEmail", token: "xoxb-1-bot", body: { email: "ada@example.com" } },
     { method: "conversations.open", token: "xoxb-1-bot", body: { users: "U0ADA0001" } },
     {
       method: "chat.postMessage",
@@ -606,6 +615,27 @@ test("writes to a person in their direct message, in Markdown", async () => {
       body: { channel: "D0ADA0001", markdown_text: "**Done**" },
     },
   ]);
+});
+
+test("writes to a channel by its #name, among the channels the bot is in", async () => {
+  const { slack, requests } = setup({
+    answers: {
+      "users.conversations": {
+        body: { ok: true, channels: [{ id: "C0LAUNCH01", name: "launch" }] },
+      },
+      "chat.postMessage": postedAnswer,
+    },
+  });
+
+  await slack.send({ ...message, to: "#launch" });
+
+  await expect(slack.send({ ...message, to: "#nowhere" })).rejects.toThrow(
+    "The bot is not in #nowhere; invite it there with /invite",
+  );
+  expect(requests.find(({ method }) => method === "chat.postMessage")?.body).toEqual({
+    channel: "C0LAUNCH01",
+    markdown_text: "**Done**",
+  });
 });
 
 test("answers in the thread of the message it answers, and beside one in a direct message", async () => {
@@ -698,19 +728,12 @@ test("sends files after the text, in its thread", async () => {
 });
 
 test("fails a send with Slack's reason, naming a scope the app lacks", async () => {
-  const hello = {
-    token: "xoxb-1-bot",
-    to: "C0LAUNCH01",
-    text: "Hello",
-    files: [],
-    replyTo: null,
-    thread: null,
-  };
+  const toLaunch = { ...message, to: "C0LAUNCH01" };
 
   await expect(
     setup({
       answers: { "chat.postMessage": { body: { ok: false, error: "not_in_channel" } } },
-    }).slack.send(hello),
+    }).slack.send(toLaunch),
   ).rejects.toThrow("not_in_channel");
 
   await expect(
@@ -720,6 +743,38 @@ test("fails a send with Slack's reason, naming a scope the app lacks", async () 
           body: { ok: false, error: "missing_scope", needed: "chat:write" },
         },
       },
-    }).slack.send(hello),
+    }).slack.send(toLaunch),
   ).rejects.toThrow("missing_scope: the Slack app needs the chat:write scope");
+});
+
+test("reacts to a message by its conversation and timestamp, and goes without what is done already", async () => {
+  const reaction = { token: "xoxb-1-bot", id: "C0LAUNCH01:1700000000.000300", name: "eyes" };
+
+  const { slack, requests } = setup({
+    answers: { "reactions.remove": { body: { ok: false, error: "no_reaction" } } },
+  });
+
+  await slack.react({ ...reaction, on: true });
+  await slack.react({ ...reaction, on: false });
+
+  expect(requests).toEqual([
+    {
+      method: "reactions.add",
+      token: "xoxb-1-bot",
+      body: { channel: "C0LAUNCH01", timestamp: "1700000000.000300", name: "eyes" },
+    },
+    {
+      method: "reactions.remove",
+      token: "xoxb-1-bot",
+      body: { channel: "C0LAUNCH01", timestamp: "1700000000.000300", name: "eyes" },
+    },
+  ]);
+
+  await expect(
+    setup({
+      answers: {
+        "reactions.add": { body: { ok: false, error: "missing_scope", needed: "reactions:write" } },
+      },
+    }).slack.react({ ...reaction, on: true }),
+  ).rejects.toThrow("missing_scope: the Slack app needs the reactions:write scope");
 });

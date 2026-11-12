@@ -188,7 +188,13 @@ export async function runCli(environment: Environment) {
     environment;
 
   const builtInKinds = builtInChannels.map(({ kind }) => kind);
-  const readSecret = createSecretReader({ interactive, readStdin: environment.readStdin });
+
+  const readSecret = createSecretReader({
+    interactive,
+    readStdin: environment.readStdin,
+    show: out,
+  });
+
   const confirm = createConfirm({ interactive, yes: values.yes === true });
 
   type ReadArgumentsOptions = { run: Command; context: CommandContext };
@@ -248,6 +254,7 @@ export async function runCli(environment: Environment) {
             artil,
             migrationsFolder,
             tailscale,
+            readSecret,
             out,
           })
         : (savedConfig ?? newConfig({ channels: builtInKinds }));
@@ -267,10 +274,16 @@ export async function runCli(environment: Environment) {
       artil,
       migrationsFolder,
       tailscale,
+      readSecret,
       out,
     });
 
-    return;
+    // A running server takes new addresses on its own, and the rest of the setup from its next start.
+    return out(
+      (await findRunningPort(paths))
+        ? "Stop the server where it runs, and start it again with:\n  artil-connect"
+        : "Start the server with:\n  artil-connect",
+    );
   }
 
   const config = savedConfig ?? newConfig({ channels: builtInKinds });

@@ -19,9 +19,10 @@ import { shellQuoted } from "@artil/utils/shell";
 
 import { createAccessCommands } from "../domains/access/commands";
 import { signInGuide } from "../domains/accounts/commands";
+import { tokenQuestions } from "../domains/addresses/commands";
 import { hashPassword, validatePassword } from "../domains/sign-in/password";
 import type { ArtilCli } from "../platform/artil-cli";
-import { highlightCommands } from "../platform/commands";
+import { highlightCommands, type ReadSecret, validateFilled } from "../platform/commands";
 import {
   type Config,
   newConfig,
@@ -38,17 +39,15 @@ export class SetupStopped extends Error {
 }
 
 // A prompt the person cancelled stops the setup without saving.
-function requireAnswer<Value>(value: Value | typeof CANCEL_SYMBOL): Value {
-  if (isCancel(value)) {
-    cancel("Setup stopped; nothing more was saved.");
-    throw new SetupStopped("Setup stopped");
-  }
-
-  return value;
+function stopSetup(): never {
+  cancel("Setup stopped; nothing more was saved.");
+  throw new SetupStopped("Setup stopped");
 }
 
-function validateNotEmpty(value: string | undefined) {
-  return value?.trim() ? undefined : "Fill this in";
+function requireAnswer<Value>(value: Value | typeof CANCEL_SYMBOL): Value {
+  if (isCancel(value)) stopSetup();
+
+  return value;
 }
 
 async function createAccounts(context: CommandContext) {
@@ -83,11 +82,11 @@ async function createAccounts(context: CommandContext) {
   }
 }
 
-type SetUpChannelOptions = { context: CommandContext; channel: Channel };
+type SetUpChannelOptions = { context: CommandContext; channel: Channel; readSecret: ReadSecret };
 
 // Offers an address of a channel that takes a token to each account without one, in turn, and lets
 // someone wake the agent there.
-async function setUpChannel({ context, channel }: SetUpChannelOptions) {
+async function setUpChannel({ context, channel, readSecret }: SetUpChannelOptions) {
   function accountsWithout() {
     return context.accounts
       .list()
@@ -120,16 +119,8 @@ async function setUpChannel({ context, channel }: SetUpChannelOptions) {
 
     if (!account) return;
 
-    const guide = channel.tokenGuide?.(account.name);
-
-    if (guide) context.out(`Connect ${channel.name} to ${account.name}\n${guide}`);
-
-    const token = requireAnswer(
-      await password({
-        message: `${channel.name} ${channel.labels.token ?? "token"}`,
-        validate: validateNotEmpty,
-      }),
-    );
+    const token =
+      (await readSecret(tokenQuestions({ channel, account: account.name }))) ?? stopSetup();
 
     const progressSpinner = spinner();
 
@@ -196,7 +187,7 @@ async function askS3Settings(current: S3Settings | null): Promise<S3Settings> {
     await text({
       message: "Bucket",
       initialValue: current?.bucket ?? "",
-      validate: validateNotEmpty,
+      validate: validateFilled,
     }),
   );
 
@@ -204,7 +195,7 @@ async function askS3Settings(current: S3Settings | null): Promise<S3Settings> {
     await text({
       message: "Region",
       initialValue: current?.region ?? "auto",
-      validate: validateNotEmpty,
+      validate: validateFilled,
     }),
   );
 
@@ -212,12 +203,12 @@ async function askS3Settings(current: S3Settings | null): Promise<S3Settings> {
     await text({
       message: "Access key id",
       initialValue: current?.accessKeyId ?? "",
-      validate: validateNotEmpty,
+      validate: validateFilled,
     }),
   );
 
   const secretAccessKey = requireAnswer(
-    await password({ message: "Secret access key", validate: validateNotEmpty }),
+    await password({ message: "Secret access key", validate: validateFilled }),
   );
 
   return {
@@ -351,6 +342,8 @@ type RunSetupOptions = {
   artil: ArtilCli;
   migrationsFolder: string;
   tailscale?: Tailscale;
+  // Asks in the terminal for what connecting a channel takes, like a bot's token.
+  readSecret: ReadSecret;
   out: (line: string) => void;
 };
 
@@ -363,6 +356,7 @@ export async function runSetup({
   artil,
   migrationsFolder,
   tailscale,
+  readSecret,
   out,
 }: RunSetupOptions) {
   intro("Artil Connect setup");
@@ -386,7 +380,7 @@ export async function runSetup({
     await createAccounts(context);
 
     for (const channel of context.channels.list()) {
-      if (channel.connect) await setUpChannel({ context, channel });
+      if (channel.connect) await setUpChannel({ context, channel, readSecret });
     }
 
     const s3 = await setUpFiles(config);

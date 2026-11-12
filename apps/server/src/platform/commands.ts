@@ -1,6 +1,7 @@
 import { styleText } from "node:util";
 
 import { confirm, isCancel, log, note, password } from "@clack/prompts";
+import terminalLink from "terminal-link";
 
 import { AppError } from "@artil/errors";
 
@@ -49,6 +50,24 @@ export function highlightCommands(text: string) {
   );
 }
 
+// A link in a text, written as Markdown writes one: [label](url).
+const markdownLink = /\[([^\]]+)\]\(([^\)\s]+)\)/gv;
+
+// What a link shows, underlined in color, the way a browser marks a link.
+function linkStyle(shown: string) {
+  return styleText(["cyan", "underline"], shown);
+}
+
+// A text with its links under their labels, with an arrow that says they lead away, in a terminal
+// that shows links so, or else in full.
+export function withLinks(text: string) {
+  return text.replaceAll(markdownLink, (_, label: string, url: string) =>
+    terminalLink(linkStyle(`${label} ↗`), url, {
+      fallback: () => `${label}: ${linkStyle(url)}`,
+    }),
+  );
+}
+
 type CreateOutOptions = {
   // Whether a person reads what the commands say in a terminal, rather than a pipe or a script.
   terminal: boolean;
@@ -57,25 +76,30 @@ type CreateOutOptions = {
 };
 
 // Says what a command has to say, whose first line heads the rest. A terminal frames the rest in a
-// box, or beside a bar when a line is too wide for the box, which would break that line in two.
+// box, or beside a bar when a line is too wide for the box, which would break that line in two,
+// like a link.
 export function createOut({ terminal, columns, write }: CreateOutOptions) {
   if (!terminal) return write;
 
   return (text: string) => {
-    const lines = text.split("\n");
-    const [title = "", ...body] = lines;
-    const widest = Math.max(...lines.map((line) => line.length));
+    const widest = Math.max(...text.split("\n").map((line) => line.length));
+    const [title = "", ...body] = highlightCommands(withLinks(text)).split("\n");
 
     if (body.length > 0 && widest + boxEdges <= columns()) {
-      note(highlightCommands(body.join("\n")), title, { withGuide: false });
+      note(body.join("\n"), title, { withGuide: false });
     } else {
-      log.step(highlightCommands(text), { spacing: 0 });
+      log.step([title, ...body].join("\n"), { spacing: 0 });
     }
   };
 }
 
+type SecretPart = { message: string; guide?: string };
+
 type ReadSecretOptions = {
   message: string;
+  // What a terminal asks for one by one, after how to get each, whose answers make the secret with
+  // a space between.
+  parts?: readonly SecretPart[];
   // What is wrong with the secret, if anything.
   validate?: (value: string | undefined) => string | undefined;
 };
@@ -84,9 +108,14 @@ type ReadSecretOptions = {
 // the shell's history. Undefined when the person stops at the question.
 export type ReadSecret = (options: ReadSecretOptions) => Promise<string | undefined>;
 
-type CreateSecretReaderOptions = { interactive: boolean; readStdin: () => Promise<string> };
+type CreateSecretReaderOptions = {
+  interactive: boolean;
+  readStdin: () => Promise<string>;
+  // Shows how to get a part of the secret before a terminal asks for it.
+  show: (text: string) => void;
+};
 
-function validateFilled(value: string | undefined) {
+export function validateFilled(value: string | undefined) {
   return value?.trim() ? undefined : "Fill this in";
 }
 
@@ -94,12 +123,23 @@ function validateFilled(value: string | undefined) {
 export function createSecretReader({
   interactive,
   readStdin,
+  show,
 }: CreateSecretReaderOptions): ReadSecret {
-  return async ({ message, validate = validateFilled }) => {
+  return async ({ message, parts = [{ message }], validate = validateFilled }) => {
     if (interactive) {
-      const answer = await password({ message, validate });
+      const answers: string[] = [];
 
-      return isCancel(answer) ? undefined : answer;
+      for (const { message: question, guide } of parts) {
+        if (guide) show(guide);
+
+        const answer = await password({ message: question, validate });
+
+        if (isCancel(answer)) return undefined;
+
+        answers.push(answer);
+      }
+
+      return answers.join(" ");
     }
 
     // What comes piped in ends with the newline that echo puts after it.

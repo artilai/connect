@@ -1,3 +1,4 @@
+import type { Channel } from "@artil/channels/contract";
 import { shellQuoted } from "@artil/utils/shell";
 
 import {
@@ -19,6 +20,19 @@ type AddressCommandsOptions = {
   out: (line: string) => void;
 };
 
+type TokenQuestionsOptions = { channel: Channel; account: string };
+
+// What connecting an address of the channel for the account asks, as a secret is read.
+export function tokenQuestions({ channel, account }: TokenQuestionsOptions) {
+  return {
+    message: `${channel.name} ${channel.labels.token ?? "token"}`,
+    parts: channel.tokenParts?.(account).map(({ label, guide }) => ({
+      message: `${channel.name} ${label}`,
+      guide,
+    })),
+  };
+}
+
 // An account's addresses on the channels, which the commands name by their kind:
 // artil-connect account connect claude telegram.
 export function createAddressCommands({
@@ -33,13 +47,7 @@ export function createAddressCommands({
   async function connect({ kind, name }: ConnectOptions) {
     const account = accounts.getByIdOrName(name);
     const channel = addresses.getConnectable(kind);
-    const guide = channel.tokenGuide?.(account.name);
-
-    if (guide) out(`Connect ${channel.name} to ${account.name}\n${guide}`);
-
-    const token = await readSecret({
-      message: `${channel.name} ${channel.labels.token ?? "token"}`,
-    });
+    const token = await readSecret(tokenQuestions({ channel, account: account.name }));
 
     if (!token) return;
 

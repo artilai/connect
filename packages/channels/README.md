@@ -15,8 +15,9 @@ A channel without a provider, like the Message URL, hands what it sends back to
 the server with `deliver`, which takes it as a message the server's accounts
 received.
 
-A channel that connects an address with a token says how to get it in
-`tokenGuide`, which `artil-connect` shows before it asks.
+A channel that connects an address with a token can name its parts in
+`tokenParts`, with how to get each, which a terminal shows before it asks for
+that part.
 
 A channel whose provider threads messages, like Slack, names the thread of each
 message it takes and sends, and gets the thread of the message an answer

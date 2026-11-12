@@ -15,3 +15,21 @@ export function formatBytes(bytes: number) {
 
   return `${roundedSize(value)} ${byteUnits[unit] ?? "B"}`;
 }
+
+// Something a message quotes, by whoever wrote it when that is known.
+export type Quote = { fromName: string | null; text: string };
+
+// A message's text under what it quotes, the way an email reply quotes: each quote under who wrote
+// it, its lines after "> ".
+export function withQuotes(text: string, quotes: readonly Quote[]) {
+  const quoted = quotes.map(({ fromName, text: said }) => {
+    const lines = said
+      .split("\n")
+      .map((line) => `> ${line}`)
+      .join("\n");
+
+    return fromName ? `${fromName} wrote:\n${lines}` : lines;
+  });
+
+  return [...quoted, text].filter(Boolean).join("\n\n");
+}
