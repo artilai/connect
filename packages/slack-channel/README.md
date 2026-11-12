@@ -9,15 +9,13 @@ works on any computer, and sends them back through the Web API.
 | ---------------------- | --------------------------------------- |
 | `@artil/slack-channel` | `channel`, the channel the server loads |
 
-A [Slack app](https://api.slack.com/apps) connects with its bot token and an
-[app-level token](https://docs.slack.dev/authentication/tokens) with
-`connections:write`, given with a space between to
-`artil-connect account connect <account> slack`. The app needs
-[Socket Mode](https://docs.slack.dev/apis/events-api/using-socket-mode) and
-its Messages tab on, the `app_mention` and `message.im` events, and the bot
-scopes `app_mentions:read`, `channels:read`, `chat:write`, `files:read`,
-`files:write`, `groups:read`, `im:history`, `im:write` and `users:read`.
+`artil-connect account connect <account> slack` gives a link that makes the
+account's [Slack app](https://api.slack.com/apps), with
+[Socket Mode](https://docs.slack.dev/apis/events-api/using-socket-mode), the
+events and the scopes it needs, then asks for the app's bot token and an
+[app-level token](https://docs.slack.dev/authentication/tokens).
 
 The bot answers direct messages, and mentions in channels it is in, in the
-thread of what it answers. A server set up before it carried Slack loads it
+thread of what it answers. A mention in a thread carries what was said there
+since the bot last wrote, quoted above it. A server set up before it carried Slack loads it
 once `"slack"` is in `channels` in its `config.json`.

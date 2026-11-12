@@ -120,6 +120,10 @@ async function setUpChannel({ context, channel }: SetUpChannelOptions) {
 
     if (!account) return;
 
+    const guide = channel.tokenGuide?.(account.name);
+
+    if (guide) context.out(`Connect ${channel.name} to ${account.name}\n${guide}`);
+
     const token = requireAnswer(
       await password({
         message: `${channel.name} ${channel.labels.token ?? "token"}`,

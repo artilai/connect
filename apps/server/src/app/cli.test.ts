@@ -501,7 +501,9 @@ test("connects an account to a channel the config loads, and disconnects it", as
   );
   expect(
     await pipeInto({ dataDir, stdin: "hi\n" }, "account", "connect", "Codex", "echo"),
-  ).toContain("echo:hi now reaches Codex on Echo.");
+  ).toStartWith(
+    "Connect Echo to Codex\nSay any word for Codex.\necho:hi now reaches Codex on Echo.",
+  );
   expect(await cli(dataDir, "account", "list")).toContain("Echo echo:hi");
   expect(await cli(dataDir, "account", "allow", "Codex", "ada")).toBe(
     "ada now wakes Codex on Echo.",

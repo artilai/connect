@@ -8,6 +8,7 @@ import { isDirectMessage, isPerson } from "./conversations";
 import type {
   OutgoingSlack,
   SlackEvent,
+  SlackQuote,
   SlackProvider,
   SlackTokens,
   SlackUpdates,
@@ -19,6 +20,9 @@ const timeout = 10 * second;
 
 // Files take longer to move than a message.
 const fileTimeout = minute;
+
+// The most of a thread a mention carries above its text.
+const maxQuotes = 20;
 
 // The largest file the server downloads, since it holds each whole in memory; a larger one comes
 // described, without its bytes.
@@ -48,6 +52,19 @@ const userSchema = z.object({
 });
 
 const conversationSchema = z.object({ channel: z.object({ name: z.string() }) });
+
+// A message in a thread: by a person, or by an app that has no member id.
+const replySchema = z.object({
+  user: z.string().optional(),
+  bot_profile: z.object({ name: z.string() }).optional(),
+  text: z.string(),
+});
+
+// A page of a thread's messages, oldest first, and where the next page starts.
+const repliesSchema = z.object({
+  messages: z.array(replySchema),
+  response_metadata: z.object({ next_cursor: z.string() }).optional(),
+});
 
 const fileSchema = z.object({
   name: z.string().optional(),
@@ -80,6 +97,8 @@ const envelopeSchema = z.object({
 const payloadSchema = z.object({ event: eventSchema });
 
 type Event = z.infer<typeof eventSchema>;
+
+type Reply = z.infer<typeof replySchema>;
 
 type File = z.infer<typeof fileSchema>;
 
@@ -261,6 +280,50 @@ export function createWebApi({
     );
   }
 
+  type ThreadBeforeOptions = { token: string; channel: string; thread: string; ts: string };
+
+  // A thread's messages before one in it, oldest first, a page at a time.
+  async function threadBefore({ token, channel, thread, ts }: ThreadBeforeOptions) {
+    const messages: Reply[] = [];
+    let cursor = "";
+
+    do {
+      const page = await call({
+        token,
+        method: "conversations.replies",
+        schema: repliesSchema,
+        params: { channel, ts: thread, latest: ts, limit: "999", cursor },
+      });
+
+      messages.push(...page.messages);
+      cursor = page.response_metadata?.next_cursor ?? "";
+    } while (cursor);
+
+    return messages;
+  }
+
+  type QuotesOfOptions = ThreadBeforeOptions & { bot: string };
+
+  // What was said in a thread before a mention, since the bot last wrote there, which the bot does
+  // not hear otherwise; none when Slack does not hand the thread over.
+  async function quotesOf({ token, bot, channel, thread, ts }: QuotesOfOptions) {
+    const messages = await threadBefore({ token, channel, thread, ts }).catch(() => []);
+    const unheard = messages.slice(messages.findLastIndex(({ user }) => user === bot) + 1);
+    const quoted = unheard.filter(({ text }) => text).slice(-maxQuotes);
+    const people = new Set(quoted.flatMap(({ user }) => (user ? [user] : [])));
+
+    const names = new Map(
+      await Promise.all(
+        [...people].map(async (user) => [user, await nameOf({ token, user })] as const),
+      ),
+    );
+
+    return quoted.map(({ user, bot_profile: app, text }): SlackQuote => ({
+      fromName: (user ? names.get(user) : app?.name) ?? null,
+      text: unescaped(text),
+    }));
+  }
+
   type ReadOptions = { bot: string; token: string; event: Event };
 
   // A direct message with the bot reaches the account, and in a channel what mentions the bot.
@@ -275,10 +338,14 @@ export function createWebApi({
 
     if (type !== (direct ? "message" : "app_mention")) return [];
 
-    const [senderName, group, files] = await Promise.all([
+    // A direct message brings the bot every message, and a channel only the mentions.
+    const inChannelThread = !direct && threadTs && threadTs !== ts;
+
+    const [senderName, group, files, quotes] = await Promise.all([
       nameOf({ token, user }),
       direct ? null : groupOf({ token, channel }),
       filesOf({ token, files: event.files ?? [] }),
+      inChannelThread ? quotesOf({ token, bot, channel, thread: threadTs, ts }) : [],
     ]);
 
     return [
@@ -292,6 +359,7 @@ export function createWebApi({
           senderName,
           text: unescaped(event.text ?? ""),
           files,
+          quotes,
           thread: idOf({ conversation: channel, ts: threadTs ?? ts }),
         },
       },

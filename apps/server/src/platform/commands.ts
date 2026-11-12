@@ -76,7 +76,6 @@ export function createOut({ terminal, columns, write }: CreateOutOptions) {
 
 type ReadSecretOptions = {
   message: string;
-  // How a person gets the secret, which a terminal shows before it asks.
   // What is wrong with the secret, if anything.
   validate?: (value: string | undefined) => string | undefined;
 };

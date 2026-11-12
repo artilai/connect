@@ -170,6 +170,10 @@ class EchoChannel extends Channel {
     return "echo:" + token;
   }
 
+  tokenGuide(account) {
+    return "Say any word for " + account + ".";
+  }
+
   async send() {
     return { id: "1" };
   }
