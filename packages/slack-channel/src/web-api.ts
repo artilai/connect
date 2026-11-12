@@ -53,15 +53,17 @@ const userSchema = z.object({
 
 const conversationSchema = z.object({ channel: z.object({ name: z.string() }) });
 
-// A thread's messages, oldest first: by a person, or by an app that has no member id.
+// A message in a thread: by a person, or by an app that has no member id.
+const replySchema = z.object({
+  user: z.string().optional(),
+  bot_profile: z.object({ name: z.string() }).optional(),
+  text: z.string(),
+});
+
+// A page of a thread's messages, oldest first, and where the next page starts.
 const repliesSchema = z.object({
-  messages: z.array(
-    z.object({
-      user: z.string().optional(),
-      bot_profile: z.object({ name: z.string() }).optional(),
-      text: z.string(),
-    }),
-  ),
+  messages: z.array(replySchema),
+  response_metadata: z.object({ next_cursor: z.string() }).optional(),
 });
 
 const fileSchema = z.object({
@@ -95,6 +97,8 @@ const envelopeSchema = z.object({
 const payloadSchema = z.object({ event: eventSchema });
 
 type Event = z.infer<typeof eventSchema>;
+
+type Reply = z.infer<typeof replySchema>;
 
 type File = z.infer<typeof fileSchema>;
 
@@ -276,25 +280,34 @@ export function createWebApi({
     );
   }
 
-  type QuotesOfOptions = {
-    token: string;
-    bot: string;
-    channel: string;
-    thread: string;
-    ts: string;
-  };
+  type ThreadBeforeOptions = { token: string; channel: string; thread: string; ts: string };
+
+  // A thread's messages before one in it, oldest first, a page at a time.
+  async function threadBefore({ token, channel, thread, ts }: ThreadBeforeOptions) {
+    const messages: Reply[] = [];
+    let cursor = "";
+
+    do {
+      const page = await call({
+        token,
+        method: "conversations.replies",
+        schema: repliesSchema,
+        params: { channel, ts: thread, latest: ts, limit: "999", cursor },
+      });
+
+      messages.push(...page.messages);
+      cursor = page.response_metadata?.next_cursor ?? "";
+    } while (cursor);
+
+    return messages;
+  }
+
+  type QuotesOfOptions = ThreadBeforeOptions & { bot: string };
 
   // What was said in a thread before a mention, since the bot last wrote there, which the bot does
   // not hear otherwise; none when Slack does not hand the thread over.
   async function quotesOf({ token, bot, channel, thread, ts }: QuotesOfOptions) {
-    const found = await call({
-      token,
-      method: "conversations.replies",
-      schema: repliesSchema,
-      params: { channel, ts: thread, latest: ts, limit: "1000" },
-    }).catch(() => null);
-
-    const messages = found?.messages ?? [];
+    const messages = await threadBefore({ token, channel, thread, ts }).catch(() => []);
     const unheard = messages.slice(messages.findLastIndex(({ user }) => user === bot) + 1);
     const quoted = unheard.filter(({ text }) => text).slice(-maxQuotes);
     const people = new Set(quoted.flatMap(({ user }) => (user ? [user] : [])));

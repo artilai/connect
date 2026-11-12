@@ -352,19 +352,30 @@ test("quotes what was said in a channel's thread since the bot last wrote there"
     events: [{ ...inLaunch, thread_ts: "1700000000.000100" }],
     answers: {
       "users.info?user=U0EVE0001": { body: { ok: true, user: { name: "eve", real_name: "Eve" } } },
-      "conversations.replies": {
-        body: {
-          ok: true,
-          messages: [
-            { user: "U0BOB0001", text: "Deploy failed on migration 0005" },
-            { user: "U0BOT0001", text: "Looking" },
-            { user: "U0EVE0001", text: "The column is there &amp; empty" },
-            // A file alone says nothing to quote.
-            { user: "U0EVE0001", text: "" },
-            { bot_profile: { name: "CI" }, text: "Build 42 failed" },
-          ],
+      // The thread comes in two pages.
+      "conversations.replies": [
+        {
+          body: {
+            ok: true,
+            messages: [
+              { user: "U0BOB0001", text: "Deploy failed on migration 0005" },
+              { user: "U0BOT0001", text: "Looking" },
+            ],
+            response_metadata: { next_cursor: "page-2" },
+          },
         },
-      },
+        {
+          body: {
+            ok: true,
+            messages: [
+              { user: "U0EVE0001", text: "The column is there &amp; empty" },
+              // A file alone says nothing to quote.
+              { user: "U0EVE0001", text: "" },
+              { bot_profile: { name: "CI" }, text: "Build 42 failed" },
+            ],
+          },
+        },
+      ],
     },
   });
 
@@ -378,29 +389,32 @@ test("quotes what was said in a channel's thread since the bot last wrote there"
       },
     },
   ]);
-  expect(requests).toContainEqual({
-    method: "conversations.replies",
-    token: "xoxb-1-bot",
-    body: {
-      channel: "C0LAUNCH01",
-      ts: "1700000000.000100",
-      latest: "1700000000.000300",
-      limit: "1000",
+  const thread = { channel: "C0LAUNCH01", ts: "1700000000.000100", latest: "1700000000.000300" };
+
+  expect(requests.filter(({ method }) => method === "conversations.replies")).toEqual([
+    { method: "conversations.replies", token: "xoxb-1-bot", body: { ...thread, limit: "999" } },
+    {
+      method: "conversations.replies",
+      token: "xoxb-1-bot",
+      body: { ...thread, limit: "999", cursor: "page-2" },
     },
-  });
+  ]);
 });
 
-test("goes without the names Slack does not give", async () => {
+test("goes without the names and the thread Slack does not give", async () => {
+  const refused = { body: { ok: false, error: "missing_scope" } };
+
   const { taken } = await receive({
-    events: [{ ...inLaunch, channel: "G0FRIENDS1" }],
+    events: [{ ...inLaunch, channel: "G0FRIENDS1", thread_ts: "1700000000.000100" }],
     answers: {
-      "users.info": { body: { ok: false, error: "missing_scope", needed: "users:read" } },
-      "conversations.info": { body: { ok: false, error: "missing_scope", needed: "groups:read" } },
+      "users.info": refused,
+      "conversations.info": refused,
+      "conversations.replies": refused,
     },
   });
 
   expect(taken).toMatchObject([
-    { message: { senderName: null, group: { id: "G0FRIENDS1", name: null } } },
+    { message: { senderName: null, group: { id: "G0FRIENDS1", name: null }, quotes: [] } },
   ]);
 });
 
