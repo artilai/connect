@@ -1,4 +1,4 @@
-import type { Channel, InboundMessage } from "@artil/channels/contract";
+import type { InboundMessage } from "@artil/channels/contract";
 import { AppError, messageOf } from "@artil/errors";
 import { shellQuoted } from "@artil/utils/shell";
 
@@ -20,12 +20,6 @@ const recipientSeparator = ", ";
 
 // The refusals a person mends by putting the sender on the account's list.
 const keptOut: ReadonlySet<Refusal> = new Set(["sender", "outsider"]);
-
-// The channel's method that shows a sender each receipt.
-const receipts = { read: "markRead", answered: "markAnswered" } as const satisfies Record<
-  string,
-  keyof Channel
->;
 
 type CreateMessagesServiceOptions = {
   messagesRepository: MessagesRepository;
@@ -62,7 +56,7 @@ type ListOptions = { accountId: string; filter: MessageFilter };
 
 type FindOptions = { accountId: string; id: string };
 
-type SendReceiptOptions = { receipt: keyof typeof receipts; message: MessageRow };
+type SendReceiptOptions = { receipt: "read" | "answered"; message: MessageRow };
 
 // An answer goes to whoever wrote the message, or to whom the agent wrote it.
 function replyRecipients(message: MessageRow): string[] {
@@ -148,14 +142,14 @@ export function createMessagesService({
   // can; a channel that fails only says so in the log.
   async function showReceipt({ receipt, message }: SendReceiptOptions) {
     const channel = channels.find(message.channel);
-    const mark = receipts[receipt];
+    const id = message.externalId;
 
-    if (!channel?.[mark] || message.status !== "received" || !message.externalId) return;
+    if (!channel || message.status !== "received" || !id) return;
 
     try {
-      const token = addresses.findById(message.addressId)?.token ?? null;
+      const options = { id, token: addresses.findById(message.addressId)?.token ?? null };
 
-      await channel[mark]({ id: message.externalId, token });
+      await (receipt === "read" ? channel.markRead?.(options) : channel.markAnswered?.(options));
     } catch (cause) {
       log(
         `${channel.name} did not show ${message.counterpart} that the agent ${receipt} their message: ${messageOf(cause, String(cause))}`,
