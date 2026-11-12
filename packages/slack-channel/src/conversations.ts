@@ -4,6 +4,11 @@ import { z } from "zod";
 // U, or W in an Enterprise Grid org, a channel by one that starts with C or G, and a direct message
 // by one that starts with D. Artil names them as people do where Slack tells how: a person by their
 // email, a bot by its @username and a channel by its #name.
+//
+// TODO: a name can pass to someone else. A channel renamed lets in a new one that takes its old
+// name, and bots of one username in two workspaces cannot both connect. Keep Slack's ids underneath
+// and turn a name into an id when a list or a recipient names it, which needs the contract to read
+// an address with the bot's token.
 const personId = /^[UW][A-Z0-9]{8,}$/v;
 
 const channelId = /^[CG][A-Z0-9]{8,}$/v;
