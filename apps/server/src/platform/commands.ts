@@ -1,6 +1,7 @@
 import { styleText } from "node:util";
 
 import { confirm, isCancel, log, note, password } from "@clack/prompts";
+import terminalLink from "terminal-link";
 
 import { AppError } from "@artil/errors";
 
@@ -52,8 +53,6 @@ export function highlightCommands(text: string) {
 // A link in a text, written as Markdown writes one: [label](url).
 const markdownLink = /\[([^\]]+)\]\(([^\)\s]+)\)/gv;
 
-type WithLinksOptions = { text: string; hyperlinks: boolean };
-
 // What a link shows, underlined in color, the way a browser marks a link.
 function linkStyle(shown: string) {
   return styleText(["cyan", "underline"], shown);
@@ -61,19 +60,17 @@ function linkStyle(shown: string) {
 
 // A text with its links under their labels, with an arrow that says they lead away, in a terminal
 // that shows links so, or else in full.
-export function withLinks({ text, hyperlinks }: WithLinksOptions) {
+export function withLinks(text: string) {
   return text.replaceAll(markdownLink, (_, label: string, url: string) =>
-    hyperlinks
-      ? `\u001B]8;;${url}\u001B\\${linkStyle(`${label} ↗`)}\u001B]8;;\u001B\\`
-      : `${label}: ${linkStyle(url)}`,
+    terminalLink(linkStyle(`${label} ↗`), url, {
+      fallback: () => `${label}: ${linkStyle(url)}`,
+    }),
   );
 }
 
 type CreateOutOptions = {
   // Whether a person reads what the commands say in a terminal, rather than a pipe or a script.
   terminal: boolean;
-  // Whether the terminal shows a link under its text.
-  hyperlinks: boolean;
   columns: () => number;
   write: (text: string) => void;
 };
@@ -81,12 +78,12 @@ type CreateOutOptions = {
 // Says what a command has to say, whose first line heads the rest. A terminal frames the rest in a
 // box, or beside a bar when a line is too wide for the box, which would break that line in two,
 // like a link.
-export function createOut({ terminal, hyperlinks, columns, write }: CreateOutOptions) {
+export function createOut({ terminal, columns, write }: CreateOutOptions) {
   if (!terminal) return write;
 
   return (text: string) => {
     const widest = Math.max(...text.split("\n").map((line) => line.length));
-    const [title = "", ...body] = highlightCommands(withLinks({ text, hyperlinks })).split("\n");
+    const [title = "", ...body] = highlightCommands(withLinks(text)).split("\n");
 
     if (body.length > 0 && widest + boxEdges <= columns()) {
       note(body.join("\n"), title, { withGuide: false });

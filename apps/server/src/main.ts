@@ -25,20 +25,6 @@ process.umask(0o077);
 
 const binary = findTailscale(process.platform);
 
-// Terminals that show a link under its text, by the names they give themselves; the rest show links
-// in full.
-const hyperlinkTerminals: ReadonlySet<string> = new Set([
-  "iTerm.app",
-  "WezTerm",
-  "WarpTerminal",
-  "ghostty",
-  "vscode",
-]);
-
-const hyperlinks =
-  hyperlinkTerminals.has(process.env.TERM_PROGRAM ?? "") ||
-  Boolean(process.env.KITTY_WINDOW_ID ?? process.env.WT_SESSION);
-
 // The server runs until Ctrl-C or the system stops it.
 function waitForStop() {
   const { promise, resolve } = Promise.withResolvers<void>();
@@ -73,7 +59,6 @@ try {
     readStdin: () => Bun.stdin.text(),
     out: createOut({
       terminal: process.stdout.isTTY,
-      hyperlinks,
       columns: () => process.stdout.columns,
       write: (text) => console.log(text),
     }),
