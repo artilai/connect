@@ -39,6 +39,7 @@ export function createAddressCommands({
 
     const token = await readSecret({
       message: `${channel.name} ${channel.labels.token ?? "token"}`,
+      parts: channel.tokenParts?.map((part) => `${channel.name} ${part}`),
     });
 
     if (!token) return;

@@ -124,12 +124,17 @@ async function setUpChannel({ context, channel }: SetUpChannelOptions) {
 
     if (guide) context.out(`Connect ${channel.name} to ${account.name}\n${guide}`);
 
-    const token = requireAnswer(
-      await password({
-        message: `${channel.name} ${channel.labels.token ?? "token"}`,
-        validate: validateNotEmpty,
-      }),
-    );
+    const answers: string[] = [];
+
+    for (const part of channel.tokenParts ?? [channel.labels.token ?? "token"]) {
+      const answer = requireAnswer(
+        await password({ message: `${channel.name} ${part}`, validate: validateNotEmpty }),
+      );
+
+      answers.push(answer.trim());
+    }
+
+    const token = answers.join(" ");
 
     const progressSpinner = spinner();
 

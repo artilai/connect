@@ -16,7 +16,9 @@ the server with `deliver`, which takes it as a message the server's accounts
 received.
 
 A channel that connects an address with a token says how to get it in
-`tokenGuide`, which `artil-connect` shows before it asks.
+`tokenGuide`, which `artil-connect` shows before it asks, and names the token's
+parts in `tokenParts` when it takes several, which a terminal asks for one by
+one.
 
 A channel whose provider threads messages, like Slack, names the thread of each
 message it takes and sends, and gets the thread of the message an answer

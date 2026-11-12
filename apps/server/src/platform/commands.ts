@@ -76,6 +76,8 @@ export function createOut({ terminal, columns, write }: CreateOutOptions) {
 
 type ReadSecretOptions = {
   message: string;
+  // What a terminal asks for one by one, whose answers make the secret with a space between.
+  parts?: readonly string[];
   // What is wrong with the secret, if anything.
   validate?: (value: string | undefined) => string | undefined;
 };
@@ -95,11 +97,19 @@ export function createSecretReader({
   interactive,
   readStdin,
 }: CreateSecretReaderOptions): ReadSecret {
-  return async ({ message, validate = validateFilled }) => {
+  return async ({ message, parts = [message], validate = validateFilled }) => {
     if (interactive) {
-      const answer = await password({ message, validate });
+      const answers: string[] = [];
 
-      return isCancel(answer) ? undefined : answer;
+      for (const part of parts) {
+        const answer = await password({ message: part, validate });
+
+        if (isCancel(answer)) return undefined;
+
+        answers.push(answer.trim());
+      }
+
+      return answers.join(" ");
     }
 
     // What comes piped in ends with the newline that echo puts after it.

@@ -82,6 +82,10 @@ export abstract class Channel {
   // shows before it asks.
   tokenGuide?(account: string): string;
 
+  // The parts of a token made of several, like a bot token and an app-level token, which a
+  // terminal asks for one by one and gives connect with a space between.
+  readonly tokenParts?: readonly string[];
+
   async disconnect(_token: string): Promise<void> {}
 
   async start(_options: StartOptions): Promise<void> {}
