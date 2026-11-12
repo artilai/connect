@@ -141,21 +141,22 @@ export function createMessagesService({
   }
 
   // Shows the sender of a message that woke the agent what the agent did with it, where its channel
-  // can. The agent goes on without waiting for the sender to see it, even when the channel fails.
-  function sendReceipt({ receipt, message }: SendReceiptOptions) {
+  // can. Nothing waits for it, and a channel that fails only says so in the log.
+  async function sendReceipt({ receipt, message }: SendReceiptOptions) {
     const channel = channels.find(message.channel);
     const mark = receipts[receipt];
-    const id = message.externalId;
 
-    if (!channel?.[mark] || message.status !== "received" || !id) return;
+    if (!channel?.[mark] || message.status !== "received" || !message.externalId) return;
 
-    const token = addresses.findById(message.addressId)?.token ?? null;
+    try {
+      const token = addresses.findById(message.addressId)?.token ?? null;
 
-    Promise.try(channel[mark].bind(channel), { id, token }).catch((cause: unknown) => {
+      await channel[mark]({ id: message.externalId, token });
+    } catch (cause) {
       log(
         `${channel.name} did not show ${message.counterpart} that the agent ${receipt} their message: ${messageOf(cause, String(cause))}`,
       );
-    });
+    }
   }
 
   // Sends on the channel from the account's address there, and keeps the message among the
@@ -250,7 +251,7 @@ export function createMessagesService({
           });
     }
 
-    if (answered) sendReceipt({ receipt: "answered", message: answered });
+    if (answered) void sendReceipt({ receipt: "answered", message: answered });
 
     const sent = find({ accountId, id });
 
@@ -434,7 +435,7 @@ export function createMessagesService({
     read(options: FindOptions) {
       const row = messagesRepository.find(options);
 
-      if (row) sendReceipt({ receipt: "read", message: row });
+      if (row) void sendReceipt({ receipt: "read", message: row });
 
       return row && toRecords([row])[0];
     },

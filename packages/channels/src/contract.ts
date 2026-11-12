@@ -59,8 +59,6 @@ export type SendOptions = {
   deliver: (message: InboundMessage) => Promise<void>;
 };
 
-// A message an account received, by the id its channel gave it, with the token of the address it
-// came to while the account holds it.
 export type ReceiptOptions = { id: string; token: string | null };
 
 export abstract class Channel {
@@ -92,8 +90,6 @@ export abstract class Channel {
 
   abstract send(options: SendOptions): Promise<{ id: string }>;
 
-  // Shows the sender of a message that woke the agent that the agent read it, then that it answered
-  // it, where the channel can.
   markRead?(options: ReceiptOptions): Promise<void>;
 
   markAnswered?(options: ReceiptOptions): Promise<void>;
