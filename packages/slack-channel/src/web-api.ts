@@ -41,6 +41,12 @@ const botInfoSchema = z.object({ bot: z.object({ app_id: z.string() }) });
 
 const connectionSchema = z.object({ url: z.string() });
 
+// How Slack greets a Socket Mode connection, naming the app it is for.
+const helloSchema = z.object({
+  type: z.literal("hello"),
+  connection_info: z.object({ app_id: z.string() }),
+});
+
 const openedSchema = z.object({ channel: z.object({ id: z.string() }) });
 
 const postedSchema = z.object({ ts: z.string() });
@@ -174,6 +180,37 @@ export function createWebApi({
     }
   }
 
+  // The app a Socket Mode connection is for, as Slack names it when it greets the connection.
+  async function appOfConnection(url: string) {
+    const { promise, resolve, reject } = Promise.withResolvers<string>();
+    const socket = new WebSocket(url);
+
+    const timer = setTimeout(
+      () => reject(new Error("Slack did not greet the connection")),
+      timeout,
+    );
+
+    socket.addEventListener("message", ({ data }) => {
+      try {
+        const hello = helloSchema.safeParse(JSON.parse(z.string().parse(data))).data;
+
+        if (hello) resolve(hello.connection_info.app_id);
+      } catch (cause) {
+        reject(cause);
+      }
+    });
+
+    socket.addEventListener("close", () => reject(new Error("Slack closed the connection")));
+    socket.addEventListener("error", () => reject(new Error("Slack could not be reached")));
+
+    try {
+      return await promise;
+    } finally {
+      clearTimeout(timer);
+      socket.close();
+    }
+  }
+
   // Checks both tokens, and that they are one app's, and returns the bot's member id.
   async function connect({ bot, app }: SlackTokens) {
     const { user_id: member, bot_id: botId } = await checkToken({
@@ -181,25 +218,19 @@ export function createWebApi({
       name: "bot token",
     });
 
-    // Opening a connection checks the app-level token and that the app has Socket Mode on; one
-    // nothing connects to lapses.
+    // Opening a connection checks the app-level token and that the app has Socket Mode on.
     const { url } = await checkToken({
       request: call({ token: app, method: "apps.connections.open", schema: connectionSchema }),
       name: "app-level token",
     });
 
-    const { bot: found } = await call({
-      token: bot,
-      method: "bots.info",
-      schema: botInfoSchema,
-      params: { bot: botId },
-    });
+    const [{ bot: found }, connectionApp] = await Promise.all([
+      call({ token: bot, method: "bots.info", schema: botInfoSchema, params: { bot: botId } }),
+      appOfConnection(url),
+    ]);
 
-    // Slack names a connection's app in its URL. Tokens of two apps would read one app's messages
-    // and answer them as the other's bot.
-    const connectionApp = new URL(url).searchParams.get("app_id");
-
-    if (connectionApp && connectionApp !== found.app_id) {
+    // Tokens of two apps would read one app's messages and answer them as the other's bot.
+    if (connectionApp !== found.app_id) {
       throw new AppError({
         code: "invalid_input",
         message:

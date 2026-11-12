@@ -78,23 +78,21 @@ const adaAnswer = {
 
 const launchAnswer = { body: { ok: true, channel: { id: "C0LAUNCH01", name: "launch" } } };
 
-// The connection Slack opens for the app-level token, which names the app.
-function connectionAnswer(app: string) {
-  return { body: { ok: true, url: `wss://slack.test/link/?ticket=1&app_id=${app}` } };
-}
-
 const botInfoAnswer = { body: { ok: true, bot: { id: "B0BOT0001", app_id: "A0APP0001" } } };
 
 test("checks the app's tokens and finds its bot's member id", async () => {
+  const socket = socketMode();
+
   const { slack, requests } = setup({
     answers: {
       "auth.test": botAnswer,
-      "apps.connections.open": connectionAnswer("A0APP0001"),
+      "apps.connections.open": { body: { ok: true, url: socket.url } },
       "bots.info": botInfoAnswer,
     },
   });
 
   expect(await slack.connect(tokens)).toBe("U0BOT0001");
+  socket.stop();
   expect(requests).toEqual([
     { method: "auth.test", token: "xoxb-1-bot", body: {} },
     { method: "apps.connections.open", token: "xapp-1-app", body: {} },
@@ -103,10 +101,12 @@ test("checks the app's tokens and finds its bot's member id", async () => {
 });
 
 test("refuses tokens of two different apps", async () => {
+  const socket = socketMode({ app: "A0OTHER01" });
+
   const { slack } = setup({
     answers: {
       "auth.test": botAnswer,
-      "apps.connections.open": connectionAnswer("A0OTHER01"),
+      "apps.connections.open": { body: { ok: true, url: socket.url } },
       "bots.info": botInfoAnswer,
     },
   });
@@ -116,6 +116,7 @@ test("refuses tokens of two different apps", async () => {
     message:
       "The bot token and the app-level token belong to different Slack apps; give both of one app",
   });
+  socket.stop();
 });
 
 test("refuses a token Slack does not know", async () => {
@@ -142,9 +143,11 @@ async function until(done: () => boolean) {
   while (!done()) await Bun.sleep(1);
 }
 
-// Slack's side of Socket Mode: takes the server's connections, and keeps the ids of the envelopes
-// the server acknowledged.
-function socketMode() {
+type SocketModeOptions = { app?: string };
+
+// Slack's side of Socket Mode: greets each connection the server opens, naming the app it is for,
+// and keeps the ids of the envelopes the server acknowledged.
+function socketMode({ app = "A0APP0001" }: SocketModeOptions = {}) {
   const connections: ServerWebSocket[] = [];
   const acks: string[] = [];
 
@@ -155,6 +158,7 @@ function socketMode() {
     websocket: {
       open: (socket) => {
         connections.push(socket);
+        socket.send(JSON.stringify({ type: "hello", connection_info: { app_id: app } }));
       },
       message: (_socket, data) => {
         acks.push(JSON.parse(String(data)).envelope_id);
@@ -247,8 +251,6 @@ async function receive({ events, answers = {} }: ReceiveOptions) {
 
   try {
     const connection = await socket.connection(0);
-
-    connection.send(JSON.stringify({ type: "hello", num_connections: 1 }));
 
     for (const [index, event] of events.entries()) {
       connection.send(envelope({ id: `envelope-${index}`, event }));
