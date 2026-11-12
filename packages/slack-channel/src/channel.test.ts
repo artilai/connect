@@ -8,6 +8,7 @@ import type {
   OutgoingSlack,
   SlackEvent,
   SlackProvider,
+  SlackReaction,
   SlackTokens,
 } from "./provider";
 
@@ -18,6 +19,7 @@ function setup(inbound: SlackEvent[] = []) {
   const sent: OutgoingSlack[] = [];
   const connected: SlackTokens[] = [];
   const started: SlackTokens[] = [];
+  const reactions: SlackReaction[] = [];
 
   const provider: SlackProvider = {
     connect: async (tokens) => {
@@ -34,9 +36,12 @@ function setup(inbound: SlackEvent[] = []) {
 
       return { id: "D0ADA0001:1700000000.000200", thread: "D0ADA0001:1700000000.000200" };
     },
+    react: async (reaction) => {
+      reactions.push(reaction);
+    },
   };
 
-  return { sent, connected, started, channel: new SlackChannel(provider) };
+  return { sent, connected, started, reactions, channel: new SlackChannel(provider) };
 }
 
 type Channel = ReturnType<typeof setup>["channel"];
@@ -226,6 +231,21 @@ test("sends to one person or channel with the bot token, in the thread of what i
       replyTo: "D0ADA0001:1700000000.000100",
       thread: "D0ADA0001:1700000000.000100",
     },
+  ]);
+});
+
+test("puts 👀 on a message once the agent reads it, and takes it off once the agent answers", async () => {
+  const { channel, reactions } = setup();
+  const id = "C0LAUNCH01:1700000000.000300";
+
+  await channel.markRead({ id, token });
+  await channel.markAnswered({ id, token });
+  // A bot the account no longer holds has no token to react with.
+  await channel.markRead({ id, token: null });
+
+  expect(reactions).toEqual([
+    { token: "xoxb-1-bot", id, name: "eyes", on: true },
+    { token: "xoxb-1-bot", id, name: "eyes", on: false },
   ]);
 });
 

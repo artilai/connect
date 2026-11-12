@@ -754,3 +754,35 @@ test("fails a send with Slack's reason, naming a scope the app lacks", async () 
     }).slack.send(toLaunch),
   ).rejects.toThrow("missing_scope: the Slack app needs the chat:write scope");
 });
+
+test("reacts to a message by its conversation and timestamp, and goes without what is done already", async () => {
+  const reaction = { token: "xoxb-1-bot", id: "C0LAUNCH01:1700000000.000300", name: "eyes" };
+
+  const { slack, requests } = setup({
+    answers: { "reactions.remove": { body: { ok: false, error: "no_reaction" } } },
+  });
+
+  await slack.react({ ...reaction, on: true });
+  await slack.react({ ...reaction, on: false });
+
+  expect(requests).toEqual([
+    {
+      method: "reactions.add",
+      token: "xoxb-1-bot",
+      body: { channel: "C0LAUNCH01", timestamp: "1700000000.000300", name: "eyes" },
+    },
+    {
+      method: "reactions.remove",
+      token: "xoxb-1-bot",
+      body: { channel: "C0LAUNCH01", timestamp: "1700000000.000300", name: "eyes" },
+    },
+  ]);
+
+  await expect(
+    setup({
+      answers: {
+        "reactions.add": { body: { ok: false, error: "missing_scope", needed: "reactions:write" } },
+      },
+    }).slack.react({ ...reaction, on: true }),
+  ).rejects.toThrow("missing_scope: the Slack app needs the reactions:write scope");
+});

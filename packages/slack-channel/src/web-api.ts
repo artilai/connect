@@ -11,6 +11,7 @@ import type {
   SlackPerson,
   SlackQuote,
   SlackProvider,
+  SlackReaction,
   SlackTokens,
   SlackUpdates,
 } from "./provider";
@@ -127,6 +128,14 @@ const writtenSubtypes: ReadonlySet<string | undefined> = new Set([
   undefined,
   "file_share",
   "thread_broadcast",
+]);
+
+// What Slack answers a reaction that is on or off already, or a message no longer there, which a
+// reaction, only a courtesy, goes without.
+const settledReactions: ReadonlySet<string> = new Set([
+  "already_reacted",
+  "no_reaction",
+  "message_not_found",
 ]);
 
 // A method's arguments, which Slack takes as a form; one that is a list goes as JSON.
@@ -638,7 +647,23 @@ export function createWebApi({
     return { id: idOf({ conversation, ts }), thread: idOf({ conversation, ts: threadTs ?? ts }) };
   }
 
-  return { connect, start, send };
+  // Slack keeps a message's reactions by its conversation and timestamp.
+  async function react({ token, id, name, on }: SlackReaction) {
+    const [channel, timestamp] = id.split(":");
+
+    await call({
+      token,
+      method: on ? "reactions.add" : "reactions.remove",
+      schema: z.object({}),
+      params: { channel, timestamp, name },
+    }).catch((cause: unknown) => {
+      if (cause instanceof SlackError && settledReactions.has(cause.message)) return;
+
+      throw cause;
+    });
+  }
+
+  return { connect, start, send, react };
 }
 
 type IdOfOptions = { conversation: string; ts: string };

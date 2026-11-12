@@ -29,6 +29,7 @@ function manifestOf(account: string) {
           "im:history",
           "im:write",
           "mpim:history",
+          "reactions:write",
           "users:read",
           "users:read.email",
         ],

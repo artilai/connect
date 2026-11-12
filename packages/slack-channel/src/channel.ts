@@ -1,6 +1,7 @@
 import {
   Channel,
   type ChannelEvent,
+  type ReceiptOptions,
   type SendOptions,
   type StartOptions,
 } from "@artil/channels/contract";
@@ -83,6 +84,19 @@ export class SlackChannel extends Channel {
       replyTo: replyTo ?? null,
       thread: thread ?? null,
     });
+  }
+  override markRead(options: ReceiptOptions) {
+    return this.#react(options, true);
+  }
+
+  override markAnswered(options: ReceiptOptions) {
+    return this.#react(options, false);
+  }
+
+  // The bot puts 👀 on a message while the agent has it, and takes it off once the agent answers. A
+  // bot the account no longer holds has no token to react with.
+  async #react({ id, token }: ReceiptOptions, on: boolean) {
+    if (token) await this.#provider.react({ token: readTokens(token).bot, id, name: "eyes", on });
   }
 }
 

@@ -47,6 +47,10 @@ export type OutgoingSlack = {
   thread: string | null;
 };
 
+// The bot's reaction to a message it received, by the id Artil gave the message, by the name Slack
+// gives the emoji, which the bot puts on or takes off.
+export type SlackReaction = { token: string; id: string; name: string; on: boolean };
+
 export type SlackUpdates = {
   tokens: SlackTokens;
   signal: AbortSignal;
@@ -62,4 +66,5 @@ export type SlackProvider = {
   start: (updates: SlackUpdates) => Promise<void>;
   // Sends the message, and returns its id and the thread it went in.
   send: (message: OutgoingSlack) => Promise<{ id: string; thread: string }>;
+  react: (reaction: SlackReaction) => Promise<void>;
 };
