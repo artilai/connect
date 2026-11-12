@@ -78,6 +78,10 @@ export abstract class Channel {
 
   connect?(token: string): Promise<string>;
 
+  // How to get the token connecting an address for the account takes, in short lines the server
+  // shows before it asks.
+  tokenGuide?(account: string): string;
+
   async disconnect(_token: string): Promise<void> {}
 
   async start(_options: StartOptions): Promise<void> {}

@@ -17,9 +17,13 @@ export type InboundSlack = {
   senderName: string | null;
   text: string;
   files: InboundFile[];
+  // What was said in its thread since the bot last wrote there, which the bot hears only now.
+  quotes: SlackQuote[];
   // The thread it is in, by the id of the message that starts it, which may be itself.
   thread: string;
 };
+
+export type SlackQuote = { fromName: string | null; text: string };
 
 export type SlackEvent = { type: "received"; message: InboundSlack };
 

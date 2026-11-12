@@ -65,6 +65,7 @@ const fromAda: InboundSlack = {
   senderName: "Ada Lovelace",
   text: "Hi",
   files: [],
+  quotes: [],
   thread: "D0ADA0001:1700000000.000100",
 };
 
@@ -156,6 +157,30 @@ test("turns a mention in a channel's thread into a message from whoever wrote it
   ]);
 });
 
+test("quotes what was said in a thread before a mention above its text", async () => {
+  const { channel } = setup([
+    {
+      type: "received",
+      message: {
+        ...fromAda,
+        text: "<@U0BOT0001> can you look?",
+        quotes: [
+          { fromName: "Eve", text: "Deploy failed\non migration 0005" },
+          { fromName: null, text: "Build 42 failed" },
+        ],
+      },
+    },
+  ]);
+
+  expect(await start(channel)).toMatchObject([
+    {
+      message: {
+        text: "Eve wrote:\n> Deploy failed\n> on migration 0005\n\n> Build 42 failed\n\n<@U0BOT0001> can you look?",
+      },
+    },
+  ]);
+});
+
 test("sends to one person or channel with the bot token, in the thread of what it answers", async () => {
   const { channel, sent } = setup();
 
@@ -189,4 +214,17 @@ test("lists a sender by their member id, or everyone in a channel by its id", ()
   expect(parsing.parseSender("G0PRIVATE1")).toBe("G0PRIVATE1");
   expect(parsing.parseSender("D0ADA0001")).toBeNull();
   expect(parsing.parseSender("ada")).toBeNull();
+});
+
+test("guides through making the account's app from a link that describes it", () => {
+  const guide = parsing.tokenGuide("Claude Code");
+  const link = /https:\/\/api\.slack\.com\/\S+/v.exec(guide)?.[0] ?? "";
+  const manifest = new URL(link).searchParams.get("manifest_json") ?? "";
+
+  expect(JSON.parse(manifest)).toMatchObject({
+    display_information: { name: "Claude Code" },
+    features: { bot_user: { display_name: "claude-code" } },
+    settings: { event_subscriptions: { bot_events: ["app_mention", "message.im"] } },
+  });
+  expect(guide).toContain("generate an App-Level Token with the connections:write scope");
 });
