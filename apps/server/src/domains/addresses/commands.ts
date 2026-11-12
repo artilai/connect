@@ -33,6 +33,9 @@ export function createAddressCommands({
   async function connect({ kind, name }: ConnectOptions) {
     const account = accounts.getByIdOrName(name);
     const channel = addresses.getConnectable(kind);
+    const guide = channel.tokenGuide?.(account.name);
+
+    if (guide) out(`Connect ${channel.name} to ${account.name}\n${guide}`);
 
     const token = await readSecret({
       message: `${channel.name} ${channel.labels.token ?? "token"}`,

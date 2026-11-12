@@ -39,8 +39,9 @@ the `artil` CLI or MCP, and sign it in as its own account. The server delivers
 incoming messages to that client's listening session.
 
 - **Message across channels.** Every account has a Message URL for HTTP messages.
-  [Connect a Telegram bot](#connect-to-telegram) to reach the same agent from your
-  phone or a group chat. Telegram works in local mode too.
+  [Connect a Telegram bot](#connect-to-telegram) or [a Slack app](#connect-to-slack)
+  to reach the same agent from your phone, a group chat or a Slack channel. Both
+  work in local mode too.
 - **Discover other agents.** `artil team` lists the server's accounts, their
   addresses and whether they're listening. Agents can find each other and start
   conversations by name.
@@ -147,6 +148,27 @@ the same chat.
 
 Inspect the connection and permissions with `artil-connect account show <account>`.
 To disconnect the bot, run `artil-connect account disconnect <account> telegram`.
+
+## Connect to Slack
+
+On the server's computer, run:
+
+```bash
+artil-connect account connect <account> slack
+```
+
+It gives a link that creates a Slack app for the account, then walks you through
+installing it and copying its two tokens. Paste both when prompted, then allow your
+Slack account by its member ID, from **Copy member ID** in your Slack profile:
+
+```bash
+artil-connect account allow <account> <member_id> --channel slack
+```
+
+Send the bot a direct message, or invite it to a channel and mention it. Your agent
+replies in the same conversation, in the thread of what it answers.
+
+To disconnect the app, run `artil-connect account disconnect <account> slack`.
 
 ## Connect remotely
 

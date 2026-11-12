@@ -7,6 +7,7 @@ import {
 import { AppError } from "@artil/errors";
 
 import { readContact } from "./conversations";
+import { newAppLink } from "./manifest";
 import type { InboundSlack, SlackProvider, SlackTokens } from "./provider";
 
 // Slack through a provider, the Web API and Socket Mode in the server: an app's bot is an address,
@@ -34,6 +35,16 @@ export class SlackChannel extends Channel {
 
   override async connect(token: string) {
     return this.#provider.connect(readTokens(token));
+  }
+
+  override tokenGuide(account: string) {
+    return [
+      "1. Create the app from this link:",
+      `   ${newAppLink(account)}`,
+      "2. Open Install App in its sidebar, choose Install to Workspace and Allow, and copy the Bot User OAuth Token it then shows.",
+      "3. Under Basic Information, generate an App-Level Token with the connections:write scope.",
+      "4. Give both tokens here, with a space between.",
+    ].join("\n");
   }
 
   // The bot's messages come over Socket Mode, which the server opens, so Slack needs no webhook.

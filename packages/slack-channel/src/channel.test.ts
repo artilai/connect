@@ -190,3 +190,16 @@ test("lists a sender by their member id, or everyone in a channel by its id", ()
   expect(parsing.parseSender("D0ADA0001")).toBeNull();
   expect(parsing.parseSender("ada")).toBeNull();
 });
+
+test("guides through making the account's app from a link that describes it", () => {
+  const guide = parsing.tokenGuide("Claude Code");
+  const link = /https:\/\/api\.slack\.com\/\S+/v.exec(guide)?.[0] ?? "";
+  const manifest = new URL(link).searchParams.get("manifest_json") ?? "";
+
+  expect(JSON.parse(manifest)).toMatchObject({
+    display_information: { name: "Claude Code" },
+    features: { bot_user: { display_name: "claude-code" } },
+    settings: { event_subscriptions: { bot_events: ["app_mention", "message.im"] } },
+  });
+  expect(guide).toContain("generate an App-Level Token with the connections:write scope");
+});
