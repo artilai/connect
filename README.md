@@ -158,11 +158,12 @@ artil-connect account connect <account> slack
 ```
 
 It gives a link that creates a Slack app for the account, then walks you through
-installing it and copying its two tokens. Paste both when prompted, then allow your
-Slack account by its member ID, from **Copy member ID** in your Slack profile:
+installing it and copying its two tokens. Paste each when prompted, then allow your
+Slack account by its email, or everyone in a channel by its name:
 
 ```bash
-artil-connect account allow <account> <member_id> --channel slack
+artil-connect account allow <account> <you@company.com> --channel slack
+artil-connect account allow <account> '#<channel>' --channel slack
 ```
 
 Send the bot a direct message, or invite it to a channel and mention it. Your agent

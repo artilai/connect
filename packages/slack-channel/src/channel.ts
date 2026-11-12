@@ -6,9 +6,9 @@ import {
 } from "@artil/channels/contract";
 import { AppError } from "@artil/errors";
 
-import { readContact } from "./conversations";
+import { botAddress, channelAddress, readContact } from "./conversations";
 import { newAppLink } from "./manifest";
-import type { InboundSlack, SlackProvider, SlackQuote, SlackTokens } from "./provider";
+import type { InboundSlack, SlackPerson, SlackProvider, SlackQuote, SlackTokens } from "./provider";
 
 // Slack through a provider, the Web API and Socket Mode in the server: an app's bot is an address,
 // and a person or a channel the bot is in is whom a message goes to.
@@ -19,7 +19,7 @@ export class SlackChannel extends Channel {
 
   readonly labels = {
     address: "bot",
-    contact: "member id or channel id",
+    contact: "email or #channel",
     token: "bot token and app-level token, with a space between",
   };
 
@@ -34,7 +34,7 @@ export class SlackChannel extends Channel {
   }
 
   override async connect(token: string) {
-    return this.#provider.connect(readTokens(token));
+    return botAddress(await this.#provider.connect(readTokens(token)));
   }
 
   // The app for the account comes from a link, and its two tokens from its settings.
@@ -117,32 +117,33 @@ function onlyConversation(to: string[]) {
   return conversation;
 }
 
-function received({
-  id,
-  bot,
-  group,
-  senderId,
-  senderName,
-  text,
-  files,
-  quotes,
-  thread,
-}: InboundSlack) {
+// A person goes by their email, a bot by its @username, and someone Slack tells neither of by their
+// member id.
+function addressOf({ id, email, bot }: SlackPerson) {
+  if (email) return email.toLowerCase();
+
+  return bot ? botAddress(bot) : id;
+}
+
+function received({ id, bot, group, sender, text, files, quotes, thread }: InboundSlack) {
+  // A channel goes by its #name, or by its id when Slack does not tell the name.
+  const channel = group?.name ? channelAddress(group.name) : null;
+
   return {
     type: "message.received",
     message: {
       id,
-      to: [bot],
+      to: [botAddress(bot)],
       from: {
-        address: senderId,
-        name: senderName,
+        address: addressOf(sender),
+        name: sender.name,
         // Slack has no handle of its own for a person, only the names they choose.
         username: null,
         // Slack vouches for who sent each message to the bot.
         verified: true,
       },
       // An answer to a message in a channel goes to the channel.
-      group: group ? { address: group.id, name: group.name } : undefined,
+      group: group ? { address: channel ?? group.id, name: channel } : undefined,
       text: withQuotes(text, quotes),
       files,
       thread,

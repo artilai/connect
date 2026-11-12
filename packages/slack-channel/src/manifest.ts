@@ -30,6 +30,7 @@ function manifestOf(account: string) {
           "im:write",
           "mpim:history",
           "users:read",
+          "users:read.email",
         ],
       },
     },

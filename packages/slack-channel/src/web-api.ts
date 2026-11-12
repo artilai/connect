@@ -4,10 +4,11 @@ import type { InboundFile, OutboundFile } from "@artil/channels/contract";
 import { AppError } from "@artil/errors";
 import { minute, second } from "@artil/utils/time";
 
-import { isDirectMessage, isPerson } from "./conversations";
+import { channelAddress, isDirectMessage, isEmail, isPerson } from "./conversations";
 import type {
   OutgoingSlack,
   SlackEvent,
+  SlackPerson,
   SlackQuote,
   SlackProvider,
   SlackTokens,
@@ -35,7 +36,7 @@ const answerSchema = z.object({
   needed: z.string().optional(),
 });
 
-const botSchema = z.object({ user_id: z.string(), bot_id: z.string() });
+const botSchema = z.object({ user_id: z.string(), user: z.string(), bot_id: z.string() });
 
 const botInfoSchema = z.object({ bot: z.object({ app_id: z.string() }) });
 
@@ -54,7 +55,18 @@ const postedSchema = z.object({ ts: z.string() });
 const uploadSchema = z.object({ upload_url: z.string(), file_id: z.string() });
 
 const userSchema = z.object({
-  user: z.object({ name: z.string(), real_name: z.string().optional() }),
+  user: z.object({
+    name: z.string(),
+    real_name: z.string().optional(),
+    is_bot: z.boolean().optional(),
+    profile: z.object({ email: z.string().optional() }).optional(),
+  }),
+});
+
+const memberSchema = z.object({ user: z.object({ id: z.string() }) });
+
+const channelsSchema = z.object({
+  channels: z.array(z.object({ id: z.string(), name: z.string() })),
 });
 
 const conversationSchema = z.object({ channel: z.object({ name: z.string() }) });
@@ -211,9 +223,9 @@ export function createWebApi({
     }
   }
 
-  // Checks both tokens, and that they are one app's, and returns the bot's member id.
+  // Checks both tokens, and that they are one app's, and returns the bot's username.
   async function connect({ bot, app }: SlackTokens) {
-    const { user_id: member, bot_id: botId } = await checkToken({
+    const { user: username, bot_id: botId } = await checkToken({
       request: call({ token: bot, method: "auth.test", schema: botSchema }),
       name: "bot token",
     });
@@ -238,13 +250,13 @@ export function createWebApi({
       });
     }
 
-    return member;
+    return username;
   }
 
-  type NameOfOptions = { token: string; user: string };
+  type PersonOfOptions = { token: string; user: string };
 
-  // The name a person goes by, or none when Slack does not tell it.
-  async function nameOf({ token, user }: NameOfOptions) {
+  // Who a person is, by their member id; only that when Slack does not tell more.
+  async function personOf({ token, user }: PersonOfOptions): Promise<SlackPerson> {
     const found = await call({
       token,
       method: "users.info",
@@ -252,12 +264,17 @@ export function createWebApi({
       params: { user },
     }).catch(() => null);
 
-    return found ? found.user.real_name || found.user.name : null;
+    return {
+      id: user,
+      name: found ? found.user.real_name || found.user.name : null,
+      email: found?.user.profile?.email ?? null,
+      bot: found?.user.is_bot ? found.user.name : null,
+    };
   }
 
   type GroupOfOptions = { token: string; channel: string };
 
-  // A channel by its id and the name people see, like #launch, when Slack tells it.
+  // A channel by its id and its name, when Slack tells it.
   async function groupOf({ token, channel }: GroupOfOptions) {
     const found = await call({
       token,
@@ -266,7 +283,7 @@ export function createWebApi({
       params: { channel },
     }).catch(() => null);
 
-    return { id: channel, name: found ? `#${found.channel.name}` : null };
+    return { id: channel, name: found?.channel.name ?? null };
   }
 
   type DownloadOptions = { token: string; url: string; type: string };
@@ -333,19 +350,19 @@ export function createWebApi({
     return messages;
   }
 
-  type QuotesOfOptions = ThreadBeforeOptions & { bot: string };
+  type QuotesOfOptions = ThreadBeforeOptions & { botId: string };
 
   // What was said in a thread before a mention, since the bot last wrote there, which the bot does
   // not hear otherwise; none when Slack does not hand the thread over.
-  async function quotesOf({ token, bot, channel, thread, ts }: QuotesOfOptions) {
+  async function quotesOf({ token, botId, channel, thread, ts }: QuotesOfOptions) {
     const messages = await threadBefore({ token, channel, thread, ts }).catch(() => []);
-    const unheard = messages.slice(messages.findLastIndex(({ user }) => user === bot) + 1);
+    const unheard = messages.slice(messages.findLastIndex(({ user }) => user === botId) + 1);
     const quoted = unheard.filter(({ text }) => text).slice(-maxQuotes);
     const people = new Set(quoted.flatMap(({ user }) => (user ? [user] : [])));
 
     const names = new Map(
       await Promise.all(
-        [...people].map(async (user) => [user, await nameOf({ token, user })] as const),
+        [...people].map(async (user) => [user, (await personOf({ token, user })).name] as const),
       ),
     );
 
@@ -355,7 +372,10 @@ export function createWebApi({
     }));
   }
 
-  type ReadOptions = { bot: string; token: string; event: Event };
+  // The bot by its member id, which its own messages come from, and its username.
+  type Bot = { id: string; username: string };
+
+  type ReadOptions = { bot: Bot; token: string; event: Event };
 
   // A direct message with the bot reaches the account, and in a channel what mentions the bot.
   // Slack sends the first as a message and the second as an app_mention; in a direct message only
@@ -363,7 +383,7 @@ export function createWebApi({
   async function read({ bot, token, event }: ReadOptions): Promise<SlackEvent[]> {
     const { type, subtype, channel, user, ts, thread_ts: threadTs } = event;
 
-    if (!channel || !user || !ts || user === bot || !writtenSubtypes.has(subtype)) return [];
+    if (!channel || !user || !ts || user === bot.id || !writtenSubtypes.has(subtype)) return [];
 
     const direct = isDirectMessage(channel);
 
@@ -372,11 +392,11 @@ export function createWebApi({
     // A direct message brings the bot every message, and a channel only the mentions.
     const inChannelThread = !direct && threadTs && threadTs !== ts;
 
-    const [senderName, group, files, quotes] = await Promise.all([
-      nameOf({ token, user }),
+    const [sender, group, files, quotes] = await Promise.all([
+      personOf({ token, user }),
       direct ? null : groupOf({ token, channel }),
       filesOf({ token, files: event.files ?? [] }),
-      inChannelThread ? quotesOf({ token, bot, channel, thread: threadTs, ts }) : [],
+      inChannelThread ? quotesOf({ token, botId: bot.id, channel, thread: threadTs, ts }) : [],
     ]);
 
     return [
@@ -384,10 +404,9 @@ export function createWebApi({
         type: "received",
         message: {
           id: idOf({ conversation: channel, ts }),
-          bot,
+          bot: bot.username,
           group,
-          senderId: user,
-          senderName,
+          sender,
           text: unescaped(event.text ?? ""),
           files,
           quotes,
@@ -485,11 +504,13 @@ export function createWebApi({
   // Keeps the bot's messages coming over Socket Mode until the signal aborts, on a new connection
   // each time Slack asks for one. A failure ends it, and the server starts it again.
   async function start({ tokens, signal, onEvents }: SlackUpdates) {
-    const { user_id: bot } = await call({
+    const { user_id: id, user: username } = await call({
       token: tokens.bot,
       method: "auth.test",
       schema: botSchema,
     });
+
+    const bot = { id, username };
 
     while (!signal.aborted) {
       const { url } = await call({
@@ -506,10 +527,48 @@ export function createWebApi({
     }
   }
 
-  type OpenDirectMessageOptions = { token: string; person: string };
+  type ChannelNamedOptions = { token: string; name: string };
 
-  // A bot writes to a person in its direct message with them, which Slack opens when it has to.
-  async function openDirectMessage({ token, person }: OpenDirectMessageOptions) {
+  // A channel by its #name, among the channels the bot is in, which are the ones it may write to.
+  async function channelNamed({ token, name }: ChannelNamedOptions) {
+    const { channels } = await call({
+      token,
+      method: "users.conversations",
+      schema: channelsSchema,
+      params: { types: "public_channel,private_channel", exclude_archived: "true", limit: "999" },
+    });
+
+    const named = channels.find((channel) => channelAddress(channel.name) === name);
+
+    if (!named) throw new Error(`The bot is not in ${name}; invite it there with /invite`);
+
+    return named.id;
+  }
+
+  type MemberByEmailOptions = { token: string; email: string };
+
+  async function memberByEmail({ token, email }: MemberByEmailOptions) {
+    const { user } = await call({
+      token,
+      method: "users.lookupByEmail",
+      schema: memberSchema,
+      params: { email },
+    });
+
+    return user.id;
+  }
+
+  type ConversationOfOptions = { token: string; to: string };
+
+  // The conversation a recipient names: a channel by its id or #name, or a person's direct message,
+  // by their member id or email, which Slack opens when it has to.
+  async function conversationOf({ token, to }: ConversationOfOptions) {
+    if (to.startsWith("#")) return channelNamed({ token, name: to });
+
+    const person = isEmail(to) ? await memberByEmail({ token, email: to }) : to;
+
+    if (!isPerson(person)) return to;
+
     const { channel } = await call({
       token,
       method: "conversations.open",
@@ -563,7 +622,7 @@ export function createWebApi({
 
   // The text goes as Markdown, which agents write, and the files after it.
   async function send({ token, to, text, files, replyTo, thread }: OutgoingSlack) {
-    const conversation = isPerson(to) ? await openDirectMessage({ token, person: to }) : to;
+    const conversation = await conversationOf({ token, to });
     const threadTs = threadOf({ conversation, replyTo, thread });
 
     const { ts } = await call({

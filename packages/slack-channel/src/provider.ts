@@ -8,19 +8,26 @@ export type SlackTokens = { bot: string; app: string };
 // mention it.
 export type InboundSlack = {
   id: string;
-  // The bot's member id.
+  // The bot's username.
   bot: string;
-  // The channel it came in, by its id and the name people see; none for a direct message.
+  // The channel it came in, by its id and its name when Slack tells it; none for a direct message.
   group: { id: string; name: string | null } | null;
-  // The member id of whoever wrote it.
-  senderId: string;
-  senderName: string | null;
+  sender: SlackPerson;
   text: string;
   files: InboundFile[];
   // What was said in its thread since the bot last wrote there, which the bot hears only now.
   quotes: SlackQuote[];
   // The thread it is in, by the id of the message that starts it, which may be itself.
   thread: string;
+};
+
+// Whoever wrote a message, as Slack tells: their member id, the name they go by, their email when
+// Slack shows it, and their username when they are a bot.
+export type SlackPerson = {
+  id: string;
+  name: string | null;
+  email: string | null;
+  bot: string | null;
 };
 
 export type SlackQuote = { fromName: string | null; text: string };
@@ -30,8 +37,8 @@ export type SlackEvent = { type: "received"; message: InboundSlack };
 export type OutgoingSlack = {
   // The bot token.
   token: string;
-  // A conversation by its id, or a person by their member id, whom the bot writes in a direct
-  // message.
+  // A channel by its id or #name, or a person by their member id or email, whom the bot writes in a
+  // direct message.
   to: string;
   text: string;
   files: OutboundFile[];
@@ -48,7 +55,7 @@ export type SlackUpdates = {
 };
 
 export type SlackProvider = {
-  // Checks the app's tokens and returns its bot's member id.
+  // Checks the app's tokens and returns its bot's username.
   connect: (tokens: SlackTokens) => Promise<string>;
   // Keeps the bot's messages coming over Socket Mode until the signal aborts, on any server, since
   // the server opens the connection.

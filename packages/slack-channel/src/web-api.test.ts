@@ -70,11 +70,23 @@ function setup({ answers = {}, heartbeat }: SetupOptions = {}) {
   return { slack, requests };
 }
 
-const botAnswer = { body: { ok: true, user_id: "U0BOT0001", bot_id: "B0BOT0001" } };
+const botAnswer = {
+  body: { ok: true, user_id: "U0BOT0001", user: "claude", bot_id: "B0BOT0001" },
+};
 
 const adaAnswer = {
-  body: { ok: true, user: { id: "U0ADA0001", name: "ada", real_name: "Ada Lovelace" } },
+  body: {
+    ok: true,
+    user: {
+      id: "U0ADA0001",
+      name: "ada",
+      real_name: "Ada Lovelace",
+      profile: { email: "ada@example.com" },
+    },
+  },
 };
+
+const ada = { id: "U0ADA0001", name: "Ada Lovelace", email: "ada@example.com", bot: null };
 
 const launchAnswer = { body: { ok: true, channel: { id: "C0LAUNCH01", name: "launch" } } };
 
@@ -91,7 +103,7 @@ test("checks the app's tokens and finds its bot's member id", async () => {
     },
   });
 
-  expect(await slack.connect(tokens)).toBe("U0BOT0001");
+  expect(await slack.connect(tokens)).toBe("claude");
   socket.stop();
   expect(requests).toEqual([
     { method: "auth.test", token: "xoxb-1-bot", body: {} },
@@ -297,10 +309,9 @@ test("takes direct messages to the bot over Socket Mode, each in a thread of its
       type: "received",
       message: {
         id: "D0ADA0001:1700000000.000100",
-        bot: "U0BOT0001",
+        bot: "claude",
         group: null,
-        senderId: "U0ADA0001",
-        senderName: "Ada Lovelace",
+        sender: ada,
         text: "Is 1 < 2 && 3 > 2?",
         files: [],
         quotes: [],
@@ -331,10 +342,9 @@ test("takes what mentions the bot in a channel, by the channel's name and the th
       type: "received",
       message: {
         id: "C0LAUNCH01:1700000000.000300",
-        bot: "U0BOT0001",
-        group: { id: "C0LAUNCH01", name: "#launch" },
-        senderId: "U0ADA0001",
-        senderName: "Ada Lovelace",
+        bot: "claude",
+        group: { id: "C0LAUNCH01", name: "launch" },
+        sender: ada,
         text: "<@U0BOT0001> are you there?",
         files: [],
         quotes: [],
@@ -416,7 +426,13 @@ test("goes without the names and the thread Slack does not give", async () => {
   });
 
   expect(taken).toMatchObject([
-    { message: { senderName: null, group: { id: "G0FRIENDS1", name: null }, quotes: [] } },
+    {
+      message: {
+        sender: { name: null, email: null },
+        group: { id: "G0FRIENDS1", name: null },
+        quotes: [],
+      },
+    },
   ]);
 });
 
@@ -582,25 +598,23 @@ test("fails a connection that stops answering, as after the computer slept", asy
 
 const postedAnswer = { body: { ok: true, channel: "C0LAUNCH01", ts: "1700000000.000500" } };
 
-test("writes to a person in their direct message, in Markdown", async () => {
+const hello = { token: "xoxb-1-bot", text: "**Done**", files: [], replyTo: null, thread: null };
+
+test("writes to a person by their email, in their direct message, in Markdown", async () => {
   const { slack, requests } = setup({
     answers: {
+      "users.lookupByEmail": { body: { ok: true, user: { id: "U0ADA0001" } } },
       "conversations.open": { body: { ok: true, channel: { id: "D0ADA0001" } } },
       "chat.postMessage": postedAnswer,
     },
   });
 
-  expect(
-    await slack.send({
-      token: "xoxb-1-bot",
-      to: "U0ADA0001",
-      text: "**Done**",
-      files: [],
-      replyTo: null,
-      thread: null,
-    }),
-  ).toEqual({ id: "D0ADA0001:1700000000.000500", thread: "D0ADA0001:1700000000.000500" });
+  expect(await slack.send({ ...hello, to: "ada@example.com" })).toEqual({
+    id: "D0ADA0001:1700000000.000500",
+    thread: "D0ADA0001:1700000000.000500",
+  });
   expect(requests).toEqual([
+    { method: "users.lookupByEmail", token: "xoxb-1-bot", body: { email: "ada@example.com" } },
     { method: "conversations.open", token: "xoxb-1-bot", body: { users: "U0ADA0001" } },
     {
       method: "chat.postMessage",
@@ -608,6 +622,27 @@ test("writes to a person in their direct message, in Markdown", async () => {
       body: { channel: "D0ADA0001", markdown_text: "**Done**" },
     },
   ]);
+});
+
+test("writes to a channel by its #name, among the channels the bot is in", async () => {
+  const { slack, requests } = setup({
+    answers: {
+      "users.conversations": {
+        body: { ok: true, channels: [{ id: "C0LAUNCH01", name: "launch" }] },
+      },
+      "chat.postMessage": postedAnswer,
+    },
+  });
+
+  await slack.send({ ...hello, to: "#launch" });
+
+  await expect(slack.send({ ...hello, to: "#nowhere" })).rejects.toThrow(
+    "The bot is not in #nowhere; invite it there with /invite",
+  );
+  expect(requests.find(({ method }) => method === "chat.postMessage")?.body).toEqual({
+    channel: "C0LAUNCH01",
+    markdown_text: "**Done**",
+  });
 });
 
 test("answers in the thread of the message it answers, and beside one in a direct message", async () => {
@@ -700,19 +735,12 @@ test("sends files after the text, in its thread", async () => {
 });
 
 test("fails a send with Slack's reason, naming a scope the app lacks", async () => {
-  const hello = {
-    token: "xoxb-1-bot",
-    to: "C0LAUNCH01",
-    text: "Hello",
-    files: [],
-    replyTo: null,
-    thread: null,
-  };
+  const toLaunch = { ...hello, to: "C0LAUNCH01" };
 
   await expect(
     setup({
       answers: { "chat.postMessage": { body: { ok: false, error: "not_in_channel" } } },
-    }).slack.send(hello),
+    }).slack.send(toLaunch),
   ).rejects.toThrow("not_in_channel");
 
   await expect(
@@ -722,6 +750,6 @@ test("fails a send with Slack's reason, naming a scope the app lacks", async () 
           body: { ok: false, error: "missing_scope", needed: "chat:write" },
         },
       },
-    }).slack.send(hello),
+    }).slack.send(toLaunch),
   ).rejects.toThrow("missing_scope: the Slack app needs the chat:write scope");
 });

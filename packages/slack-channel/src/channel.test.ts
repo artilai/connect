@@ -23,7 +23,7 @@ function setup(inbound: SlackEvent[] = []) {
     connect: async (tokens) => {
       connected.push(tokens);
 
-      return "U0BOT0001";
+      return "claude";
     },
     start: async ({ tokens, onEvents }) => {
       started.push(tokens);
@@ -59,10 +59,9 @@ async function start(channel: Channel) {
 
 const fromAda: InboundSlack = {
   id: "D0ADA0001:1700000000.000100",
-  bot: "U0BOT0001",
+  bot: "claude",
   group: null,
-  senderId: "U0ADA0001",
-  senderName: "Ada Lovelace",
+  sender: { id: "U0ADA0001", name: "Ada Lovelace", email: "Ada@Example.com", bot: null },
   text: "Hi",
   files: [],
   quotes: [],
@@ -70,8 +69,8 @@ const fromAda: InboundSlack = {
 };
 
 const outbound: OutboundMessage = {
-  from: "U0BOT0001",
-  to: ["U0ADA0001"],
+  from: "@claude",
+  to: ["ada@example.com"],
   text: "On my way",
   files: [],
   replyTo: "D0ADA0001:1700000000.000100",
@@ -85,11 +84,11 @@ async function deliver() {
 
 const parsing = setup().channel;
 
-test("connects an app at its bot's member id with both its tokens, in either order", async () => {
+test("connects an app at its bot's @username with both its tokens, in either order", async () => {
   const { channel, connected } = setup();
 
-  expect(await channel.connect(` ${token} `)).toBe("U0BOT0001");
-  expect(await channel.connect("xapp-1-app\nxoxb-1-bot")).toBe("U0BOT0001");
+  expect(await channel.connect(` ${token} `)).toBe("@claude");
+  expect(await channel.connect("xapp-1-app\nxoxb-1-bot")).toBe("@claude");
   expect(connected).toEqual([
     { bot: "xoxb-1-bot", app: "xapp-1-app" },
     { bot: "xoxb-1-bot", app: "xapp-1-app" },
@@ -108,7 +107,7 @@ test("refuses to connect without both tokens", async () => {
   expect(connected).toEqual([]);
 });
 
-test("turns a direct message to the bot into a received message from the person", async () => {
+test("turns a direct message to the bot into a received message from the person, by their email", async () => {
   const { channel, started } = setup([{ type: "received", message: fromAda }]);
 
   expect(await start(channel)).toEqual([
@@ -116,8 +115,8 @@ test("turns a direct message to the bot into a received message from the person"
       type: "message.received",
       message: {
         id: "D0ADA0001:1700000000.000100",
-        to: ["U0BOT0001"],
-        from: { address: "U0ADA0001", name: "Ada Lovelace", username: null, verified: true },
+        to: ["@claude"],
+        from: { address: "ada@example.com", name: "Ada Lovelace", username: null, verified: true },
         text: "Hi",
         files: [],
         thread: "D0ADA0001:1700000000.000100",
@@ -134,7 +133,7 @@ test("turns a mention in a channel's thread into a message from whoever wrote it
       message: {
         ...fromAda,
         id: "C0LAUNCH01:1700000000.000300",
-        group: { id: "C0LAUNCH01", name: "#launch" },
+        group: { id: "C0LAUNCH01", name: "launch" },
         text: "<@U0BOT0001> are you there?",
         thread: "C0LAUNCH01:1700000000.000100",
       },
@@ -146,12 +145,42 @@ test("turns a mention in a channel's thread into a message from whoever wrote it
       type: "message.received",
       message: {
         id: "C0LAUNCH01:1700000000.000300",
-        to: ["U0BOT0001"],
-        from: { address: "U0ADA0001", name: "Ada Lovelace", username: null, verified: true },
-        group: { address: "C0LAUNCH01", name: "#launch" },
+        to: ["@claude"],
+        from: { address: "ada@example.com", name: "Ada Lovelace", username: null, verified: true },
+        group: { address: "#launch", name: "#launch" },
         text: "<@U0BOT0001> are you there?",
         files: [],
         thread: "C0LAUNCH01:1700000000.000100",
+      },
+    },
+  ]);
+});
+
+test("names a bot by its @username, and by their ids a person and a channel Slack tells no more of", async () => {
+  const { channel } = setup([
+    {
+      type: "received",
+      message: {
+        ...fromAda,
+        sender: { id: "U0OPS0001", name: "Ops", email: null, bot: "opsbot" },
+      },
+    },
+    {
+      type: "received",
+      message: {
+        ...fromAda,
+        group: { id: "G0FRIENDS1", name: null },
+        sender: { id: "U0ADA0001", name: null, email: null, bot: null },
+      },
+    },
+  ]);
+
+  expect(await start(channel)).toMatchObject([
+    { message: { from: { address: "@opsbot" } } },
+    {
+      message: {
+        from: { address: "U0ADA0001" },
+        group: { address: "G0FRIENDS1", name: null },
       },
     },
   ]);
@@ -191,7 +220,7 @@ test("sends to one person or channel with the bot token, in the thread of what i
   expect(sent).toEqual([
     {
       token: "xoxb-1-bot",
-      to: "U0ADA0001",
+      to: "ada@example.com",
       text: "On my way",
       files: [],
       replyTo: "D0ADA0001:1700000000.000100",
@@ -200,19 +229,19 @@ test("sends to one person or channel with the bot token, in the thread of what i
   ]);
 });
 
-test("writes a recipient as a person's member id or a channel's id", () => {
+test("writes to a person by their email and a channel by its #name, or either by its id", () => {
+  expect(parsing.parseRecipient(" Ada@Example.com ")).toBe("ada@example.com");
+  expect(parsing.parseRecipient("#Launch")).toBe("#launch");
   expect(parsing.parseRecipient(" u0ada0001 ")).toBe("U0ADA0001");
-  expect(parsing.parseRecipient("W0ADA0001")).toBe("W0ADA0001");
   expect(parsing.parseRecipient("C0LAUNCH01")).toBe("C0LAUNCH01");
   expect(parsing.parseRecipient("D0ADA0001")).toBeNull();
-  expect(parsing.parseRecipient("#launch")).toBeNull();
   expect(parsing.parseRecipient("@ada")).toBeNull();
+  expect(parsing.parseRecipient("# launch")).toBeNull();
 });
 
-test("lists a sender by their member id, or everyone in a channel by its id", () => {
-  expect(parsing.parseSender("U0ADA0001")).toBe("U0ADA0001");
-  expect(parsing.parseSender("G0PRIVATE1")).toBe("G0PRIVATE1");
-  expect(parsing.parseSender("D0ADA0001")).toBeNull();
+test("lists a sender by their email, or everyone in a channel by its #name", () => {
+  expect(parsing.parseSender("ada@example.com")).toBe("ada@example.com");
+  expect(parsing.parseSender("#launch")).toBe("#launch");
   expect(parsing.parseSender("ada")).toBeNull();
 });
 
