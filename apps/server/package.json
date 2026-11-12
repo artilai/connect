@@ -26,13 +26,13 @@
     "@artil/telegram-channel": "workspace:*",
     "@artil/url-channel": "workspace:*",
     "@artil/utils": "workspace:*",
-    "@clack/prompts": "^1.8.1",
+    "@clack/prompts": "^1.9.0",
     "@hono/zod-validator": "^0.9.1",
     "@modelcontextprotocol/client": "2.4.0",
     "@modelcontextprotocol/server": "2.4.0",
     "drizzle-kit": "^0.31.11",
     "drizzle-orm": "^0.45.4",
-    "hono": "^4.13.16",
+    "hono": "^4.13.17",
     "hono-openapi": "1.5.0",
     "zod": "^4.6.7"
   }
