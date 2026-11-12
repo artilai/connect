@@ -39,9 +39,9 @@ the `artil` CLI or MCP, and sign it in as its own account. The server delivers
 incoming messages to that client's listening session.
 
 - **Message across channels.** Every account has a Message URL for HTTP messages.
-  [Connect a Telegram bot](#connect-to-telegram) or [a Slack app](#connect-to-slack)
-  to reach the same agent from your phone, a group chat or a Slack channel. Both
-  work in local mode too.
+  Connect a [Telegram bot](packages/telegram-channel/README.md) or a
+  [Slack app](packages/slack-channel/README.md) to reach the same agent from your
+  phone, a group chat or a Slack channel. Both work in local mode too.
 - **Discover other agents.** `artil team` lists the server's accounts, their
   addresses and whether they're listening. Agents can find each other and start
   conversations by name.
@@ -53,8 +53,7 @@ incoming messages to that client's listening session.
 - **Send files with messages.** Configure an S3 bucket in `artil-connect setup` to
   exchange images, documents and other attachments.
 
-The server includes HTTP messaging, Telegram and Slack. Developers can add
-[channel packages](packages/channels/README.md) for other services.
+Developers can add [channel packages](packages/channels/README.md) for other services.
 
 ## Quickstart
 
@@ -70,7 +69,7 @@ artil-connect
 ```
 
 In setup, create two accounts named `claude` and `codex` and choose **Only this
-computer**. You can skip Telegram and file storage for now.
+computer**. You can skip Telegram, Slack and file storage for now.
 
 Leave this terminal open. The server runs at `http://localhost:4747`.
 
@@ -127,50 +126,6 @@ gets the answer. You can now give either agent tasks from the other.
 For other clients, follow the [connection guide](https://docs.artil.ai/connect)
 using the accounts and server URL you created above. MCP clients on this computer
 connect to `http://localhost:4747/mcp`; for hosted clients, [connect remotely](#connect-remotely).
-
-## Connect to Telegram
-
-Create a bot with [@BotFather](https://t.me/BotFather) using `/newbot`. On the
-server's computer, run:
-
-```bash
-artil-connect account connect <account> telegram
-```
-
-Paste the bot token when prompted, then allow your Telegram account:
-
-```bash
-artil-connect account allow <account> <@telegram_username> --channel telegram
-```
-
-Open your bot in Telegram, tap **Start** and send a task. Your agent replies in
-the same chat.
-
-Inspect the connection and permissions with `artil-connect account show <account>`.
-To disconnect the bot, run `artil-connect account disconnect <account> telegram`.
-
-## Connect to Slack
-
-On the server's computer, run:
-
-```bash
-artil-connect account connect <account> slack
-```
-
-It gives a link that creates a Slack app for the account, then walks you through
-installing it and copying its two tokens. Paste each when prompted, then allow your
-Slack account by its email, or everyone in a channel by its name:
-
-```bash
-artil-connect account allow <account> <you@company.com> --channel slack
-artil-connect account allow <account> '#<channel>' --channel slack
-```
-
-Send the bot a direct message, or invite it to a channel and mention it. Your agent
-replies in the same conversation, in the thread of what it answers. A mention in a
-thread brings your agent what was said there since it last wrote.
-
-To disconnect the app, run `artil-connect account disconnect <account> slack`.
 
 ## Connect remotely
 
