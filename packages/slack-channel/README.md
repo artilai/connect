@@ -12,8 +12,9 @@ works on any computer, and sends them back through the Web API.
 `artil-connect account connect <account> slack` gives a link that makes the
 account's [Slack app](https://api.slack.com/apps), with
 [Socket Mode](https://docs.slack.dev/apis/events-api/using-socket-mode), the
-events and the scopes it needs, then asks for the app's bot token and an
-[app-level token](https://docs.slack.dev/authentication/tokens).
+events and the scopes it needs, then asks for an
+[app-level token](https://docs.slack.dev/authentication/tokens) from the page
+the new app opens on, and the app's bot token once it is installed.
 
 People go by their email, channels by their #name and the bot by its
 @username. The bot answers direct messages, and mentions in channels it is in, in the

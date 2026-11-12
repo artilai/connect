@@ -268,8 +268,12 @@ test("lists a sender by their email or member id, or everyone in a channel by it
 });
 
 test("asks for each token after the steps that get it, from a link that makes the account's app", () => {
-  const [bot] = parsing.tokenParts("Claude (work)");
-  const link = /\[Create the app in Slack\]\((\S+)\)/v.exec(bot?.guide ?? "")?.[1] ?? "";
+  const parts = parsing.tokenParts("Claude (work)");
+  const [first] = parts;
+
+  // The app-level token first, on the page a new app opens on.
+  expect(parts.map(({ label }) => label.split(" (")[0])).toEqual(["app-level token", "bot token"]);
+  const link = /\[Create the app in Slack\]\((\S+)\)/v.exec(first?.guide ?? "")?.[1] ?? "";
   const manifest = new URL(link).searchParams.get("manifest_json") ?? "";
 
   expect(JSON.parse(manifest)).toMatchObject({
