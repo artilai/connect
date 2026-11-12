@@ -83,7 +83,7 @@ test("says in the log how to let a stranger in, the first time they write", asyn
   await server.deliverQueued();
 
   expect(server.logs).toEqual([
-    "@ada wrote to Codex on Test but is not on its list; let them in with: artil-server account allow Codex 42 --channel test",
+    "@ada wrote to Codex on Test but is not on its list; let them in with: artil-connect account allow Codex 42 --channel test",
   ]);
   expect(server.services.messages.listKeptOut({ accountId: codex.id, channel: "test" })).toEqual([
     { sender: "42", name: null },
@@ -101,7 +101,7 @@ test("says in the log how to let in someone in a group, or everyone in it, the f
   await server.deliverQueued();
 
   expect(server.logs).toEqual([
-    "@ada wrote to Codex in Launch on Test but neither is on its list; let them in with: artil-server account allow Codex 42 --channel test, or everyone in the group with: artil-server account allow Codex --channel test -- -10042",
+    "@ada wrote to Codex in Launch on Test but neither is on its list; let them in with: artil-connect account allow Codex 42 --channel test, or everyone in the group with: artil-connect account allow Codex --channel test -- -10042",
   ]);
   expect(server.services.messages.listKeptOut({ accountId: codex.id, channel: "test" })).toEqual([
     { sender: "-10042", name: "Launch" },

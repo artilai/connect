@@ -9,7 +9,7 @@ import { loadChannels } from "./load";
 const builtInChannels = [createTestChannel()];
 
 async function dataFolder(files: Record<string, string> = {}) {
-  const dataDir = await mkdtemp(join(tmpdir(), "artil-server-channels-"));
+  const dataDir = await mkdtemp(join(tmpdir(), "artil-connect-channels-"));
 
   for (const [name, text] of Object.entries(files)) await writeFile(join(dataDir, name), text);
 
@@ -70,7 +70,7 @@ test("refuses a channel built for another version of the contract, saying which 
       kind: "newer",
       source: channelModule("newer", 2),
       builtFor: 2,
-      update: "update artil-server with: bun install --global @artil-ai/server",
+      update: "update artil-connect with: bun install --global @artil-ai/connect",
     },
   ];
 

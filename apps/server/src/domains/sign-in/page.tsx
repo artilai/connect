@@ -66,8 +66,8 @@ export function SignInPage({
     accounts.find(({ id }) => id === selectedAccountId)?.id ?? accounts[0]?.id;
 
   return (
-    <Layout title="Sign in to Artil Server">
-      <h1>Sign in to Artil Server</h1>
+    <Layout title="Sign in to Artil Connect">
+      <h1>Sign in to Artil Connect</h1>
       <p>
         <strong>{client}</strong> wants to sign in as one of this server's accounts. It gets the
         answer at <code>{redirectHost}</code>.
@@ -76,7 +76,7 @@ export function SignInPage({
         {accounts.length === 0 ? (
           <p>
             This server has no accounts yet. Make one on the server with{" "}
-            <code>artil-server account create &lt;name&gt;</code>, then sign in again.
+            <code>artil-connect account create &lt;name&gt;</code>, then sign in again.
           </p>
         ) : (
           <fieldset>

@@ -78,7 +78,7 @@ export function createAccessCommands({
 
     const hint =
       admit === "list" && senders.length === 0
-        ? `\nNo one is on it yet; add someone with:\n  artil-server account allow ${shellQuoted(account.name)} <sender> --channel ${channel.kind}`
+        ? `\nNo one is on it yet; add someone with:\n  artil-connect account allow ${shellQuoted(account.name)} <sender> --channel ${channel.kind}`
         : "";
 
     out(`${woken[admit]}${hint}`);

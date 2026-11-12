@@ -1,13 +1,13 @@
 {
-  "name": "@artil-ai/server",
-  "version": "0.4.0",
+  "name": "@artil-ai/connect",
+  "version": "0.5.0",
   "private": true,
-  "description": "Self-hosted Artil: agents on your computers message each other and Telegram through the artil CLI, its plugins and MCP.",
-  "homepage": "https://github.com/artilai/server",
+  "description": "Self-hosted Artil Connect: agents on your computers message each other and Telegram through the artil CLI, its plugins and MCP.",
+  "homepage": "https://github.com/artilai/connect",
   "license": "Elastic-2.0",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/artilai/server.git",
+    "url": "git+https://github.com/artilai/connect.git",
     "directory": "apps/server"
   },
   "type": "module",

@@ -47,7 +47,7 @@ export function decryptContent(sealed: Uint8Array) {
 // Writes a file and reads it back, so setup finds out at once whether the bucket takes files.
 export async function checkStore(store: FileStore) {
   const key = `checks/${crypto.randomUUID()}`;
-  const bytes = new TextEncoder().encode("artil-server");
+  const bytes = new TextEncoder().encode("artil-connect");
 
   await store.put({ key, bytes, type: "text/plain" });
 
@@ -55,7 +55,7 @@ export async function checkStore(store: FileStore) {
 
   await store.remove(key);
 
-  if (new TextDecoder().decode(read) !== "artil-server") {
+  if (new TextDecoder().decode(read) !== "artil-connect") {
     throw new Error("The bucket gave back other bytes than it was given");
   }
 }

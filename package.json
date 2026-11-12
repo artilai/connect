@@ -1,5 +1,5 @@
 {
-  "name": "artil-server",
+  "name": "artil-connect",
   "private": true,
   "workspaces": [
     "apps/*",
@@ -8,16 +8,16 @@
   "type": "module",
   "scripts": {
     "start": "bun apps/server/src/main.ts",
-    "db:generate": "bun run --filter @artil-ai/server db:generate",
-    "db:check": "bun run --filter @artil-ai/server db:check",
-    "build": "bun run --filter @artil-ai/server build",
+    "db:generate": "bun run --filter @artil-ai/connect db:generate",
+    "db:check": "bun run --filter @artil-ai/connect db:check",
+    "build": "bun run --filter @artil-ai/connect build",
     "lint": "oxlint -c .config/oxlintrc.json",
     "fmt": "oxfmt -c .config/oxfmtrc.json '!apps/server/migrations'",
     "knip": "knip -c .config/knip.json",
     "typecheck": "tsc -p .config && bun run --filter '*' typecheck",
     "check": "bun run lint && bun run fmt --check && bun run knip && bun run db:check && bun run typecheck && bun test",
     "format": "bun run lint --fix && bun run fmt",
-    "api:check": "bun run --filter @artil-ai/server api:check"
+    "api:check": "bun run --filter @artil-ai/connect api:check"
   },
   "devDependencies": {
     "@oxlint/plugins": "1.91.0",

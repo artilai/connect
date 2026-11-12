@@ -4,10 +4,10 @@ import { hashPassword, validatePassword } from "../domains/sign-in/password";
 import type { ReadSecret } from "../platform/commands";
 import { type Config, type Paths, writeConfig } from "../platform/config";
 
-// The flags artil-server set reads, each naming a setting it changes.
+// The flags artil-connect set reads, each naming a setting it changes.
 export const settingFlags = ["public", "local", "port", "password"];
 
-// What the flags of artil-server set ask for.
+// What the flags of artil-connect set ask for.
 type SettingsChange = {
   public: boolean;
   local: boolean;

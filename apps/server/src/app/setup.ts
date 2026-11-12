@@ -171,7 +171,7 @@ async function setUpChannel({ context, channel }: SetUpChannelOptions) {
     } else {
       // The list keeps out whoever writes, and in a terminal account allow offers them to let in.
       log.info(
-        `Write to ${account.name} on ${channel.name}, then let yourself in with: artil-server account allow ${shellQuoted(account.name)} --channel ${channel.kind}`,
+        `Write to ${account.name} on ${channel.name}, then let yourself in with: artil-connect account allow ${shellQuoted(account.name)} --channel ${channel.kind}`,
       );
     }
   }
@@ -361,7 +361,7 @@ export async function runSetup({
   tailscale,
   out,
 }: RunSetupOptions) {
-  intro("Artil Server setup");
+  intro("Artil Connect setup");
 
   await installArtilCli(artil);
 

@@ -4,7 +4,7 @@ import { confirm, isCancel, log, note, password } from "@clack/prompts";
 
 import { AppError } from "@artil/errors";
 
-// A command of the artil-server command line: the arguments it takes in order and the flags it
+// A command of the artil-connect command line: the arguments it takes in order and the flags it
 // reads beside them, like --channel, by the names it reads them under, and what it does with them.
 export type Command = {
   takes: readonly string[];

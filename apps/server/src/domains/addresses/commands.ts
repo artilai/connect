@@ -20,7 +20,7 @@ type AddressCommandsOptions = {
 };
 
 // An account's addresses on the channels, which the commands name by their kind:
-// artil-server account connect claude telegram.
+// artil-connect account connect claude telegram.
 export function createAddressCommands({
   accounts,
   addresses,
@@ -52,7 +52,7 @@ export function createAddressCommands({
       [
         `${address.value} now reaches ${account.name} on ${channel.name}.`,
         `Only the server's accounts wake ${account.name} there; let someone in with:`,
-        `  artil-server account allow ${shellQuoted(account.name)} <${channel.labels.contact}> --channel ${kind}`,
+        `  artil-connect account allow ${shellQuoted(account.name)} <${channel.labels.contact}> --channel ${kind}`,
       ].join("\n"),
     );
   }

@@ -20,13 +20,13 @@ export function findStartProblems({ config, tailscale }: FindStartProblemsOption
 
   if (config.public && !tailscale) {
     problems.push(
-      "Public mode needs Tailscale: install it from https://tailscale.com/download, or keep the server on this computer with artil-server set --local",
+      "Public mode needs Tailscale: install it from https://tailscale.com/download, or keep the server on this computer with artil-connect set --local",
     );
   }
 
   if (config.public && config.password === null) {
     problems.push(
-      "Public mode needs a password for the sign-in page: set one with artil-server set --password",
+      "Public mode needs a password for the sign-in page: set one with artil-connect set --password",
     );
   }
 
@@ -67,7 +67,7 @@ export async function showStatus({ config, tailscale, context, out }: ShowStatus
 
   out(
     [
-      "Artil Server",
+      "Artil Connect",
       ...toRows([
         [
           "Address",
@@ -75,7 +75,7 @@ export async function showStatus({ config, tailscale, context, out }: ShowStatus
         ],
         [
           "Running",
-          (await isRunning(runningPort)) ? `yes${restart}` : "no; start it with: artil-server",
+          (await isRunning(runningPort)) ? `yes${restart}` : "no; start it with: artil-connect",
         ],
       ]),
       ...(problems.length > 0
