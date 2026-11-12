@@ -9,7 +9,8 @@ import { createWebApi } from "./web-api";
 const tokens = { bot: "xoxb-1-bot", app: "xapp-1-app" };
 
 // What Slack answers: a call with a JSON body, and a request for a file with its content; a list
-// answers one request each, its last the rest.
+// answers one request each, its last the rest. A call is answered by its method, or by its method
+// and arguments, like "users.info?user=U0EVE0001".
 type Answer = {
   status?: number;
   body?: unknown;
@@ -60,7 +61,7 @@ function setup({ answers = {}, heartbeat }: SetupOptions = {}) {
 
       requests.push({ method, token, body: Object.fromEntries(form) });
 
-      const answer = next(method) ?? { body: { ok: true } };
+      const answer = next(`${method}?${form.toString()}`) ?? next(method) ?? { body: { ok: true } };
 
       return Response.json(answer.body, { status: answer.status ?? 200 });
     },
@@ -300,6 +301,7 @@ test("takes direct messages to the bot over Socket Mode, each in a thread of its
         senderName: "Ada Lovelace",
         text: "Is 1 < 2 && 3 > 2?",
         files: [],
+        quotes: [],
         thread: "D0ADA0001:1700000000.000100",
       },
     },
@@ -333,6 +335,7 @@ test("takes what mentions the bot in a channel, by the channel's name and the th
         senderName: "Ada Lovelace",
         text: "<@U0BOT0001> are you there?",
         files: [],
+        quotes: [],
         thread: "C0LAUNCH01:1700000000.000100",
       },
     },
@@ -341,6 +344,49 @@ test("takes what mentions the bot in a channel, by the channel's name and the th
     method: "conversations.info",
     token: "xoxb-1-bot",
     body: { channel: "C0LAUNCH01" },
+  });
+});
+
+test("quotes what was said in a channel's thread since the bot last wrote there", async () => {
+  const { taken, requests } = await receive({
+    events: [{ ...inLaunch, thread_ts: "1700000000.000100" }],
+    answers: {
+      "users.info?user=U0EVE0001": { body: { ok: true, user: { name: "eve", real_name: "Eve" } } },
+      "conversations.replies": {
+        body: {
+          ok: true,
+          messages: [
+            { user: "U0BOB0001", text: "Deploy failed on migration 0005" },
+            { user: "U0BOT0001", text: "Looking" },
+            { user: "U0EVE0001", text: "The column is there &amp; empty" },
+            // A file alone says nothing to quote.
+            { user: "U0EVE0001", text: "" },
+            { bot_profile: { name: "CI" }, text: "Build 42 failed" },
+          ],
+        },
+      },
+    },
+  });
+
+  expect(taken).toMatchObject([
+    {
+      message: {
+        quotes: [
+          { fromName: "Eve", text: "The column is there & empty" },
+          { fromName: "CI", text: "Build 42 failed" },
+        ],
+      },
+    },
+  ]);
+  expect(requests).toContainEqual({
+    method: "conversations.replies",
+    token: "xoxb-1-bot",
+    body: {
+      channel: "C0LAUNCH01",
+      ts: "1700000000.000100",
+      latest: "1700000000.000300",
+      limit: "1000",
+    },
   });
 });
 

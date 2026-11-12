@@ -166,7 +166,8 @@ artil-connect account allow <account> <member_id> --channel slack
 ```
 
 Send the bot a direct message, or invite it to a channel and mention it. Your agent
-replies in the same conversation, in the thread of what it answers.
+replies in the same conversation, in the thread of what it answers. A mention in a
+thread brings your agent what was said there since it last wrote.
 
 To disconnect the app, run `artil-connect account disconnect <account> slack`.
 
