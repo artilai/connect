@@ -21,8 +21,7 @@ const recipientSeparator = ", ";
 // The refusals a person mends by putting the sender on the account's list.
 const keptOut: ReadonlySet<Refusal> = new Set(["sender", "outsider"]);
 
-// What the sender of a message that woke the agent sees the agent do with it, by the channel's
-// method that shows it.
+// The channel's method that shows a sender each receipt.
 const receipts = { read: "markRead", answered: "markAnswered" } as const satisfies Record<
   string,
   keyof Channel
@@ -168,14 +167,14 @@ export function createMessagesService({
   // read cannot land after the answer.
   function sendReceipt(options: SendReceiptOptions) {
     const { id } = options.message;
-    const previous = receiptsInFlight.get(id) ?? Promise.resolve();
-    const shown = previous.then(() => showReceipt(options));
+
+    const shown = (receiptsInFlight.get(id) ?? Promise.resolve())
+      .then(() => showReceipt(options))
+      .finally(() => {
+        if (receiptsInFlight.get(id) === shown) receiptsInFlight.delete(id);
+      });
 
     receiptsInFlight.set(id, shown);
-
-    void shown.finally(() => {
-      if (receiptsInFlight.get(id) === shown) receiptsInFlight.delete(id);
-    });
   }
 
   // Sends on the channel from the account's address there, and keeps the message among the

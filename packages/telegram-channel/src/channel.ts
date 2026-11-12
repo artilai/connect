@@ -11,9 +11,6 @@ import { AppError } from "@artil/errors";
 import { atUsername, readChat, readSender } from "./chats";
 import type { InboundTelegram, TelegramProvider, TelegramQuote } from "./provider";
 
-// The bot's reaction that shows the sender the agent read their message, until it answers.
-const readEmoji = "👀";
-
 // Telegram through a provider, the Bot API in the server: a bot is an address, and a chat with it,
 // private or in a group, is whom a message goes to.
 export class TelegramChannel extends Channel {
@@ -106,12 +103,12 @@ export class TelegramChannel extends Channel {
     });
   }
 
-  override async markRead(options: ReceiptOptions) {
-    await this.#react(options, readEmoji);
+  override markRead(options: ReceiptOptions) {
+    return this.#react(options, "👀");
   }
 
-  override async markAnswered(options: ReceiptOptions) {
-    await this.#react(options, null);
+  override markAnswered(options: ReceiptOptions) {
+    return this.#react(options, null);
   }
 
   // A bot the account no longer holds has no token to react with.
