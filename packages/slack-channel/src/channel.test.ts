@@ -65,6 +65,7 @@ const fromAda: InboundSlack = {
   senderName: "Ada Lovelace",
   text: "Hi",
   files: [],
+  quotes: [],
   thread: "D0ADA0001:1700000000.000100",
 };
 
@@ -151,6 +152,30 @@ test("turns a mention in a channel's thread into a message from whoever wrote it
         text: "<@U0BOT0001> are you there?",
         files: [],
         thread: "C0LAUNCH01:1700000000.000100",
+      },
+    },
+  ]);
+});
+
+test("quotes what was said in a thread before a mention above its text", async () => {
+  const { channel } = setup([
+    {
+      type: "received",
+      message: {
+        ...fromAda,
+        text: "<@U0BOT0001> can you look?",
+        quotes: [
+          { fromName: "Eve", text: "Deploy failed\non migration 0005" },
+          { fromName: null, text: "Build 42 failed" },
+        ],
+      },
+    },
+  ]);
+
+  expect(await start(channel)).toMatchObject([
+    {
+      message: {
+        text: "Eve wrote:\n> Deploy failed\n> on migration 0005\n\n> Build 42 failed\n\n<@U0BOT0001> can you look?",
       },
     },
   ]);

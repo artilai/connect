@@ -8,7 +8,7 @@ import { AppError } from "@artil/errors";
 
 import { readContact } from "./conversations";
 import { newAppLink } from "./manifest";
-import type { InboundSlack, SlackProvider, SlackTokens } from "./provider";
+import type { InboundSlack, SlackProvider, SlackQuote, SlackTokens } from "./provider";
 
 // Slack through a provider, the Web API and Socket Mode in the server: an app's bot is an address,
 // and a person or a channel the bot is in is whom a message goes to.
@@ -108,7 +108,17 @@ function onlyConversation(to: string[]) {
   return conversation;
 }
 
-function received({ id, bot, group, senderId, senderName, text, files, thread }: InboundSlack) {
+function received({
+  id,
+  bot,
+  group,
+  senderId,
+  senderName,
+  text,
+  files,
+  quotes,
+  thread,
+}: InboundSlack) {
   return {
     type: "message.received",
     message: {
@@ -124,9 +134,24 @@ function received({ id, bot, group, senderId, senderName, text, files, thread }:
       },
       // An answer to a message in a channel goes to the channel.
       group: group ? { address: group.id, name: group.name } : undefined,
-      text,
+      text: withQuotes(text, quotes),
       files,
       thread,
     },
   } satisfies ChannelEvent;
+}
+
+// A mention in a thread carries what was said there before it as quotes above its text, the way a
+// Telegram reply quotes what it answers.
+function withQuotes(text: string, quotes: SlackQuote[]) {
+  const quoted = quotes.map(({ fromName, text: said }) => {
+    const lines = said
+      .split("\n")
+      .map((line) => `> ${line}`)
+      .join("\n");
+
+    return fromName ? `${fromName} wrote:\n${lines}` : lines;
+  });
+
+  return [...quoted, text].filter(Boolean).join("\n\n");
 }

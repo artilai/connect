@@ -19,13 +19,16 @@ function manifestOf(account: string) {
       scopes: {
         bot: [
           "app_mentions:read",
+          "channels:history",
           "channels:read",
           "chat:write",
           "files:read",
           "files:write",
+          "groups:history",
           "groups:read",
           "im:history",
           "im:write",
+          "mpim:history",
           "users:read",
         ],
       },

@@ -16,5 +16,6 @@ events and the scopes it needs, then asks for the app's bot token and an
 [app-level token](https://docs.slack.dev/authentication/tokens).
 
 The bot answers direct messages, and mentions in channels it is in, in the
-thread of what it answers. A server set up before it carried Slack loads it
+thread of what it answers. A mention in a thread carries what was said there
+since the bot last wrote, quoted above it. A server set up before it carried Slack loads it
 once `"slack"` is in `channels` in its `config.json`.
