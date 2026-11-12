@@ -1,6 +1,6 @@
 {
   "name": "@artil-ai/connect",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "private": true,
   "description": "Self-hosted Artil Connect: agents on your computers message each other, Telegram and Slack through the artil CLI, its plugins and MCP.",
   "homepage": "https://github.com/artilai/connect",
