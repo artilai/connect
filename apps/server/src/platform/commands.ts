@@ -36,7 +36,7 @@ export function toRows(pairs: readonly (readonly [string, string])[]) {
 }
 
 // A command to run, on a line of its own under what it is for, like "  artil auth login".
-const commandLine = /^( +)(artil(?:-server)? .+)$/gmv;
+const commandLine = /^( +)(artil(?:-connect)? .+)$/gmv;
 
 // What a box adds to the width of its lines: a bar and padding on either side.
 const boxEdges = 6;
