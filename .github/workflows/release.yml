@@ -23,6 +23,9 @@ jobs:
     permissions:
       contents: read
       id-token: write
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      changed: ${{ steps.version.outputs.changed }}
     steps:
       - name: Check out code
         uses: actions/checkout@v7
@@ -32,6 +35,7 @@ jobs:
           version="$(jq -r .version apps/server/package.json)"
           published="$(curl -fsSL "https://registry.npmjs.org/@artil-ai/connect/$version" | jq -r .version || true)"
           echo "Package has $version, npm has ${published:-nothing}"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
           if [ "$version" = "$published" ]; then echo "changed=false" >> "$GITHUB_OUTPUT"; else echo "changed=true" >> "$GITHUB_OUTPUT"; fi
       - name: Install dependencies
         if: steps.version.outputs.changed == 'true'
@@ -50,3 +54,19 @@ jobs:
         run: |
           bun run build
           npm publish apps/server/dist
+
+  github:
+    name: Release on GitHub
+    needs: release
+    if: needs.release.outputs.changed == 'true'
+    runs-on: ubuntu-26.04
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          VERSION: ${{ needs.release.outputs.version }}
+        run: gh release create "v$VERSION" --target "$GITHUB_SHA" --generate-notes
