@@ -23,8 +23,6 @@ export class SlackChannel extends Channel {
     token: "bot token and app-level token, with a space between",
   };
 
-  override readonly tokenParts = ["bot token (xoxb-…)", "app-level token (xapp-…)"];
-
   // Slack takes up to 12,000 characters of Markdown in a message, and files of up to 1 GB.
   override readonly limits = { recipients: 1, text: 12_000, files: 10, fileSize: 1_000_000_000 };
 
@@ -39,14 +37,23 @@ export class SlackChannel extends Channel {
     return this.#provider.connect(readTokens(token));
   }
 
-  override tokenGuide(account: string) {
+  // The app for the account comes from a link, and its two tokens from its settings.
+  override tokenParts(account: string) {
     return [
-      "1. Create the app from this link:",
-      `   ${newAppLink(account)}`,
-      "2. Open Install App in its sidebar, choose Install to Workspace and Allow, and copy the Bot User OAuth Token it then shows.",
-      "3. Under Basic Information, generate an App-Level Token with the connections:write scope.",
-      "4. Give both tokens below.",
-    ].join("\n");
+      {
+        label: "bot token (xoxb-…)",
+        guide: [
+          "1. Create the app from this link:",
+          `   ${newAppLink(account)}`,
+          "2. Open Install App in its sidebar, choose Install to Workspace and Allow, and copy the Bot User OAuth Token it shows.",
+        ].join("\n"),
+      },
+      {
+        label: "app-level token (xapp-…)",
+        guide:
+          "3. Under Basic Information, generate an App-Level Token with the connections:write scope.",
+      },
+    ];
   }
 
   // The bot's messages come over Socket Mode, which the server opens, so Slack needs no webhook.

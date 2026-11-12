@@ -74,10 +74,13 @@ export function createOut({ terminal, columns, write }: CreateOutOptions) {
   };
 }
 
+type SecretPart = { message: string; guide?: string };
+
 type ReadSecretOptions = {
   message: string;
-  // What a terminal asks for one by one, whose answers make the secret with a space between.
-  parts?: readonly string[];
+  // What a terminal asks for one by one, after how to get each, whose answers make the secret with
+  // a space between.
+  parts?: readonly SecretPart[];
   // What is wrong with the secret, if anything.
   validate?: (value: string | undefined) => string | undefined;
 };
@@ -97,12 +100,15 @@ export function createSecretReader({
   interactive,
   readStdin,
 }: CreateSecretReaderOptions): ReadSecret {
-  return async ({ message, parts = [message], validate = validateFilled }) => {
+  return async ({ message, parts = [{ message }], validate = validateFilled }) => {
     if (interactive) {
       const answers: string[] = [];
 
       for (const part of parts) {
-        const answer = await password({ message: part, validate });
+        // Beside a bar, a long line like a link stays whole, where a box would break it.
+        if (part.guide) log.step(part.guide);
+
+        const answer = await password({ message: part.message, validate });
 
         if (isCancel(answer)) return undefined;
 

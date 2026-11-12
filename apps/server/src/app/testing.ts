@@ -195,8 +195,11 @@ class EchoChannel extends Channel {
     return "echo:" + token;
   }
 
-  tokenGuide(account) {
-    return "Say any word for " + account + ".";
+  tokenParts(account) {
+    return [
+      { label: "first word", guide: "Think of two words for " + account + "." },
+      { label: "second word" },
+    ];
   }
 
   async send() {

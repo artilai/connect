@@ -499,10 +499,9 @@ test("connects an account to a channel the config loads, and disconnects it", as
   await expect(cli(dataDir, "account", "connect", "Codex", "url")).rejects.toThrow(
     "Every account has its Message URL already; there is nothing to connect or disconnect",
   );
-  expect(
-    await pipeInto({ dataDir, stdin: "hi\n" }, "account", "connect", "Codex", "echo"),
-  ).toStartWith(
-    "Connect Echo to Codex\nSay any word for Codex.\necho:hi now reaches Codex on Echo.",
+  // Piped in, a token of several parts comes whole, its parts with a space between.
+  expect(await pipeInto({ dataDir, stdin: "hi\n" }, "account", "connect", "Codex", "echo")).toBe(
+    "echo:hi now reaches Codex on Echo.\nOnly the server's accounts wake Codex there; let someone in with:\n  artil-connect account allow Codex <name> --channel echo",
   );
   expect(await cli(dataDir, "account", "list")).toContain("Echo echo:hi");
   expect(await cli(dataDir, "account", "allow", "Codex", "ada")).toBe(

@@ -19,9 +19,10 @@ import { shellQuoted } from "@artil/utils/shell";
 
 import { createAccessCommands } from "../domains/access/commands";
 import { signInGuide } from "../domains/accounts/commands";
+import { tokenQuestions } from "../domains/addresses/commands";
 import { hashPassword, validatePassword } from "../domains/sign-in/password";
 import type { ArtilCli } from "../platform/artil-cli";
-import { highlightCommands } from "../platform/commands";
+import { createSecretReader, highlightCommands } from "../platform/commands";
 import {
   type Config,
   newConfig,
@@ -38,11 +39,16 @@ export class SetupStopped extends Error {
 }
 
 // A prompt the person cancelled stops the setup without saving.
+// The setup runs in a terminal, where secrets are asked for rather than piped in.
+const readSecret = createSecretReader({ interactive: true, readStdin: async () => "" });
+
+function stopSetup(): never {
+  cancel("Setup stopped; nothing more was saved.");
+  throw new SetupStopped("Setup stopped");
+}
+
 function requireAnswer<Value>(value: Value | typeof CANCEL_SYMBOL): Value {
-  if (isCancel(value)) {
-    cancel("Setup stopped; nothing more was saved.");
-    throw new SetupStopped("Setup stopped");
-  }
+  if (isCancel(value)) stopSetup();
 
   return value;
 }
@@ -120,21 +126,8 @@ async function setUpChannel({ context, channel }: SetUpChannelOptions) {
 
     if (!account) return;
 
-    const guide = channel.tokenGuide?.(account.name);
-
-    if (guide) context.out(`Connect ${channel.name} to ${account.name}\n${guide}`);
-
-    const answers: string[] = [];
-
-    for (const part of channel.tokenParts ?? [channel.labels.token ?? "token"]) {
-      const answer = requireAnswer(
-        await password({ message: `${channel.name} ${part}`, validate: validateNotEmpty }),
-      );
-
-      answers.push(answer.trim());
-    }
-
-    const token = answers.join(" ");
+    const token =
+      (await readSecret(tokenQuestions({ channel, account: account.name }))) ?? stopSetup();
 
     const progressSpinner = spinner();
 

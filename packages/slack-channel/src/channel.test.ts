@@ -216,9 +216,9 @@ test("lists a sender by their member id, or everyone in a channel by its id", ()
   expect(parsing.parseSender("ada")).toBeNull();
 });
 
-test("guides through making the account's app from a link that describes it", () => {
-  const guide = parsing.tokenGuide("Claude Code");
-  const link = /https:\/\/api\.slack\.com\/\S+/v.exec(guide)?.[0] ?? "";
+test("asks for each token after the steps that get it, from a link that makes the account's app", () => {
+  const [bot, app] = parsing.tokenParts("Claude Code");
+  const link = /https:\/\/api\.slack\.com\/\S+/v.exec(bot?.guide ?? "")?.[0] ?? "";
   const manifest = new URL(link).searchParams.get("manifest_json") ?? "";
 
   expect(JSON.parse(manifest)).toMatchObject({
@@ -226,5 +226,10 @@ test("guides through making the account's app from a link that describes it", ()
     features: { bot_user: { display_name: "claude-code" } },
     settings: { event_subscriptions: { bot_events: ["app_mention", "message.im"] } },
   });
-  expect(guide).toContain("generate an App-Level Token with the connections:write scope");
+  expect(bot?.label).toBe("bot token (xoxb-…)");
+  expect(app).toEqual({
+    label: "app-level token (xapp-…)",
+    guide:
+      "3. Under Basic Information, generate an App-Level Token with the connections:write scope.",
+  });
 });
