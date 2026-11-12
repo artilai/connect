@@ -71,7 +71,7 @@ jobs:
       - name: Install the artil CLI
         run: npm install --global artil-ai@latest
       - name: Run the CLI against the server
-        run: bun run --filter @artil-ai/server e2e "$(command -v artil)"
+        run: bun run --filter @artil-ai/connect e2e "$(command -v artil)"
 
   api:
     name: API compatibility

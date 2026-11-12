@@ -37,8 +37,8 @@ type CreateAppOptions = {
   log: (line: string) => void;
 };
 
-// How the server greets a visit to its root, which tells artil-server status that it runs.
-export const runningGreeting = "Artil Server is running.";
+// How the server greets a visit to its root, which tells artil-connect status that it runs.
+export const runningGreeting = "Artil Connect is running.";
 
 function notFound(method: string, path: string): never {
   throw new AppError({ code: "not_found", message: `There is no endpoint for ${method} ${path}` });
@@ -108,7 +108,7 @@ export function createApp({ services, hosts, password, workspace, log }: CreateA
       // The CLI links an account's page, which this server has no app for.
       .get("/accounts/*", (c) =>
         c.text(
-          "This server has no web app. Manage its accounts with artil-server; see artil-server --help.\n",
+          "This server has no web app. Manage its accounts with artil-connect; see artil-connect --help.\n",
         ),
       )
       .get("/", (c) =>

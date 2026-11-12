@@ -53,7 +53,7 @@ export function signInGuide({ baseUrl, names }: SignInGuideOptions) {
     `MCP clients connect to ${baseUrl}/mcp and sign in there.`,
     "",
     "On a computer without a browser, make a token with:",
-    "  artil-server account token <account> <name>",
+    "  artil-connect account token <account> <name>",
   ].join("\n");
 }
 
@@ -80,7 +80,7 @@ export function createAccountCommands({
     const list = accounts.list();
 
     if (list.length === 0) {
-      out("No accounts yet. Create one with: artil-server account create <name>");
+      out("No accounts yet. Create one with: artil-connect account create <name>");
 
       return;
     }

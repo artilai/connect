@@ -67,7 +67,7 @@ export function createAccountsService({
       if (!account) {
         throw new AppError({
           code: "not_found",
-          message: `There is no account ${idOrName}; see artil-server account list`,
+          message: `There is no account ${idOrName}; see artil-connect account list`,
         });
       }
 

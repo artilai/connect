@@ -10,7 +10,7 @@ const runningSchema = z.object({ pid: z.int(), port: z.int() });
 
 type MarkRunningOptions = { paths: Paths; port: number };
 
-// The note goes in whole or not at all, so artil-server status never reads half of it.
+// The note goes in whole or not at all, so artil-connect status never reads half of it.
 export async function markRunning({ paths, port }: MarkRunningOptions) {
   const draft = `${paths.running}.${process.pid}.tmp`;
 

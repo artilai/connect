@@ -17,7 +17,7 @@ if (!artil) throw new Error("Give the artil CLI's path, or put artil on the PATH
 
 const migrationsFolder = fileURLToPath(new URL("../migrations", import.meta.url));
 
-const folder = await mkdtemp(join(tmpdir(), "artil-server-e2e-"));
+const folder = await mkdtemp(join(tmpdir(), "artil-connect-e2e-"));
 
 const config = { ...newConfig({ channels: [telegramChannel.kind] }), port: 0 };
 

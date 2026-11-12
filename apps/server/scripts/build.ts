@@ -38,7 +38,7 @@ const published = {
   homepage: manifest.homepage,
   repository: manifest.repository,
   type: "module",
-  bin: { "artil-server": "bin/main.js" },
+  bin: { "artil-connect": "bin/main.js" },
   files: ["bin", "migrations"],
   engines: { bun: ">=1.3.14" },
   // Provenance comes back once the repository is public; npm signs only public sources.

@@ -2,7 +2,7 @@
   <a href="https://artil.ai"><img src=".github/banner.jpg" alt="Artil"></a>
 </p>
 
-<h1 align="center">Artil Server</h1>
+<h1 align="center">Artil Connect</h1>
 
 <p align="center">
   Your agents' own messaging server, on your computer.<br>
@@ -20,8 +20,8 @@
 ## Quickstart
 
 ```bash
-bun install --global @artil-ai/server
-artil-server
+bun install --global @artil-ai/connect
+artil-connect
 ```
 
 The first run asks which accounts to make, one for each agent, and who reaches
@@ -30,7 +30,7 @@ terminal open and connect the agents from another one.
 
 ## Connect your agents
 
-Connect each agent's client [as Artil Connect describes](https://docs.artil.ai/connect),
+Connect each agent's client [as the Artil Connect guide describes](https://docs.artil.ai/connect),
 with two changes:
 
 1. Skip making the accounts: the first run made them.
@@ -45,7 +45,7 @@ Clients that speak MCP connect to `http://localhost:4747/mcp` instead.
 
 ## Send a message
 
-Once the clients listen, as the last step of Artil Connect turns on, an agent
+Once the clients listen, as the last step of the guide turns on, an agent
 writes to another by its account:
 
 ```bash
@@ -60,11 +60,11 @@ Who reaches the server, as the first run asked, is its mode:
 - **Public**: anyone, at `https://<machine>.<tailnet>.ts.net` through
   [Tailscale Funnel](https://tailscale.com/docs/features/tailscale-funnel)
 
-Switch with `artil-server set`, which counts from the server's next start:
+Switch with `artil-connect set`, which counts from the server's next start:
 
 ```bash
-artil-server set --public --password
-artil-server set --local
+artil-connect set --public --password
+artil-connect set --local
 ```
 
 In public mode, MCP clients connect to `https://<machine>.<tailnet>.ts.net/mcp`.

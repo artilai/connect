@@ -12,7 +12,7 @@ import { channelModule, createTestChannel, findFreePort } from "./testing";
 
 const migrationsFolder = fileURLToPath(new URL("../../migrations", import.meta.url));
 
-// What each run of artil-server here has: the test channel, and an artil CLI that is installed.
+// What each run of artil-connect here has: the test channel, and an artil CLI that is installed.
 const environment = {
   version: "0.0.0",
   builtInChannels: [createTestChannel()],
@@ -26,7 +26,7 @@ async function refuseSetup(): Promise<Config> {
 
 type PipeOptions = { dataDir: string; stdin: string };
 
-// Runs artil-server the way a script does, with what it pipes in, like a bot's token.
+// Runs artil-connect the way a script does, with what it pipes in, like a bot's token.
 async function pipeInto({ dataDir, stdin }: PipeOptions, ...argv: string[]) {
   const lines: string[] = [];
 
@@ -74,7 +74,7 @@ async function start({ dataDir, interactive }: StartOptions) {
 }
 
 test("creates accounts, lists them and makes a token to sign one in with", async () => {
-  const dataDir = await mkdtemp(join(tmpdir(), "artil-server-"));
+  const dataDir = await mkdtemp(join(tmpdir(), "artil-connect-"));
 
   expect(await cli(dataDir, "account", "create", "Codex")).toContain(
     "artil auth login --base-url http://localhost:4747 --account Codex",
@@ -87,7 +87,7 @@ test("creates accounts, lists them and makes a token to sign one in with", async
 });
 
 test("signs an account out of a client by a name in any case, letters beyond ASCII too", async () => {
-  const dataDir = await mkdtemp(join(tmpdir(), "artil-server-"));
+  const dataDir = await mkdtemp(join(tmpdir(), "artil-connect-"));
 
   await cli(dataDir, "account", "create", "Codex");
   await cli(dataDir, "account", "token", "Codex", "École");
@@ -101,7 +101,7 @@ test("signs an account out of a client by a name in any case, letters beyond ASC
 });
 
 test("signs an account out of one client by name, or out of all", async () => {
-  const dataDir = await mkdtemp(join(tmpdir(), "artil-server-"));
+  const dataDir = await mkdtemp(join(tmpdir(), "artil-connect-"));
 
   await cli(dataDir, "account", "create", "Codex");
   await cli(dataDir, "account", "token", "Codex", "macbook");
@@ -134,7 +134,7 @@ test("signs an account out of one client by name, or out of all", async () => {
 });
 
 test("removes an account only once it is told yes", async () => {
-  const dataDir = await mkdtemp(join(tmpdir(), "artil-server-"));
+  const dataDir = await mkdtemp(join(tmpdir(), "artil-connect-"));
 
   await cli(dataDir, "account", "create", "Codex");
 
@@ -145,12 +145,12 @@ test("removes an account only once it is told yes", async () => {
     "Removed Codex, with its messages and sign-ins.",
   );
   expect(await cli(dataDir, "account", "list")).toBe(
-    "No accounts yet. Create one with: artil-server account create <name>",
+    "No accounts yet. Create one with: artil-connect account create <name>",
   );
 });
 
 test("renames an account, keeping its id", async () => {
-  const dataDir = await mkdtemp(join(tmpdir(), "artil-server-"));
+  const dataDir = await mkdtemp(join(tmpdir(), "artil-connect-"));
 
   await cli(dataDir, "account", "create", "Codex");
   await cli(dataDir, "account", "create", "Claude");
@@ -166,19 +166,19 @@ test("renames an account, keeping its id", async () => {
 });
 
 test("says a data folder of a server before 0.3.0 starts anew", async () => {
-  const dataDir = await mkdtemp(join(tmpdir(), "artil-server-"));
+  const dataDir = await mkdtemp(join(tmpdir(), "artil-connect-"));
   const older = new Database(pathsIn(dataDir).database, { create: true });
 
   older.run("create table agents (id text primary key)");
   older.close();
 
   await expect(cli(dataDir, "account", "list")).rejects.toThrow(
-    "holds the data of an Artil Server before 0.3.0, which this one cannot read; move its folder aside to start anew",
+    "holds the data of an Artil Connect server before 0.3.0, which this one cannot read; move its folder aside to start anew",
   );
 });
 
 test("keeps its config and data where only its owner reads them", async () => {
-  const dataDir = await mkdtemp(join(tmpdir(), "artil-server-"));
+  const dataDir = await mkdtemp(join(tmpdir(), "artil-connect-"));
 
   await cli(dataDir, "account", "list");
 
@@ -195,7 +195,7 @@ test("keeps its config and data where only its owner reads them", async () => {
 });
 
 test("notes the port a running server took, while it runs", async () => {
-  const dataDir = await mkdtemp(join(tmpdir(), "artil-server-"));
+  const dataDir = await mkdtemp(join(tmpdir(), "artil-connect-"));
   const paths = pathsIn(dataDir);
   let note = "";
 
@@ -220,7 +220,7 @@ test("notes the port a running server took, while it runs", async () => {
 });
 
 test("says a running server keeps its port until it restarts", async () => {
-  const dataDir = await mkdtemp(join(tmpdir(), "artil-server-"));
+  const dataDir = await mkdtemp(join(tmpdir(), "artil-connect-"));
   const runningPort = await findFreePort();
 
   const running = Bun.serve({
@@ -247,7 +247,7 @@ test("says a running server keeps its port until it restarts", async () => {
 });
 
 test("says what holds the port it would take", async () => {
-  const dataDir = await mkdtemp(join(tmpdir(), "artil-server-"));
+  const dataDir = await mkdtemp(join(tmpdir(), "artil-connect-"));
   const port = await findFreePort();
   const holder = Bun.serve({ hostname: "127.0.0.1", port, fetch: () => new Response() });
 
@@ -255,14 +255,14 @@ test("says what holds the port it would take", async () => {
     await cli(dataDir, "set", "--port", String(port));
 
     await expect(cli(dataDir)).rejects.toThrow(
-      `Port ${port} is taken, maybe by another Artil Server: stop it, or move this one with artil-server set --port <port>`,
+      `Port ${port} is taken, maybe by another Artil Connect server: stop it, or move this one with artil-connect set --port <port>`,
     );
 
     // The server of this data folder holds it.
     await writeFile(pathsIn(dataDir).running, JSON.stringify({ pid: process.pid, port }));
 
     await expect(cli(dataDir)).rejects.toThrow(
-      `Artil Server already runs from this data folder, on port ${port}; see artil-server status`,
+      `Artil Connect already runs from this data folder, on port ${port}; see artil-connect status`,
     );
   } finally {
     await holder.stop(true);
@@ -270,35 +270,35 @@ test("says what holds the port it would take", async () => {
 });
 
 test("says where the server is, whether it runs, and what keeps it from starting", async () => {
-  const dataDir = await mkdtemp(join(tmpdir(), "artil-server-"));
+  const dataDir = await mkdtemp(join(tmpdir(), "artil-connect-"));
   const port = await findFreePort();
 
   await cli(dataDir, "set", "--port", String(port));
 
   expect(await cli(dataDir, "status")).toBe(
     [
-      "Artil Server",
+      "Artil Connect",
       `  Address  http://localhost:${port}, on this computer`,
-      "  Running  no; start it with: artil-server",
+      "  Running  no; start it with: artil-connect",
     ].join("\n"),
   );
 
   // A note a server left half written counts as none.
   await writeFile(pathsIn(dataDir).running, '{"pid":');
 
-  expect(await cli(dataDir, "status")).toContain("  Running  no; start it with: artil-server");
+  expect(await cli(dataDir, "status")).toContain("  Running  no; start it with: artil-connect");
 
   await cli(dataDir, "account", "create", "Codex");
   await pipeInto({ dataDir, stdin: "correct horse" }, "set", "--password");
   await cli(dataDir, "set", "--public");
 
   expect(await cli(dataDir, "status")).toContain(
-    "  Running  no; start it with: artil-server\n\nProblems:\n  Public mode needs Tailscale",
+    "  Running  no; start it with: artil-connect\n\nProblems:\n  Public mode needs Tailscale",
   );
 });
 
 test("changes the server's mode, port and password with set", async () => {
-  const dataDir = await mkdtemp(join(tmpdir(), "artil-server-"));
+  const dataDir = await mkdtemp(join(tmpdir(), "artil-connect-"));
 
   expect(await cli(dataDir, "set", "--port", "4848")).toBe(
     "The server listens on port 4848 from its next start.",
@@ -328,12 +328,12 @@ test("changes the server's mode, port and password with set", async () => {
     "This command takes no --channel",
   );
   await expect(cli(dataDir, "set")).rejects.toThrow(
-    "artil-server set takes --public, --local, --port <port> or --password",
+    "artil-connect set takes --public, --local, --port <port> or --password",
   );
 });
 
 test("sets the server up on a start in a terminal until it has an account", async () => {
-  const dataDir = await mkdtemp(join(tmpdir(), "artil-server-"));
+  const dataDir = await mkdtemp(join(tmpdir(), "artil-connect-"));
 
   expect(await start({ dataDir, interactive: true })).toEqual([undefined]);
 
@@ -358,7 +358,7 @@ test("sets the server up on a start in a terminal until it has an account", asyn
 });
 
 test("adds a sender to an account's list on the channel it names", async () => {
-  const dataDir = await mkdtemp(join(tmpdir(), "artil-server-"));
+  const dataDir = await mkdtemp(join(tmpdir(), "artil-connect-"));
 
   await cli(dataDir, "account", "create", "Codex");
 
@@ -380,13 +380,13 @@ test("adds a sender to an account's list on the channel it names", async () => {
 });
 
 test("lets anyone, the team beside the list, or only the list wake an agent on a channel", async () => {
-  const dataDir = await mkdtemp(join(tmpdir(), "artil-server-"));
+  const dataDir = await mkdtemp(join(tmpdir(), "artil-connect-"));
   const onTest = ["--channel", "test"];
 
   await cli(dataDir, "account", "create", "Codex");
 
   expect(await cli(dataDir, "account", "disallow", "Codex", "team", ...onTest)).toBe(
-    "Only Codex's list now wakes it on Test.\nNo one is on it yet; add someone with:\n  artil-server account allow Codex <sender> --channel test",
+    "Only Codex's list now wakes it on Test.\nNo one is on it yet; add someone with:\n  artil-connect account allow Codex <sender> --channel test",
   );
   expect(await cli(dataDir, "account", "list")).toContain("woken on Test by no one");
 
@@ -414,7 +414,7 @@ test("lets anyone, the team beside the list, or only the list wake an agent on a
 });
 
 test("lists the server's accounts by name at the Message URL", async () => {
-  const dataDir = await mkdtemp(join(tmpdir(), "artil-server-"));
+  const dataDir = await mkdtemp(join(tmpdir(), "artil-connect-"));
   const onUrl = ["--channel", "url"];
 
   await cli(dataDir, "account", "create", "Codex");
@@ -435,7 +435,7 @@ test("lists the server's accounts by name at the Message URL", async () => {
 });
 
 test("names the channels it has when a command names one it does not", async () => {
-  const dataDir = await mkdtemp(join(tmpdir(), "artil-server-"));
+  const dataDir = await mkdtemp(join(tmpdir(), "artil-connect-"));
 
   await cli(dataDir, "account", "create", "Codex");
 
@@ -445,7 +445,7 @@ test("names the channels it has when a command names one it does not", async () 
 });
 
 test("refuses a channel the config loads of a kind the server carries itself", async () => {
-  const dataDir = await mkdtemp(join(tmpdir(), "artil-server-"));
+  const dataDir = await mkdtemp(join(tmpdir(), "artil-connect-"));
 
   await writeFile(join(dataDir, "url-channel.ts"), channelModule("url"));
   await cli(dataDir, "account", "list");
@@ -463,7 +463,7 @@ test("refuses a channel the config loads of a kind the server carries itself", a
 });
 
 test("says how to use a command it does not know", async () => {
-  const dataDir = await mkdtemp(join(tmpdir(), "artil-server-"));
+  const dataDir = await mkdtemp(join(tmpdir(), "artil-connect-"));
 
   await expect(cli(dataDir, "account", "fly")).rejects.toThrow("There is no command account fly");
   await expect(cli(dataDir, "account", "create")).rejects.toThrow("This command takes <name>");
@@ -471,7 +471,7 @@ test("says how to use a command it does not know", async () => {
     "This command takes no --channel",
   );
   await expect(cli(dataDir, "--public")).rejects.toThrow("This command takes no --public");
-  expect(await cli(dataDir, "--help")).toContain("artil-server account create <name>");
+  expect(await cli(dataDir, "--help")).toContain("artil-connect account create <name>");
 });
 
 // Has the server load a channel of someone's own, Echo, beside the test channel, once a command
@@ -488,7 +488,7 @@ async function loadEchoChannel(dataDir: string) {
 }
 
 test("connects an account to a channel the config loads, and disconnects it", async () => {
-  const dataDir = await mkdtemp(join(tmpdir(), "artil-server-"));
+  const dataDir = await mkdtemp(join(tmpdir(), "artil-connect-"));
 
   await cli(dataDir, "account", "create", "Codex");
   await loadEchoChannel(dataDir);
@@ -518,7 +518,7 @@ test("connects an account to a channel the config loads, and disconnects it", as
 });
 
 test("shows an account's addresses, clients and who wakes it", async () => {
-  const dataDir = await mkdtemp(join(tmpdir(), "artil-server-"));
+  const dataDir = await mkdtemp(join(tmpdir(), "artil-connect-"));
 
   await cli(dataDir, "account", "create", "Codex");
   await loadEchoChannel(dataDir);

@@ -19,7 +19,7 @@ jobs:
     timeout-minutes: 10
     environment:
       name: npm
-      url: https://www.npmjs.com/package/@artil-ai/server
+      url: https://www.npmjs.com/package/@artil-ai/connect
     permissions:
       contents: read
       id-token: write
@@ -30,7 +30,7 @@ jobs:
         id: version
         run: |
           version="$(jq -r .version apps/server/package.json)"
-          published="$(curl -fsSL "https://registry.npmjs.org/@artil-ai/server/$version" | jq -r .version || true)"
+          published="$(curl -fsSL "https://registry.npmjs.org/@artil-ai/connect/$version" | jq -r .version || true)"
           echo "Package has $version, npm has ${published:-nothing}"
           if [ "$version" = "$published" ]; then echo "changed=false" >> "$GITHUB_OUTPUT"; else echo "changed=true" >> "$GITHUB_OUTPUT"; fi
       - name: Install dependencies

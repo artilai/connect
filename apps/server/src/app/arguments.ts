@@ -58,7 +58,7 @@ export function createArgumentChoosers({
         choose({
           message: "Which account?",
           choices: accounts.list().map(({ name }) => toChoice(name)),
-          none: "No accounts yet. Create one with: artil-server account create <name>",
+          none: "No accounts yet. Create one with: artil-connect account create <name>",
         }),
     ],
     [
@@ -106,7 +106,7 @@ export function createArgumentChoosers({
         return choose({
           message: `Who of those who wrote to ${account.name} on ${channel.name} may wake it?`,
           choices: keptOut,
-          none: `No one ${account.name}'s list keeps out has written to it on ${channel.name}; name the sender with: artil-server account allow ${shellQuoted(account.name)} <${channel.labels.contact}>`,
+          none: `No one ${account.name}'s list keeps out has written to it on ${channel.name}; name the sender with: artil-connect account allow ${shellQuoted(account.name)} <${channel.labels.contact}>`,
         });
       },
     ],

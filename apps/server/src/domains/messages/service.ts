@@ -144,7 +144,7 @@ export function createMessagesService({
     if (!address) {
       throw new AppError({
         code: "invalid_input",
-        message: `${accountName} has no ${channel.name} address; connect one with: artil-server account connect ${shellQuoted(accountName)} ${kind}`,
+        message: `${accountName} has no ${channel.name} address; connect one with: artil-connect account connect ${shellQuoted(accountName)} ${kind}`,
       });
     }
 
@@ -247,7 +247,7 @@ export function createMessagesService({
 
     // A sender that starts with a dash, like a group's id, reads as no flag only after --.
     function allowCommand(sender: string) {
-      const allow = `artil-server account allow ${shellQuoted(accountName)}`;
+      const allow = `artil-connect account allow ${shellQuoted(accountName)}`;
 
       return sender.startsWith("-")
         ? `${allow} --channel ${channel} -- ${shellQuoted(sender)}`

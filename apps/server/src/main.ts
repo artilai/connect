@@ -1,4 +1,5 @@
 #!/usr/bin/env bun
+import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -33,10 +34,18 @@ function waitForStop() {
   return promise;
 }
 
+// A server set up as Artil Server, before 0.5.0, keeps its data in ~/.artil-server until it is moved.
+function defaultDataDir() {
+  const dataDir = join(homedir(), ".artil-connect");
+  const artilServerDataDir = join(homedir(), ".artil-server");
+
+  return existsSync(artilServerDataDir) && !existsSync(dataDir) ? artilServerDataDir : dataDir;
+}
+
 try {
   await runCli({
     argv: process.argv.slice(2),
-    dataDir: process.env.ARTIL_DATA ?? join(homedir(), ".artil-server"),
+    dataDir: process.env.ARTIL_DATA ?? defaultDataDir(),
     version,
     interactive: process.stdin.isTTY && process.stdout.isTTY,
     // The channels the published server comes with, and the one place that names them.

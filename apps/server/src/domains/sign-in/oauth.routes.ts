@@ -167,7 +167,7 @@ export function createOAuthMetadataRoutes({ hosts }: CreateOAuthMetadataRoutesOp
       resource,
       authorization_servers: [issuer],
       bearer_methods_supported: ["header"],
-      resource_name: "Artil Server",
+      resource_name: "Artil Connect",
     });
   }
 

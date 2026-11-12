@@ -30,10 +30,10 @@ const failures = { "4XX": failure, "5XX": failure };
 const options = {
   documentation: {
     info: {
-      title: "Artil Server API",
+      title: "Artil Connect API",
       version: "1.0.0",
       description:
-        "The part of the Artil API a self-hosted Artil Server answers, with the same paths and shapes, so the artil CLI and its plugins work with it.",
+        "The part of the Artil API a self-hosted Artil Connect server answers, with the same paths and shapes, so the artil CLI and its plugins work with it.",
     },
     servers: [{ url: "http://localhost:4747/api" }],
     components: { securitySchemes: { token: { type: "http" as const, scheme: "bearer" } } },

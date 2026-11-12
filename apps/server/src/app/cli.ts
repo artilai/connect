@@ -26,27 +26,27 @@ import { changeSettings, settingFlags } from "./settings";
 import type { runSetup } from "./setup";
 import { findStartProblems, showStatus } from "./status";
 
-const usage = `artil-server: a self-hosted Artil Server
+const usage = `artil-connect: a self-hosted Artil Connect server
 
 Usage:
-  artil-server                                         Start the server, setting it up first if it is new
-  artil-server setup                                   Set up the accounts, channels, files and who reaches the server
-  artil-server status                                  Show where the server is, whether it runs, and what keeps it from starting
-  artil-server set --public                            Open the server to the internet through Tailscale Funnel from its next start
-  artil-server set --local                             Keep the server on this computer from its next start
-  artil-server set --port <port>                       Listen on another port from the server's next start
-  artil-server set --password                          Set the password the sign-in page asks for, typed or piped in
-  artil-server account create <name>                   Create an account
-  artil-server account list                            List the accounts
-  artil-server account show <account>                  Show an account's addresses, clients and who wakes it
-  artil-server account rename <account> <name>         Give an account another name
-  artil-server account remove <account>                Remove an account with its messages
-  artil-server account token <account> <name>          Make a token by a name of its own, for a computer without a browser
-  artil-server account revoke <account> <client>       Sign the account out of a client by its name, or out of all
-  artil-server account connect <account> <channel>     Connect an address of a channel to an account, with what the channel asks for, typed or piped in
-  artil-server account disconnect <account> <channel>  Disconnect the account's address of the channel
-  artil-server account allow <account> <who>           Let a sender, the team or anyone wake the account's agent
-  artil-server account disallow <account> <who>        Stop a sender, the team or anyone from waking it
+  artil-connect                                         Start the server, setting it up first if it is new
+  artil-connect setup                                   Set up the accounts, channels, files and who reaches the server
+  artil-connect status                                  Show where the server is, whether it runs, and what keeps it from starting
+  artil-connect set --public                            Open the server to the internet through Tailscale Funnel from its next start
+  artil-connect set --local                             Keep the server on this computer from its next start
+  artil-connect set --port <port>                       Listen on another port from the server's next start
+  artil-connect set --password                          Set the password the sign-in page asks for, typed or piped in
+  artil-connect account create <name>                   Create an account
+  artil-connect account list                            List the accounts
+  artil-connect account show <account>                  Show an account's addresses, clients and who wakes it
+  artil-connect account rename <account> <name>         Give an account another name
+  artil-connect account remove <account>                Remove an account with its messages
+  artil-connect account token <account> <name>          Make a token by a name of its own, for a computer without a browser
+  artil-connect account revoke <account> <client>       Sign the account out of a client by its name, or out of all
+  artil-connect account connect <account> <channel>     Connect an address of a channel to an account, with what the channel asks for, typed or piped in
+  artil-connect account disconnect <account> <channel>  Disconnect the account's address of the channel
+  artil-connect account allow <account> <who>           Let a sender, the team or anyone wake the account's agent
+  artil-connect account disallow <account> <who>        Stop a sender, the team or anyone from waking it
 
 Options:
   --channel <channel>  The channel allow and disallow mean, by default the one the account is connected to
@@ -85,20 +85,20 @@ type ServeOptions = { paths: Paths; config: Config; environment: Environment };
 type TakenPortErrorOptions = { paths: Paths; port: number };
 
 // Says what holds the port: this data folder's server, which already runs, or something else,
-// like another Artil Server.
+// like another Artil Connect server.
 async function takenPortError({ paths, port }: TakenPortErrorOptions) {
   const runsHere = (await findRunningPort(paths)) === port;
 
   if (runsHere) {
     return new AppError({
       code: "unavailable",
-      message: `Artil Server already runs from this data folder, on port ${port}; see artil-server status`,
+      message: `Artil Connect already runs from this data folder, on port ${port}; see artil-connect status`,
     });
   }
 
   return new AppError({
     code: "unavailable",
-    message: `Port ${port} is taken, maybe by another Artil Server: stop it, or move this one with artil-server set --port <port>`,
+    message: `Port ${port} is taken, maybe by another Artil Connect server: stop it, or move this one with artil-connect set --port <port>`,
   });
 }
 
@@ -130,7 +130,7 @@ async function serve({ paths, config, environment }: ServeOptions) {
 
   out(
     [
-      `Artil Server is at ${server.baseUrl}${config.public ? " (public, through Tailscale Funnel)" : ""}.`,
+      `Artil Connect is at ${server.baseUrl}${config.public ? " (public, through Tailscale Funnel)" : ""}.`,
       "Sign in as an account with:",
       `  ${loginCommand(server.baseUrl)}`,
       "",
@@ -281,7 +281,7 @@ export async function runCli(environment: Environment) {
     checkFlags(settingFlags);
 
     if (Object.keys(values).length === 0) {
-      throw usageError("artil-server set takes --public, --local, --port <port> or --password");
+      throw usageError("artil-connect set takes --public, --local, --port <port> or --password");
     }
 
     const change = {

@@ -35,7 +35,8 @@ export function createFilesService({ filesRepository, store, log }: CreateFilesS
   function unavailableError() {
     return new AppError({
       code: "unavailable",
-      message: "Files are off on this server; turn them on with an S3 bucket in artil-server setup",
+      message:
+        "Files are off on this server; turn them on with an S3 bucket in artil-connect setup",
     });
   }
 
