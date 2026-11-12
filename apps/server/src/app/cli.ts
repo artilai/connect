@@ -280,7 +280,12 @@ export async function runCli(environment: Environment) {
       out,
     });
 
-    return;
+    // A running server takes new addresses on its own, and the rest of the setup from its next start.
+    return out(
+      (await findRunningPort(paths))
+        ? "Stop the server where it runs, and start it again with:\n  artil-connect"
+        : "Start the server with:\n  artil-connect",
+    );
   }
 
   const config = savedConfig ?? newConfig({ channels: builtInKinds });

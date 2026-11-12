@@ -74,6 +74,24 @@ async function start({ dataDir, interactive }: StartOptions) {
   return setupConfigs;
 }
 
+test("says how to start the server once the setup saved its config", async () => {
+  const dataDir = await mkdtemp(join(tmpdir(), "artil-connect-"));
+  const lines: string[] = [];
+
+  await runCli({
+    ...environment,
+    argv: ["setup"],
+    dataDir,
+    interactive: true,
+    runSetup: async ({ config }) => config ?? newConfig({ channels: [] }),
+    waitForStop: async () => {},
+    readStdin: async () => "",
+    out: (line) => lines.push(line),
+  });
+
+  expect(lines).toEqual(["Start the server with:\n  artil-connect"]);
+});
+
 test("creates accounts, lists them and makes a token to sign one in with", async () => {
   const dataDir = await mkdtemp(join(tmpdir(), "artil-connect-"));
 
