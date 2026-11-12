@@ -129,7 +129,7 @@ export const messages = sqliteTable(
     // copies of a message on the Message URL hold the one id the channel gave it.
     externalId: text("external_id"),
     // The provider's thread the message is in, which every message in it shares, like a Slack
-    // thread. An answer in the thread wakes the client thread that last wrote in it.
+    // thread.
     externalThread: text("external_thread"),
     // Who sent an inbound message, or the group it came in, or the recipients of an outbound one.
     counterpart: text("counterpart").notNull(),

@@ -6,7 +6,7 @@ import {
 } from "@artil/channels/contract";
 import { AppError } from "@artil/errors";
 
-import { readRecipient, readSender } from "./conversations";
+import { readContact } from "./conversations";
 import type { InboundSlack, SlackProvider, SlackTokens } from "./provider";
 
 // Slack through a provider, the Web API and Socket Mode in the server: an app's bot is an address,
@@ -46,11 +46,11 @@ export class SlackChannel extends Channel {
   }
 
   override parseSender(input: string) {
-    return readSender(input) ?? null;
+    return readContact(input) ?? null;
   }
 
   override parseRecipient(input: string) {
-    return readRecipient(input) ?? null;
+    return readContact(input) ?? null;
   }
 
   async send({ message: { to, text, files, replyTo, thread }, token }: SendOptions) {
@@ -115,7 +115,6 @@ function received({ id, bot, group, senderId, senderName, text, files, thread }:
       group: group ? { address: group.id, name: group.name } : undefined,
       text,
       files,
-      // An answer in the thread wakes the client thread that last wrote in it.
       thread,
     },
   } satisfies ChannelEvent;

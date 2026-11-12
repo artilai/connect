@@ -4,8 +4,14 @@ import type { InboundFile, OutboundFile } from "@artil/channels/contract";
 import { AppError } from "@artil/errors";
 import { minute, second } from "@artil/utils/time";
 
-import { isPerson } from "./conversations";
-import type { OutgoingSlack, SlackEvent, SlackProvider, SlackUpdates } from "./provider";
+import { isDirectMessage, isPerson } from "./conversations";
+import type {
+  OutgoingSlack,
+  SlackEvent,
+  SlackProvider,
+  SlackTokens,
+  SlackUpdates,
+} from "./provider";
 
 const api = "https://slack.com/api";
 
@@ -14,7 +20,7 @@ const timeout = 10 * second;
 // Files take longer to move than a message.
 const fileTimeout = minute;
 
-// The largest file the server downloads, as much as Telegram hands a bot; a larger one comes
+// The largest file the server downloads, since it holds each whole in memory; a larger one comes
 // described, without its bytes.
 const maxDownload = 20_000_000;
 
@@ -41,9 +47,7 @@ const userSchema = z.object({
   user: z.object({ name: z.string(), real_name: z.string().optional() }),
 });
 
-const conversationSchema = z.object({
-  channel: z.object({ name: z.string().optional(), is_mpim: z.boolean().optional() }),
-});
+const conversationSchema = z.object({ channel: z.object({ name: z.string() }) });
 
 const fileSchema = z.object({
   name: z.string().optional(),
@@ -87,26 +91,10 @@ const writtenSubtypes: ReadonlySet<string | undefined> = new Set([
   "thread_broadcast",
 ]);
 
-// The errors Slack gives for a token it does not take.
-const refusedTokenErrors: ReadonlySet<string> = new Set([
-  "invalid_auth",
-  "not_authed",
-  "account_inactive",
-  "token_revoked",
-  "token_expired",
-  "not_allowed_token_type",
-]);
-
 // A method's arguments, which Slack takes as a form; one that is a list goes as JSON.
 type Params = Record<string, string | undefined>;
 
-type CallOptions<T> = {
-  token: string;
-  method: string;
-  schema: z.ZodType<T>;
-  params?: Params;
-  signal?: AbortSignal;
-};
+type CallOptions<T> = { token: string; method: string; schema: z.ZodType<T>; params?: Params };
 
 type Options = {
   // Tests swap it for a fake Slack.
@@ -115,23 +103,14 @@ type Options = {
   heartbeat?: number;
 };
 
-type SlackErrorOptions = { code: string; needed?: string };
-
-class SlackError extends Error {
-  readonly code: string;
-
-  constructor({ code, needed }: SlackErrorOptions) {
-    super(needed ? `${code}: the Slack app needs the ${needed} scope` : code);
-    this.code = code;
-  }
-}
+// A call Slack refused, with its reason, like invalid_auth.
+class SlackError extends Error {}
 
 export function createWebApi({
   fetch = (url, init) => globalThis.fetch(url, init),
   heartbeat = 30 * second,
 }: Options = {}): SlackProvider {
-  async function call<T>({ token, method, schema, params = {}, signal }: CallOptions<T>) {
-    const timeoutSignal = AbortSignal.timeout(timeout);
+  async function call<T>({ token, method, schema, params = {} }: CallOptions<T>) {
     const form = new URLSearchParams();
 
     for (const [name, value] of Object.entries(params)) if (value) form.set(name, value);
@@ -140,7 +119,7 @@ export function createWebApi({
       method: "POST",
       headers: { authorization: `Bearer ${token}` },
       body: form,
-      signal: signal ? AbortSignal.any([signal, timeoutSignal]) : timeoutSignal,
+      signal: AbortSignal.timeout(timeout),
     }).catch((cause: unknown) => {
       throw new Error("Slack could not be reached", { cause });
     });
@@ -149,33 +128,72 @@ export function createWebApi({
     const answer = answerSchema.safeParse(body).data;
 
     if (!answer?.ok) {
-      throw new SlackError({
-        code: answer?.error ?? `Slack returned HTTP ${response.status}`,
-        needed: answer?.needed,
-      });
+      const reason = answer?.error ?? `Slack returned HTTP ${response.status}`;
+
+      throw new SlackError(
+        answer?.needed ? `${reason}: the Slack app needs the ${answer.needed} scope` : reason,
+      );
     }
 
     return schema.parse(body);
   }
 
-  type CheckTokenOptions<T> = { request: Promise<T>; refusal: string };
+  type CheckTokenOptions<T> = { request: Promise<T>; name: string };
 
-  // What a token Slack does not take says to whoever connects the app.
-  async function checkToken<T>({ request, refusal }: CheckTokenOptions<T>) {
+  // A call Slack refuses tells whoever connects the app which of its tokens it refused.
+  async function checkToken<T>({ request, name }: CheckTokenOptions<T>) {
     try {
       return await request;
     } catch (cause) {
-      if (cause instanceof SlackError && refusedTokenErrors.has(cause.code)) {
-        throw new AppError({ code: "invalid_input", message: refusal, cause });
-      }
+      if (!(cause instanceof SlackError)) throw cause;
 
-      throw cause;
+      throw new AppError({
+        code: "invalid_input",
+        message: `Slack refused the ${name}: ${cause.message}`,
+        cause,
+      });
     }
+  }
+
+  // Checks both tokens, and that they are one app's, and returns the bot's member id.
+  async function connect({ bot, app }: SlackTokens) {
+    const { user_id: member, bot_id: botId } = await checkToken({
+      request: call({ token: bot, method: "auth.test", schema: botSchema }),
+      name: "bot token",
+    });
+
+    // Opening a connection checks the app-level token and that the app has Socket Mode on; one
+    // nothing connects to lapses.
+    const { url } = await checkToken({
+      request: call({ token: app, method: "apps.connections.open", schema: connectionSchema }),
+      name: "app-level token",
+    });
+
+    const { bot: found } = await call({
+      token: bot,
+      method: "bots.info",
+      schema: botInfoSchema,
+      params: { bot: botId },
+    });
+
+    // Slack names a connection's app in its URL. Tokens of two apps would read one app's messages
+    // and answer them as the other's bot.
+    const connectionApp = new URL(url).searchParams.get("app_id");
+
+    if (connectionApp && connectionApp !== found.app_id) {
+      throw new AppError({
+        code: "invalid_input",
+        message:
+          "The bot token and the app-level token belong to different Slack apps; give both of one app",
+      });
+    }
+
+    return member;
   }
 
   type NameOfOptions = { token: string; user: string };
 
-  // The name a person goes by, which Slack looks up by their member id; none when it cannot.
+  // The name a person goes by, or none when Slack does not tell it.
   async function nameOf({ token, user }: NameOfOptions) {
     const found = await call({
       token,
@@ -189,7 +207,7 @@ export function createWebApi({
 
   type GroupOfOptions = { token: string; channel: string };
 
-  // A channel by the name people see, like #launch; a group direct message goes by none.
+  // A channel by its id and the name people see, like #launch, when Slack tells it.
   async function groupOf({ token, channel }: GroupOfOptions) {
     const found = await call({
       token,
@@ -198,9 +216,7 @@ export function createWebApi({
       params: { channel },
     }).catch(() => null);
 
-    const name = found?.channel.is_mpim ? undefined : found?.channel.name;
-
-    return { id: channel, name: name ? `#${name}` : null };
+    return { id: channel, name: found ? `#${found.channel.name}` : null };
   }
 
   type DownloadOptions = { token: string; url: string; type: string };
@@ -255,7 +271,7 @@ export function createWebApi({
 
     if (!channel || !user || !ts || user === bot || !writtenSubtypes.has(subtype)) return [];
 
-    const direct = channel.startsWith("D");
+    const direct = isDirectMessage(channel);
 
     if (type !== (direct ? "message" : "app_mention")) return [];
 
@@ -311,39 +327,34 @@ export function createWebApi({
     }, heartbeat);
 
     // Only the first end counts: closing the socket ends it again.
-    function end(failure?: Error) {
+    function end(cause?: unknown) {
       if (!open) return;
 
       open = false;
       clearInterval(beat);
       signal.removeEventListener("abort", stop);
       socket.close();
-      void taking.then(() => (failure ? reject(failure) : resolve()));
+      void taking.then(() => (cause ? reject(cause) : resolve()));
     }
 
     function stop() {
       end();
     }
 
-    function acknowledge(data: string) {
-      const envelope = envelopeSchema.parse(JSON.parse(data));
+    // Takes what Slack sends: a request to connect again, or an envelope, which it acknowledges at
+    // once and whose event it queues.
+    function take(data: string) {
+      const { type, envelope_id: envelopeId, payload } = envelopeSchema.parse(JSON.parse(data));
 
-      if (envelope.type === "disconnect") return end();
+      if (type === "disconnect") return end();
 
-      if (!envelope.envelope_id) return;
+      if (!envelopeId) return;
 
-      socket.send(JSON.stringify({ envelope_id: envelope.envelope_id }));
+      socket.send(JSON.stringify({ envelope_id: envelopeId }));
 
-      const event =
-        envelope.type === "events_api" && payloadSchema.safeParse(envelope.payload).data?.event;
+      const event = type === "events_api" ? payloadSchema.safeParse(payload).data?.event : null;
 
-      if (event) {
-        taking = taking
-          .then(() => onEvent(event))
-          .catch((cause: unknown) =>
-            end(cause instanceof Error ? cause : new Error(String(cause))),
-          );
-      }
+      if (event) taking = taking.then(() => onEvent(event)).catch(end);
     }
 
     signal.addEventListener("abort", stop, { once: true });
@@ -358,9 +369,9 @@ export function createWebApi({
       if (!open) return;
 
       try {
-        acknowledge(z.string().parse(data));
+        take(z.string().parse(data));
       } catch (cause) {
-        end(cause instanceof Error ? cause : new Error(String(cause)));
+        end(cause);
       }
     });
 
@@ -386,7 +397,6 @@ export function createWebApi({
         token: tokens.app,
         method: "apps.connections.open",
         schema: connectionSchema,
-        signal,
       });
 
       await listen({
@@ -418,7 +428,8 @@ export function createWebApi({
     files: OutboundFile[];
   };
 
-  // Files go up one by one, then show together beside the text, in its thread if it went in one.
+  // Each file goes up on its own, then they show together after the text, in its thread if it went
+  // in one.
   async function upload({ token, conversation, thread, files }: UploadOptions) {
     const uploaded = await Promise.all(
       files.map(async ({ name, type, content }) => {
@@ -468,46 +479,7 @@ export function createWebApi({
     return { id: idOf({ conversation, ts }), thread: idOf({ conversation, ts: threadTs ?? ts }) };
   }
 
-  return {
-    connect: async ({ bot, app }) => {
-      const { user_id: member, bot_id: botId } = await checkToken({
-        request: call({ token: bot, method: "auth.test", schema: botSchema }),
-        refusal: "Slack does not know that bot token",
-      });
-
-      // Opening a connection checks the app-level token and that the app has Socket Mode on; one
-      // nothing connects to lapses.
-      const { url } = await checkToken({
-        request: call({ token: app, method: "apps.connections.open", schema: connectionSchema }),
-        refusal: "Slack does not know that app-level token",
-      });
-
-      const { bot: found } = await call({
-        token: bot,
-        method: "bots.info",
-        schema: botInfoSchema,
-        params: { bot: botId },
-      });
-
-      // Slack names the app a connection is for in its URL. Tokens of two apps would read one app's
-      // messages and answer them as the other's bot.
-      const connectionApp = new URL(url).searchParams.get("app_id");
-
-      if (connectionApp && connectionApp !== found.app_id) {
-        throw new AppError({
-          code: "invalid_input",
-          message:
-            "The bot token and the app-level token belong to different Slack apps; give both of one app",
-        });
-      }
-
-      return member;
-    },
-
-    start,
-
-    send,
-  };
+  return { connect, start, send };
 }
 
 type IdOfOptions = { conversation: string; ts: string };
@@ -529,7 +501,7 @@ function threadOf({ conversation, replyTo, thread }: ThreadOfOptions) {
 
   if (threadConversation !== conversation) return undefined;
 
-  return conversation.startsWith("D") && replyTo === thread ? undefined : threadTs;
+  return isDirectMessage(conversation) && replyTo === thread ? undefined : threadTs;
 }
 
 // Slack escapes &, < and > in what people write, to tell them from its own markup, like <@U123>.

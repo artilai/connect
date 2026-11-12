@@ -175,14 +175,13 @@ test("sends to one person or channel with the bot token, in the thread of what i
   ]);
 });
 
-test("writes a recipient as a person's member id or a conversation's id", () => {
+test("writes a recipient as a person's member id or a channel's id", () => {
   expect(parsing.parseRecipient(" u0ada0001 ")).toBe("U0ADA0001");
   expect(parsing.parseRecipient("W0ADA0001")).toBe("W0ADA0001");
   expect(parsing.parseRecipient("C0LAUNCH01")).toBe("C0LAUNCH01");
-  expect(parsing.parseRecipient("D0ADA0001")).toBe("D0ADA0001");
+  expect(parsing.parseRecipient("D0ADA0001")).toBeNull();
   expect(parsing.parseRecipient("#launch")).toBeNull();
   expect(parsing.parseRecipient("@ada")).toBeNull();
-  expect(parsing.recipientWritesFirst("U0ADA0001")).toBe(false);
 });
 
 test("lists a sender by their member id, or everyone in a channel by its id", () => {
@@ -190,13 +189,4 @@ test("lists a sender by their member id, or everyone in a channel by its id", ()
   expect(parsing.parseSender("G0PRIVATE1")).toBe("G0PRIVATE1");
   expect(parsing.parseSender("D0ADA0001")).toBeNull();
   expect(parsing.parseSender("ada")).toBeNull();
-});
-
-test("carries one recipient, 12,000 characters and up to 10 files of up to 1 GB each", () => {
-  expect(parsing.limits).toEqual({
-    recipients: 1,
-    text: 12_000,
-    files: 10,
-    fileSize: 1_000_000_000,
-  });
 });

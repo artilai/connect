@@ -5,22 +5,17 @@ const personId = /^[UW][A-Z0-9]{8,}$/v;
 
 const channelId = /^[CG][A-Z0-9]{8,}$/v;
 
-const directMessageId = /^D[A-Z0-9]{8,}$/v;
-
 export function isPerson(id: string) {
   return personId.test(id);
 }
 
-// A bot writes to a person by their member id, in a direct message, and to a channel or a direct
-// message by its id.
-export function readRecipient(value: string) {
-  const id = value.trim().toUpperCase();
-
-  return personId.test(id) || channelId.test(id) || directMessageId.test(id) ? id : undefined;
+export function isDirectMessage(id: string) {
+  return id.startsWith("D");
 }
 
-// Who may wake an agent is listed by their member id. A channel on the list lets in everyone in it.
-export function readSender(value: string) {
+// A person by their member id, or a channel by its id: whom a bot writes to, in a direct message
+// for a person, and who may wake an agent, where a channel lets in everyone in it.
+export function readContact(value: string) {
   const id = value.trim().toUpperCase();
 
   return personId.test(id) || channelId.test(id) ? id : undefined;

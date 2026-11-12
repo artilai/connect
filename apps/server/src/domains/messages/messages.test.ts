@@ -287,6 +287,8 @@ test("answers in the provider's thread a message is in, and wakes the client thr
 
   server.testChannel.queue("codex", { id: "2", ...fromAda, text: "Thanks", thread: "launch" });
   server.testChannel.queue("codex", { id: "3", ...fromAda, text: "Anything else?" });
+  // A thread no client thread wrote in wakes the last one that wrote to her.
+  server.testChannel.queue("codex", { id: "4", ...fromAda, text: "Ship it", thread: "release" });
   await server.deliverQueued();
 
   const events = await (await codex.call(`/api/agents/${codex.id}/events?after=0`)).json();
@@ -297,6 +299,7 @@ test("answers in the provider's thread a message is in, and wakes the client thr
   expect(events).toMatchObject([
     { toThread: null },
     { toThread: "review" },
+    { toThread: "deploy" },
     { toThread: "deploy" },
   ]);
 });

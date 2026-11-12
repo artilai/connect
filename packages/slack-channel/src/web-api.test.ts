@@ -122,7 +122,10 @@ test("refuses a token Slack does not know", async () => {
 
   await expect(
     setup({ answers: { "auth.test": refused } }).slack.connect(tokens),
-  ).rejects.toMatchObject({ code: "invalid_input", message: "Slack does not know that bot token" });
+  ).rejects.toMatchObject({
+    code: "invalid_input",
+    message: "Slack refused the bot token: invalid_auth",
+  });
 
   await expect(
     setup({ answers: { "auth.test": botAnswer, "apps.connections.open": refused } }).slack.connect(
@@ -130,7 +133,7 @@ test("refuses a token Slack does not know", async () => {
     ),
   ).rejects.toMatchObject({
     code: "invalid_input",
-    message: "Slack does not know that app-level token",
+    message: "Slack refused the app-level token: invalid_auth",
   });
 });
 
@@ -346,9 +349,7 @@ test("goes without the names Slack does not give", async () => {
     events: [{ ...inLaunch, channel: "G0FRIENDS1" }],
     answers: {
       "users.info": { body: { ok: false, error: "missing_scope", needed: "users:read" } },
-      "conversations.info": {
-        body: { ok: true, channel: { id: "G0FRIENDS1", name: "mpdm-ada--bob-1", is_mpim: true } },
-      },
+      "conversations.info": { body: { ok: false, error: "missing_scope", needed: "groups:read" } },
     },
   });
 
@@ -410,7 +411,7 @@ test("downloads a message's files with the bot token, and describes the ones it 
   ]);
 });
 
-test("acknowledges an envelope as it comes, and takes its event before connecting again", async () => {
+test("acknowledges an envelope as it comes, and takes its event before connecting again when Slack asks", async () => {
   const socket = socketMode();
 
   const { slack } = setup({
@@ -445,35 +446,6 @@ test("acknowledges an envelope as it comes, and takes its event before connectin
   controller.abort();
   await started;
   socket.stop();
-});
-
-test("connects again when Slack asks, and stops once the signal aborts", async () => {
-  const socket = socketMode();
-
-  const { slack, requests } = setup({
-    answers: {
-      "auth.test": botAnswer,
-      "apps.connections.open": { body: { ok: true, url: socket.url } },
-    },
-  });
-
-  const controller = new AbortController();
-  const started = slack.start({ tokens, signal: controller.signal, onEvents: async () => {} });
-
-  (await socket.connection(0)).send(
-    JSON.stringify({ type: "disconnect", reason: "refresh_requested" }),
-  );
-  await socket.connection(1);
-  controller.abort();
-
-  await started;
-  socket.stop();
-
-  expect(requests.map(({ method }) => method)).toEqual([
-    "auth.test",
-    "apps.connections.open",
-    "apps.connections.open",
-  ]);
 });
 
 type StartFailingOptions = { url: string; heartbeat?: number; onEvents?: () => Promise<void> };
@@ -638,15 +610,9 @@ test("sends files after the text, in its thread", async () => {
     thread: "C0LAUNCH01:1700000000.000300",
   });
 
-  expect(requests.map(({ method }) => method)).toEqual([
-    "chat.postMessage",
-    "files.getUploadURLExternal",
-    "files.getUploadURLExternal",
-    "upload",
-    "upload",
-    "files.completeUploadExternal",
-  ]);
-  expect(requests.filter(({ method }) => method !== "chat.postMessage")).toEqual(
+  expect(requests[0]?.method).toBe("chat.postMessage");
+  expect(requests.at(-1)?.method).toBe("files.completeUploadExternal");
+  expect(requests).toEqual(
     expect.arrayContaining([
       {
         method: "files.getUploadURLExternal",
