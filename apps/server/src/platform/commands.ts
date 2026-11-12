@@ -86,11 +86,12 @@ function linkStyle(shown: string) {
   return styleText(["cyan", "underline"], shown);
 }
 
-// A text with its links under their labels, in a terminal that shows links so, or else in full.
+// A text with its links under their labels, with an arrow that says they lead away, in a terminal
+// that shows links so, or else in full.
 export function withLinks({ text, hyperlinks }: WithLinksOptions) {
   return text.replaceAll(markdownLink, (_, label: string, url: string) =>
     hyperlinks
-      ? `\u001B]8;;${url}\u001B\\${linkStyle(label)}\u001B]8;;\u001B\\`
+      ? `\u001B]8;;${url}\u001B\\${linkStyle(`${label} ↗`)}\u001B]8;;\u001B\\`
       : `${label}: ${linkStyle(url)}`,
   );
 }
