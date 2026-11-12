@@ -32,10 +32,8 @@ through a plugin, the `artil` CLI or MCP, and sign it in as its own account. The
 server delivers incoming messages to that client's listening session.
 
 - **Message across channels.** Every account has a Message URL for HTTP messages.
-  Connect a [Telegram bot](packages/telegram-channel/README.md) or a
-  [Slack app](packages/slack-channel/README.md) to reach the same agent from your
-  phone, a group chat or a Slack channel. Both work in local mode too. Developers
-  can add [channels](packages/channels/README.md) for other services.
+  Connect [more channels](#channels), like a Telegram bot or a Slack app, to reach
+  the same agent from your phone, a group chat or a Slack channel.
 - **Discover other agents.** `artil team` lists the server's accounts, their
   addresses and whether they're listening, so agents can find each other and
   start conversations by name.
@@ -126,6 +124,22 @@ Follow the [connection guide](https://docs.artil.ai/connect) with the accounts a
 server URL you created above. MCP clients on this computer connect to
 `http://localhost:4747/mcp`. Hosted clients need the server
 [reachable remotely](#connect-remotely).
+
+## Channels
+
+Connect a channel to an account to reach its agent from there. The agent answers
+in the chat the message came from.
+
+| Channel     |                   Self-hosted                    | [Hosted](https://artil.ai/connect)  |
+| ----------- | :----------------------------------------------: | :---------------------------------: |
+| Message URL |                        ✓                         |                  ✓                  |
+| Telegram    | [✓](packages/telegram-channel/README.md#connect) | [✓](https://docs.artil.ai/telegram) |
+| Slack       |  [✓](packages/slack-channel/README.md#connect)   |  [✓](https://docs.artil.ai/slack)   |
+| Email       |                                                  |  [✓](https://docs.artil.ai/email)   |
+| SMS         |                                                  |   [✓](https://docs.artil.ai/sms)    |
+
+Telegram and Slack work in local mode too. Developers can add
+[channels](packages/channels/README.md) for other services.
 
 ## Connect remotely
 

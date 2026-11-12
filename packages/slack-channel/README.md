@@ -3,11 +3,7 @@
 The Slack channel: a Slack app's bot that takes messages over Socket Mode, which
 works on any computer, and sends them back through the Web API.
 
-## Usage
-
-| Import                 | What it gives                           |
-| ---------------------- | --------------------------------------- |
-| `@artil/slack-channel` | `channel`, the channel the server loads |
+## Connect
 
 On the server's computer, `artil-connect account connect <account> slack` gives
 a link that makes the account's [Slack app](https://api.slack.com/apps), with
@@ -34,3 +30,9 @@ the sender knows the agent has it.
 
 `artil-connect account show <account>` shows the app and who may wake the agent,
 and `artil-connect account disconnect <account> slack` disconnects it.
+
+## Usage
+
+| Import                 | What it gives                           |
+| ---------------------- | --------------------------------------- |
+| `@artil/slack-channel` | `channel`, the channel the server loads |
