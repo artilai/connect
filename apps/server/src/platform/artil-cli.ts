@@ -17,11 +17,11 @@ export function findArtilCli(): ArtilCli {
     installed: Bun.which("artil") !== null,
 
     async install() {
-      const installed = await $`bun install --global artil-ai`.nothrow().quiet();
+      const installed = await $`bun add -g artil-ai`.nothrow().quiet();
 
       if (installed.exitCode !== 0) {
         throw new Error(
-          installed.stderr.toString().trim() || `bun install exited with ${installed.exitCode}`,
+          installed.stderr.toString().trim() || `bun add exited with ${installed.exitCode}`,
         );
       }
     },

@@ -27,7 +27,7 @@ function contractMismatch({ kind, builtFor }: ContractMismatchOptions) {
   const update =
     builtFor < contractVersion
       ? `update the ${kind} channel to one built for version ${contractVersion}`
-      : "update artil-connect with: bun install --global @artil-ai/connect";
+      : "update artil-connect with: bun add -g @artil-ai/connect";
 
   return invalid(
     `The ${kind} channel is built for version ${builtFor} of the channel contract, and this server takes version ${contractVersion}; ${update}`,
