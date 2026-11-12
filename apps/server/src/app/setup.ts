@@ -317,7 +317,7 @@ async function installArtilCli(artil: ArtilCli) {
   );
 
   if (!installNow) {
-    log.info("Install it later with: bun install --global artil-ai");
+    log.info("Install it later with: bun add -g artil-ai");
 
     return;
   }
@@ -331,7 +331,7 @@ async function installArtilCli(artil: ArtilCli) {
     progressSpinner.stop("The artil CLI is installed");
   } catch (cause) {
     progressSpinner.error(messageOf(cause, "Could not install the artil CLI"));
-    log.info("Install it with: bun install --global artil-ai");
+    log.info("Install it with: bun add -g artil-ai");
   }
 }
 

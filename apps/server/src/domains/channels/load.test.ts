@@ -70,7 +70,7 @@ test("refuses a channel built for another version of the contract, saying which 
       kind: "newer",
       source: channelModule("newer", 2),
       builtFor: 2,
-      update: "update artil-connect with: bun install --global @artil-ai/connect",
+      update: "update artil-connect with: bun add -g @artil-ai/connect",
     },
   ];
 
