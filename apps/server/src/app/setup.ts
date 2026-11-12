@@ -22,7 +22,7 @@ import { signInGuide } from "../domains/accounts/commands";
 import { tokenQuestions } from "../domains/addresses/commands";
 import { hashPassword, validatePassword } from "../domains/sign-in/password";
 import type { ArtilCli } from "../platform/artil-cli";
-import { createSecretReader, highlightCommands } from "../platform/commands";
+import { highlightCommands, type ReadSecret } from "../platform/commands";
 import {
   type Config,
   newConfig,
@@ -39,9 +39,6 @@ export class SetupStopped extends Error {
 }
 
 // A prompt the person cancelled stops the setup without saving.
-// The setup runs in a terminal, where secrets are asked for rather than piped in.
-const readSecret = createSecretReader({ interactive: true, readStdin: async () => "" });
-
 function stopSetup(): never {
   cancel("Setup stopped; nothing more was saved.");
   throw new SetupStopped("Setup stopped");
@@ -89,11 +86,11 @@ async function createAccounts(context: CommandContext) {
   }
 }
 
-type SetUpChannelOptions = { context: CommandContext; channel: Channel };
+type SetUpChannelOptions = { context: CommandContext; channel: Channel; readSecret: ReadSecret };
 
 // Offers an address of a channel that takes a token to each account without one, in turn, and lets
 // someone wake the agent there.
-async function setUpChannel({ context, channel }: SetUpChannelOptions) {
+async function setUpChannel({ context, channel, readSecret }: SetUpChannelOptions) {
   function accountsWithout() {
     return context.accounts
       .list()
@@ -349,6 +346,8 @@ type RunSetupOptions = {
   artil: ArtilCli;
   migrationsFolder: string;
   tailscale?: Tailscale;
+  // Asks in the terminal for what connecting a channel takes, like a bot's token.
+  readSecret: ReadSecret;
   out: (line: string) => void;
 };
 
@@ -361,6 +360,7 @@ export async function runSetup({
   artil,
   migrationsFolder,
   tailscale,
+  readSecret,
   out,
 }: RunSetupOptions) {
   intro("Artil Connect setup");
@@ -384,7 +384,7 @@ export async function runSetup({
     await createAccounts(context);
 
     for (const channel of context.channels.list()) {
-      if (channel.connect) await setUpChannel({ context, channel });
+      if (channel.connect) await setUpChannel({ context, channel, readSecret });
     }
 
     const s3 = await setUpFiles(config);

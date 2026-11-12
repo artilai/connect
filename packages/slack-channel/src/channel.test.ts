@@ -247,7 +247,7 @@ test("lists a sender by their email, or everyone in a channel by its #name", () 
 
 test("asks for each token after the steps that get it, from a link that makes the account's app", () => {
   const [bot, app] = parsing.tokenParts("Claude Code");
-  const link = /https:\/\/api\.slack\.com\/\S+/v.exec(bot?.guide ?? "")?.[0] ?? "";
+  const link = /\[Create the app in Slack\]\((\S+)\)/v.exec(bot?.guide ?? "")?.[1] ?? "";
   const manifest = new URL(link).searchParams.get("manifest_json") ?? "";
 
   expect(JSON.parse(manifest)).toMatchObject({

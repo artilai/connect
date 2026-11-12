@@ -43,8 +43,7 @@ export class SlackChannel extends Channel {
       {
         label: "bot token (xoxb-…)",
         guide: [
-          "1. Create the app from this link:",
-          `   ${newAppLink(account)}`,
+          `1. [Create the app in Slack](${newAppLink(account)})`,
           "2. Open Install App in its sidebar, choose Install to Workspace and Allow, and copy the Bot User OAuth Token it shows.",
         ].join("\n"),
       },

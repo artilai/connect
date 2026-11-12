@@ -15,6 +15,7 @@ const migrationsFolder = fileURLToPath(new URL("../../migrations", import.meta.u
 // What each run of artil-connect here has: the test channel, and an artil CLI that is installed.
 const environment = {
   version: "0.0.0",
+  hyperlinks: false,
   builtInChannels: [createTestChannel()],
   migrationsFolder,
   artil: { installed: true, install: async () => {} },

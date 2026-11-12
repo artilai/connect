@@ -61,6 +61,8 @@ type Environment = {
   dataDir: string;
   version: string;
   interactive: boolean;
+  // Whether the terminal shows a link under its text, like a link to make a Slack app.
+  hyperlinks: boolean;
   // The channels the server comes with; the config loads others.
   builtInChannels: readonly Channel[];
   migrationsFolder: string;
@@ -188,7 +190,13 @@ export async function runCli(environment: Environment) {
     environment;
 
   const builtInKinds = builtInChannels.map(({ kind }) => kind);
-  const readSecret = createSecretReader({ interactive, readStdin: environment.readStdin });
+
+  const readSecret = createSecretReader({
+    interactive,
+    hyperlinks: environment.hyperlinks,
+    readStdin: environment.readStdin,
+  });
+
   const confirm = createConfirm({ interactive, yes: values.yes === true });
 
   type ReadArgumentsOptions = { run: Command; context: CommandContext };
@@ -248,6 +256,7 @@ export async function runCli(environment: Environment) {
             artil,
             migrationsFolder,
             tailscale,
+            readSecret,
             out,
           })
         : (savedConfig ?? newConfig({ channels: builtInKinds }));
@@ -267,6 +276,7 @@ export async function runCli(environment: Environment) {
       artil,
       migrationsFolder,
       tailscale,
+      readSecret,
       out,
     });
 

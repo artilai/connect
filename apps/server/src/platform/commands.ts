@@ -76,6 +76,18 @@ export function createOut({ terminal, columns, write }: CreateOutOptions) {
 
 type SecretPart = { message: string; guide?: string };
 
+// A link in a text, written as Markdown writes one: [label](url).
+const markdownLink = /\[([^\]]+)\]\(([^\)\s]+)\)/gv;
+
+type WithLinksOptions = { text: string; hyperlinks: boolean };
+
+// A text with its links under their labels, in a terminal that shows links so, or else in full.
+export function withLinks({ text, hyperlinks }: WithLinksOptions) {
+  return text.replaceAll(markdownLink, (_, label: string, url: string) =>
+    hyperlinks ? `\u001B]8;;${url}\u001B\\${label}\u001B]8;;\u001B\\` : `${label}: ${url}`,
+  );
+}
+
 type ReadSecretOptions = {
   message: string;
   // What a terminal asks for one by one, after how to get each, whose answers make the secret with
@@ -89,7 +101,12 @@ type ReadSecretOptions = {
 // the shell's history. Undefined when the person stops at the question.
 export type ReadSecret = (options: ReadSecretOptions) => Promise<string | undefined>;
 
-type CreateSecretReaderOptions = { interactive: boolean; readStdin: () => Promise<string> };
+type CreateSecretReaderOptions = {
+  interactive: boolean;
+  // Whether the terminal shows a link under its text.
+  hyperlinks: boolean;
+  readStdin: () => Promise<string>;
+};
 
 function validateFilled(value: string | undefined) {
   return value?.trim() ? undefined : "Fill this in";
@@ -98,6 +115,7 @@ function validateFilled(value: string | undefined) {
 // A terminal asks for the secret without showing it, and otherwise it comes piped in.
 export function createSecretReader({
   interactive,
+  hyperlinks,
   readStdin,
 }: CreateSecretReaderOptions): ReadSecret {
   return async ({ message, parts = [{ message }], validate = validateFilled }) => {
@@ -106,7 +124,7 @@ export function createSecretReader({
 
       for (const part of parts) {
         // Beside a bar, a long line like a link stays whole, where a box would break it.
-        if (part.guide) log.step(part.guide);
+        if (part.guide) log.step(withLinks({ text: part.guide, hyperlinks }));
 
         const answer = await password({ message: part.message, validate });
 

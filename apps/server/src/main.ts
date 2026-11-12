@@ -25,6 +25,16 @@ process.umask(0o077);
 
 const binary = findTailscale(process.platform);
 
+// Terminals that show a link under its text, by the names they give themselves; the rest show links
+// in full.
+const hyperlinkTerminals: ReadonlySet<string> = new Set([
+  "iTerm.app",
+  "WezTerm",
+  "WarpTerminal",
+  "ghostty",
+  "vscode",
+]);
+
 // The server runs until Ctrl-C or the system stops it.
 function waitForStop() {
   const { promise, resolve } = Promise.withResolvers<void>();
@@ -49,6 +59,10 @@ try {
     dataDir: process.env.ARTIL_DATA ?? defaultDataDir(),
     version,
     interactive: process.stdin.isTTY && process.stdout.isTTY,
+    hyperlinks:
+      process.stdout.isTTY &&
+      (hyperlinkTerminals.has(process.env.TERM_PROGRAM ?? "") ||
+        Boolean(process.env.KITTY_WINDOW_ID ?? process.env.WT_SESSION)),
     // The channels the published server comes with, and the one place that names them.
     builtInChannels: [telegramChannel, slackChannel],
     migrationsFolder,
