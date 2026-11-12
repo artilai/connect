@@ -1,4 +1,5 @@
 import type { InboundFile, OutboundFile } from "@artil/channels/contract";
+import type { Quote } from "@artil/utils/text";
 
 // What connects a Slack app: its bot token, which reads and sends as the bot, and its app-level
 // token, which opens the Socket Mode connection the bot's messages come on.
@@ -8,15 +9,14 @@ export type SlackTokens = { bot: string; app: string };
 // mention it.
 export type InboundSlack = {
   id: string;
-  // The bot's username.
-  bot: string;
+  botUsername: string;
   // The channel it came in, by its id and its name when Slack tells it; none for a direct message.
   group: { id: string; name: string | null } | null;
   sender: SlackPerson;
   text: string;
   files: InboundFile[];
   // What was said in its thread since the bot last wrote there, which the bot hears only now.
-  quotes: SlackQuote[];
+  quotes: Quote[];
   // The thread it is in, by the id of the message that starts it, which may be itself.
   thread: string;
 };
@@ -27,10 +27,8 @@ export type SlackPerson = {
   id: string;
   name: string | null;
   email: string | null;
-  bot: string | null;
+  botUsername: string | null;
 };
-
-export type SlackQuote = { fromName: string | null; text: string };
 
 export type SlackEvent = { type: "received"; message: InboundSlack };
 

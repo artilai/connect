@@ -6,10 +6,11 @@ import {
   type StartOptions,
 } from "@artil/channels/contract";
 import { AppError } from "@artil/errors";
+import { withQuotes } from "@artil/utils/text";
 
-import { botAddress, channelAddress, readContact } from "./conversations";
+import { botAddress, channelAddress, readRecipient, readSender } from "./conversations";
 import { newAppLink } from "./manifest";
-import type { InboundSlack, SlackPerson, SlackProvider, SlackQuote, SlackTokens } from "./provider";
+import type { InboundSlack, SlackPerson, SlackProvider, SlackTokens } from "./provider";
 
 // Slack through a provider, the Web API and Socket Mode in the server: an app's bot is an address,
 // and a person or a channel the bot is in is whom a message goes to.
@@ -66,11 +67,11 @@ export class SlackChannel extends Channel {
   }
 
   override parseSender(input: string) {
-    return readContact(input) ?? null;
+    return readSender(input);
   }
 
   override parseRecipient(input: string) {
-    return readContact(input) ?? null;
+    return readRecipient(input);
   }
 
   async send({ message: { to, text, files, replyTo, thread }, token }: SendOptions) {
@@ -85,6 +86,7 @@ export class SlackChannel extends Channel {
       thread: thread ?? null,
     });
   }
+
   override markRead(options: ReceiptOptions) {
     return this.#react(options, true);
   }
@@ -132,13 +134,13 @@ function onlyConversation(to: string[]) {
 
 // A person goes by their email, a bot by its @username, and someone Slack tells neither of by their
 // member id.
-function addressOf({ id, email, bot }: SlackPerson) {
+function addressOf({ id, email, botUsername }: SlackPerson) {
   if (email) return email.toLowerCase();
 
-  return bot ? botAddress(bot) : id;
+  return botUsername ? botAddress(botUsername) : id;
 }
 
-function received({ id, bot, group, sender, text, files, quotes, thread }: InboundSlack) {
+function received({ id, botUsername, group, sender, text, files, quotes, thread }: InboundSlack) {
   // A channel goes by its #name, or by its id when Slack does not tell the name.
   const channel = group?.name ? channelAddress(group.name) : null;
 
@@ -146,35 +148,21 @@ function received({ id, bot, group, sender, text, files, quotes, thread }: Inbou
     type: "message.received",
     message: {
       id,
-      to: [botAddress(bot)],
+      to: [botAddress(botUsername)],
       from: {
         address: addressOf(sender),
         name: sender.name,
-        // Slack has no handle of its own for a person, only the names they choose.
-        username: null,
+        // Their member id, which a list may name in place of their email.
+        username: sender.id,
         // Slack vouches for who sent each message to the bot.
         verified: true,
       },
       // An answer to a message in a channel goes to the channel.
       group: group ? { address: channel ?? group.id, name: channel } : undefined,
+      // A mention in a thread carries what was said there before it.
       text: withQuotes(text, quotes),
       files,
       thread,
     },
   } satisfies ChannelEvent;
-}
-
-// A mention in a thread carries what was said there before it as quotes above its text, the way a
-// Telegram reply quotes what it answers.
-function withQuotes(text: string, quotes: SlackQuote[]) {
-  const quoted = quotes.map(({ fromName, text: said }) => {
-    const lines = said
-      .split("\n")
-      .map((line) => `> ${line}`)
-      .join("\n");
-
-    return fromName ? `${fromName} wrote:\n${lines}` : lines;
-  });
-
-  return [...quoted, text].filter(Boolean).join("\n\n");
 }

@@ -86,21 +86,22 @@ const adaAnswer = {
   },
 };
 
-const ada = { id: "U0ADA0001", name: "Ada Lovelace", email: "ada@example.com", bot: null };
+const ada = { id: "U0ADA0001", name: "Ada Lovelace", email: "ada@example.com", botUsername: null };
 
 const launchAnswer = { body: { ok: true, channel: { id: "C0LAUNCH01", name: "launch" } } };
 
 const botInfoAnswer = { body: { ok: true, bot: { id: "B0BOT0001", app_id: "A0APP0001" } } };
 
+// What Slack answers a bot that opens a Socket Mode connection at the url.
+function connectingTo(url: string) {
+  return { "auth.test": botAnswer, "apps.connections.open": { body: { ok: true, url } } };
+}
+
 test("checks the app's tokens and finds its bot's member id", async () => {
   const socket = socketMode();
 
   const { slack, requests } = setup({
-    answers: {
-      "auth.test": botAnswer,
-      "apps.connections.open": { body: { ok: true, url: socket.url } },
-      "bots.info": botInfoAnswer,
-    },
+    answers: { ...connectingTo(socket.url), "bots.info": botInfoAnswer },
   });
 
   expect(await slack.connect(tokens)).toBe("claude");
@@ -116,11 +117,7 @@ test("refuses tokens of two different apps", async () => {
   const socket = socketMode({ app: "A0OTHER01" });
 
   const { slack } = setup({
-    answers: {
-      "auth.test": botAnswer,
-      "apps.connections.open": { body: { ok: true, url: socket.url } },
-      "bots.info": botInfoAnswer,
-    },
+    answers: { ...connectingTo(socket.url), "bots.info": botInfoAnswer },
   });
 
   await expect(slack.connect(tokens)).rejects.toMatchObject({
@@ -242,8 +239,7 @@ async function receive({ events, answers = {} }: ReceiveOptions) {
 
   const { slack, requests } = setup({
     answers: {
-      "auth.test": botAnswer,
-      "apps.connections.open": { body: { ok: true, url: socket.url } },
+      ...connectingTo(socket.url),
       "users.info": adaAnswer,
       "conversations.info": launchAnswer,
       ...answers,
@@ -309,7 +305,7 @@ test("takes direct messages to the bot over Socket Mode, each in a thread of its
       type: "received",
       message: {
         id: "D0ADA0001:1700000000.000100",
-        bot: "claude",
+        botUsername: "claude",
         group: null,
         sender: ada,
         text: "Is 1 < 2 && 3 > 2?",
@@ -342,7 +338,7 @@ test("takes what mentions the bot in a channel, by the channel's name and the th
       type: "received",
       message: {
         id: "C0LAUNCH01:1700000000.000300",
-        bot: "claude",
+        botUsername: "claude",
         group: { id: "C0LAUNCH01", name: "launch" },
         sender: ada,
         text: "<@U0BOT0001> are you there?",
@@ -494,11 +490,7 @@ test("acknowledges an envelope as it comes, and takes its event before connectin
   const socket = socketMode();
 
   const { slack } = setup({
-    answers: {
-      "auth.test": botAnswer,
-      "apps.connections.open": { body: { ok: true, url: socket.url } },
-      "users.info": adaAnswer,
-    },
+    answers: { ...connectingTo(socket.url), "users.info": adaAnswer },
   });
 
   const controller = new AbortController();
@@ -533,7 +525,7 @@ type StartFailingOptions = { url: string; heartbeat?: number; onEvents?: () => P
 function startFailing({ url, heartbeat, onEvents = async () => {} }: StartFailingOptions) {
   const { slack } = setup({
     heartbeat,
-    answers: { "auth.test": botAnswer, "apps.connections.open": { body: { ok: true, url } } },
+    answers: connectingTo(url),
   });
 
   return slack.start({ tokens, signal: new AbortController().signal, onEvents });
@@ -599,7 +591,7 @@ test("fails a connection that stops answering, as after the computer slept", asy
 
 const postedAnswer = { body: { ok: true, channel: "C0LAUNCH01", ts: "1700000000.000500" } };
 
-const hello = { token: "xoxb-1-bot", text: "**Done**", files: [], replyTo: null, thread: null };
+const message = { token: "xoxb-1-bot", text: "**Done**", files: [], replyTo: null, thread: null };
 
 test("writes to a person by their email, in their direct message, in Markdown", async () => {
   const { slack, requests } = setup({
@@ -610,7 +602,7 @@ test("writes to a person by their email, in their direct message, in Markdown", 
     },
   });
 
-  expect(await slack.send({ ...hello, to: "ada@example.com" })).toEqual({
+  expect(await slack.send({ ...message, to: "ada@example.com" })).toEqual({
     id: "D0ADA0001:1700000000.000500",
     thread: "D0ADA0001:1700000000.000500",
   });
@@ -635,9 +627,9 @@ test("writes to a channel by its #name, among the channels the bot is in", async
     },
   });
 
-  await slack.send({ ...hello, to: "#launch" });
+  await slack.send({ ...message, to: "#launch" });
 
-  await expect(slack.send({ ...hello, to: "#nowhere" })).rejects.toThrow(
+  await expect(slack.send({ ...message, to: "#nowhere" })).rejects.toThrow(
     "The bot is not in #nowhere; invite it there with /invite",
   );
   expect(requests.find(({ method }) => method === "chat.postMessage")?.body).toEqual({
@@ -736,7 +728,7 @@ test("sends files after the text, in its thread", async () => {
 });
 
 test("fails a send with Slack's reason, naming a scope the app lacks", async () => {
-  const toLaunch = { ...hello, to: "C0LAUNCH01" };
+  const toLaunch = { ...message, to: "C0LAUNCH01" };
 
   await expect(
     setup({

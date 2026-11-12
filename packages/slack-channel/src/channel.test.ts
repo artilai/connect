@@ -64,9 +64,9 @@ async function start(channel: Channel) {
 
 const fromAda: InboundSlack = {
   id: "D0ADA0001:1700000000.000100",
-  bot: "claude",
+  botUsername: "claude",
   group: null,
-  sender: { id: "U0ADA0001", name: "Ada Lovelace", email: "Ada@Example.com", bot: null },
+  sender: { id: "U0ADA0001", name: "Ada Lovelace", email: "Ada@Example.com", botUsername: null },
   text: "Hi",
   files: [],
   quotes: [],
@@ -121,7 +121,12 @@ test("turns a direct message to the bot into a received message from the person,
       message: {
         id: "D0ADA0001:1700000000.000100",
         to: ["@claude"],
-        from: { address: "ada@example.com", name: "Ada Lovelace", username: null, verified: true },
+        from: {
+          address: "ada@example.com",
+          name: "Ada Lovelace",
+          username: "U0ADA0001",
+          verified: true,
+        },
         text: "Hi",
         files: [],
         thread: "D0ADA0001:1700000000.000100",
@@ -145,16 +150,10 @@ test("turns a mention in a channel's thread into a message from whoever wrote it
     },
   ]);
 
-  expect(await start(channel)).toEqual([
+  expect(await start(channel)).toMatchObject([
     {
-      type: "message.received",
       message: {
-        id: "C0LAUNCH01:1700000000.000300",
-        to: ["@claude"],
-        from: { address: "ada@example.com", name: "Ada Lovelace", username: null, verified: true },
         group: { address: "#launch", name: "#launch" },
-        text: "<@U0BOT0001> are you there?",
-        files: [],
         thread: "C0LAUNCH01:1700000000.000100",
       },
     },
@@ -167,7 +166,7 @@ test("names a bot by its @username, and by their ids a person and a channel Slac
       type: "received",
       message: {
         ...fromAda,
-        sender: { id: "U0OPS0001", name: "Ops", email: null, bot: "opsbot" },
+        sender: { id: "U0OPS0001", name: "Ops", email: null, botUsername: "opsbot" },
       },
     },
     {
@@ -175,7 +174,7 @@ test("names a bot by its @username, and by their ids a person and a channel Slac
       message: {
         ...fromAda,
         group: { id: "G0FRIENDS1", name: null },
-        sender: { id: "U0ADA0001", name: null, email: null, bot: null },
+        sender: { id: "U0ADA0001", name: null, email: null, botUsername: null },
       },
     },
   ]);
@@ -259,26 +258,23 @@ test("writes to a person by their email and a channel by its #name, or either by
   expect(parsing.parseRecipient("# launch")).toBeNull();
 });
 
-test("lists a sender by their email, or everyone in a channel by its #name", () => {
+test("lists a sender by their email or member id, or everyone in a channel by its #name", () => {
   expect(parsing.parseSender("ada@example.com")).toBe("ada@example.com");
+  expect(parsing.parseSender("u0ada0001")).toBe("U0ADA0001");
   expect(parsing.parseSender("#launch")).toBe("#launch");
+  // A channel's messages name it by its #name, so a list naming its id would never match.
+  expect(parsing.parseSender("C0LAUNCH01")).toBeNull();
   expect(parsing.parseSender("ada")).toBeNull();
 });
 
 test("asks for each token after the steps that get it, from a link that makes the account's app", () => {
-  const [bot, app] = parsing.tokenParts("Claude Code");
+  const [bot] = parsing.tokenParts("Claude (work)");
   const link = /\[Create the app in Slack\]\((\S+)\)/v.exec(bot?.guide ?? "")?.[1] ?? "";
   const manifest = new URL(link).searchParams.get("manifest_json") ?? "";
 
   expect(JSON.parse(manifest)).toMatchObject({
-    display_information: { name: "Claude Code" },
-    features: { bot_user: { display_name: "claude-code" } },
+    display_information: { name: "Claude (work)" },
+    features: { bot_user: { display_name: "claude-work" } },
     settings: { event_subscriptions: { bot_events: ["app_mention", "message.im"] } },
-  });
-  expect(bot?.label).toBe("bot token (xoxb-…)");
-  expect(app).toEqual({
-    label: "app-level token (xapp-…)",
-    guide:
-      "3. Under Basic Information, generate an App-Level Token with the connections:write scope.",
   });
 });

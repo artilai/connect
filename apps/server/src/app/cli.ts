@@ -61,8 +61,6 @@ type Environment = {
   dataDir: string;
   version: string;
   interactive: boolean;
-  // Whether the terminal shows a link under its text, like a link to make a Slack app.
-  hyperlinks: boolean;
   // The channels the server comes with; the config loads others.
   builtInChannels: readonly Channel[];
   migrationsFolder: string;
@@ -193,8 +191,8 @@ export async function runCli(environment: Environment) {
 
   const readSecret = createSecretReader({
     interactive,
-    hyperlinks: environment.hyperlinks,
     readStdin: environment.readStdin,
+    show: out,
   });
 
   const confirm = createConfirm({ interactive, yes: values.yes === true });

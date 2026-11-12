@@ -49,33 +49,6 @@ export function highlightCommands(text: string) {
   );
 }
 
-type CreateOutOptions = {
-  // Whether a person reads what the commands say in a terminal, rather than a pipe or a script.
-  terminal: boolean;
-  columns: () => number;
-  write: (text: string) => void;
-};
-
-// Says what a command has to say, whose first line heads the rest. A terminal frames the rest in a
-// box, or beside a bar when a line is too wide for the box, which would break that line in two.
-export function createOut({ terminal, columns, write }: CreateOutOptions) {
-  if (!terminal) return write;
-
-  return (text: string) => {
-    const lines = text.split("\n");
-    const [title = "", ...body] = lines;
-    const widest = Math.max(...lines.map((line) => line.length));
-
-    if (body.length > 0 && widest + boxEdges <= columns()) {
-      note(highlightCommands(body.join("\n")), title, { withGuide: false });
-    } else {
-      log.step(highlightCommands(text), { spacing: 0 });
-    }
-  };
-}
-
-type SecretPart = { message: string; guide?: string };
-
 // A link in a text, written as Markdown writes one: [label](url).
 const markdownLink = /\[([^\]]+)\]\(([^\)\s]+)\)/gv;
 
@@ -96,6 +69,35 @@ export function withLinks({ text, hyperlinks }: WithLinksOptions) {
   );
 }
 
+type CreateOutOptions = {
+  // Whether a person reads what the commands say in a terminal, rather than a pipe or a script.
+  terminal: boolean;
+  // Whether the terminal shows a link under its text.
+  hyperlinks: boolean;
+  columns: () => number;
+  write: (text: string) => void;
+};
+
+// Says what a command has to say, whose first line heads the rest. A terminal frames the rest in a
+// box, or beside a bar when a line is too wide for the box, which would break that line in two,
+// like a link.
+export function createOut({ terminal, hyperlinks, columns, write }: CreateOutOptions) {
+  if (!terminal) return write;
+
+  return (text: string) => {
+    const widest = Math.max(...text.split("\n").map((line) => line.length));
+    const [title = "", ...body] = highlightCommands(withLinks({ text, hyperlinks })).split("\n");
+
+    if (body.length > 0 && widest + boxEdges <= columns()) {
+      note(body.join("\n"), title, { withGuide: false });
+    } else {
+      log.step([title, ...body].join("\n"), { spacing: 0 });
+    }
+  };
+}
+
+type SecretPart = { message: string; guide?: string };
+
 type ReadSecretOptions = {
   message: string;
   // What a terminal asks for one by one, after how to get each, whose answers make the secret with
@@ -111,34 +113,33 @@ export type ReadSecret = (options: ReadSecretOptions) => Promise<string | undefi
 
 type CreateSecretReaderOptions = {
   interactive: boolean;
-  // Whether the terminal shows a link under its text.
-  hyperlinks: boolean;
   readStdin: () => Promise<string>;
+  // Shows how to get a part of the secret before a terminal asks for it.
+  show: (text: string) => void;
 };
 
-function validateFilled(value: string | undefined) {
+export function validateFilled(value: string | undefined) {
   return value?.trim() ? undefined : "Fill this in";
 }
 
 // A terminal asks for the secret without showing it, and otherwise it comes piped in.
 export function createSecretReader({
   interactive,
-  hyperlinks,
   readStdin,
+  show,
 }: CreateSecretReaderOptions): ReadSecret {
   return async ({ message, parts = [{ message }], validate = validateFilled }) => {
     if (interactive) {
       const answers: string[] = [];
 
-      for (const part of parts) {
-        // Beside a bar, a long line like a link stays whole, where a box would break it.
-        if (part.guide) log.step(withLinks({ text: part.guide, hyperlinks }));
+      for (const { message: question, guide } of parts) {
+        if (guide) show(guide);
 
-        const answer = await password({ message: part.message, validate });
+        const answer = await password({ message: question, validate });
 
         if (isCancel(answer)) return undefined;
 
-        answers.push(answer.trim());
+        answers.push(answer);
       }
 
       return answers.join(" ");

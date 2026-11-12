@@ -22,7 +22,7 @@ import { signInGuide } from "../domains/accounts/commands";
 import { tokenQuestions } from "../domains/addresses/commands";
 import { hashPassword, validatePassword } from "../domains/sign-in/password";
 import type { ArtilCli } from "../platform/artil-cli";
-import { highlightCommands, type ReadSecret } from "../platform/commands";
+import { highlightCommands, type ReadSecret, validateFilled } from "../platform/commands";
 import {
   type Config,
   newConfig,
@@ -48,10 +48,6 @@ function requireAnswer<Value>(value: Value | typeof CANCEL_SYMBOL): Value {
   if (isCancel(value)) stopSetup();
 
   return value;
-}
-
-function validateNotEmpty(value: string | undefined) {
-  return value?.trim() ? undefined : "Fill this in";
 }
 
 async function createAccounts(context: CommandContext) {
@@ -191,7 +187,7 @@ async function askS3Settings(current: S3Settings | null): Promise<S3Settings> {
     await text({
       message: "Bucket",
       initialValue: current?.bucket ?? "",
-      validate: validateNotEmpty,
+      validate: validateFilled,
     }),
   );
 
@@ -199,7 +195,7 @@ async function askS3Settings(current: S3Settings | null): Promise<S3Settings> {
     await text({
       message: "Region",
       initialValue: current?.region ?? "auto",
-      validate: validateNotEmpty,
+      validate: validateFilled,
     }),
   );
 
@@ -207,12 +203,12 @@ async function askS3Settings(current: S3Settings | null): Promise<S3Settings> {
     await text({
       message: "Access key id",
       initialValue: current?.accessKeyId ?? "",
-      validate: validateNotEmpty,
+      validate: validateFilled,
     }),
   );
 
   const secretAccessKey = requireAnswer(
-    await password({ message: "Secret access key", validate: validateNotEmpty }),
+    await password({ message: "Secret access key", validate: validateFilled }),
   );
 
   return {
