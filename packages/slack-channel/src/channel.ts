@@ -39,20 +39,22 @@ export class SlackChannel extends Channel {
     return botAddress(await this.#provider.connect(readTokens(token)));
   }
 
-  // The app for the account comes from a link, and its two tokens from its settings.
+  // The app for the account comes from a link, and its two tokens from its settings, asked for in
+  // the order Slack shows them: the app-level token on the page a new app opens on, then the bot
+  // token once the app is installed.
   override tokenParts(account: string) {
     return [
       {
-        label: "bot token (xoxb-…)",
+        label: "app-level token (xapp-…)",
         guide: [
           `1. [Create the app in Slack](${newAppLink(account)})`,
-          "2. Open Install App in its sidebar, choose Install to Workspace and Allow, and copy the Bot User OAuth Token it shows.",
+          "2. On the Basic Information page it opens, generate an App-Level Token with the connections:write scope.",
         ].join("\n"),
       },
       {
-        label: "app-level token (xapp-…)",
+        label: "bot token (xoxb-…)",
         guide:
-          "3. Under Basic Information, generate an App-Level Token with the connections:write scope.",
+          "3. Open Install App in its sidebar, choose Install to Workspace and Allow, and copy the Bot User OAuth Token it shows.",
       },
     ];
   }
