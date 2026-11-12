@@ -78,10 +78,11 @@ const replySchema = z.object({
   text: z.string(),
 });
 
-// A page of a thread's messages, oldest first, and where the next page starts.
+// A page of a thread's messages, oldest first, and where the next page starts. Slack sends warnings
+// in the same place, without a cursor.
 const repliesSchema = z.object({
   messages: z.array(replySchema),
-  response_metadata: z.object({ next_cursor: z.string() }).optional(),
+  response_metadata: z.object({ next_cursor: z.string().optional() }).optional(),
 });
 
 const fileSchema = z.object({

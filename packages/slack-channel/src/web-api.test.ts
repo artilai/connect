@@ -385,6 +385,7 @@ test("quotes what was said in a channel's thread since the bot last wrote there"
               { user: "U0EVE0001", text: "" },
               { bot_profile: { name: "CI" }, text: "Build 42 failed" },
             ],
+            response_metadata: { warnings: ["superfluous_charset"] },
           },
         },
       ],
