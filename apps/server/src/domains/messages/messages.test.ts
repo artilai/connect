@@ -206,6 +206,48 @@ test("answers a message the way it came", async () => {
   ]);
 });
 
+test("shows the sender of a message that woke the agent that the agent read it, then answered it", async () => {
+  const server = await createTestServer();
+  const codex = server.account("Codex");
+  const address = await server.connectAddress({ account: codex, word: "codex" });
+
+  server.services.access.addSender({ accountId: codex.id, channel: "test", sender: "ada" });
+  server.testChannel.queue("codex", { id: "1", to: [address], from: "ada", text: "Status?" });
+  server.testChannel.queue("codex", { id: "2", to: [address], from: "eve", text: "Hello?" });
+  await server.deliverQueued();
+
+  for (const { id } of server.services.messages.list({ accountId: codex.id, filter: {} })) {
+    await codex.call(`/api/agents/${codex.id}/messages/${id}`);
+    await codex.json(`/api/agents/${codex.id}/messages`, { replyTo: id, text: "On it" });
+  }
+
+  expect(server.testChannel.receipts).toEqual([
+    { receipt: "read", id: "1", token: "codex" },
+    { receipt: "answered", id: "1", token: "codex" },
+  ]);
+});
+
+test("reads a message whose sender the channel cannot show it was read, and says so in the log", async () => {
+  const server = await createTestServer();
+  const codex = server.account("Codex");
+  const address = await server.connectAddress({ account: codex, word: "codex" });
+
+  server.services.access.addSender({ accountId: codex.id, channel: "test", sender: "ada" });
+  server.testChannel.queue("codex", { id: "1", to: [address], from: "ada", text: "Status?" });
+  await server.deliverQueued();
+
+  const [received] = server.services.messages.list({ accountId: codex.id, filter: {} });
+
+  server.testChannel.down = true;
+
+  const read = await codex.call(`/api/agents/${codex.id}/messages/${received?.id}`);
+
+  expect(read.status).toBe(200);
+  expect(server.logs).toContain(
+    "Test did not show ada that the agent read their message: The provider is down",
+  );
+});
+
 test("wakes the client thread that wrote what a message answers, or else the last one that wrote to its sender", async () => {
   const server = await createTestServer();
   const codex = server.account("Codex");

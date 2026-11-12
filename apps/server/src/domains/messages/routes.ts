@@ -93,7 +93,7 @@ export function createMessageRoutes({ messages, channels, fileLinks }: CreateMes
     })
     .get("/:messageId", docs.read, (c) => {
       const id = readId(c.req.param("messageId"));
-      const message = id && messages.find({ accountId: c.var.account.id, id });
+      const message = id && messages.read({ accountId: c.var.account.id, id });
 
       if (!message) throw new AppError({ code: "not_found", message: "Message not found" });
 

@@ -8,6 +8,7 @@ import {
   contractVersion,
   type HandleWebhookOptions,
   type InboundFile,
+  type ReceiptOptions,
   type SendOptions,
   type StartOptions,
 } from "@artil/channels/contract";
@@ -45,6 +46,8 @@ const testInboundSchema = z.object({
 // A message someone sends to one of the test channel's addresses.
 type TestInbound = z.input<typeof testInboundSchema> & { files?: InboundFile[] };
 
+type TestReceipt = "read" | "answered";
+
 // Where the test channel's provider signs what it posts to the webhook.
 export const testWebhookHeader = "x-test-secret";
 
@@ -68,7 +71,10 @@ class TestChannel extends Channel {
 
   readonly sent: SendOptions[] = [];
 
-  // Whether the provider is down, so that what the server sends fails.
+  // What the channel showed senders the agent did with their messages.
+  readonly receipts: (ReceiptOptions & { receipt: TestReceipt })[] = [];
+
+  // Whether the provider is down, so that what the server sends, and the receipts it shows, fail.
   down = false;
 
   // What the server started on, which a test waits for.
@@ -125,6 +131,20 @@ class TestChannel extends Channel {
     this.sent.push(options);
 
     return { id: `out-${this.sent.length}` };
+  }
+
+  override async markRead(options: ReceiptOptions) {
+    this.#show("read", options);
+  }
+
+  override async markAnswered(options: ReceiptOptions) {
+    this.#show("answered", options);
+  }
+
+  #show(receipt: TestReceipt, options: ReceiptOptions) {
+    if (this.down) throw new Error("The provider is down");
+
+    this.receipts.push({ receipt, ...options });
   }
 }
 

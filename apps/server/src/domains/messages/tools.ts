@@ -198,7 +198,7 @@ export function registerMessageTools({
     },
     ({ agent, id }) =>
       runTool(() => {
-        const message = messages.find({
+        const message = messages.read({
           accountId: actingAccountId({ agent, signedInAccountId: actor.accountId }),
           id,
         });

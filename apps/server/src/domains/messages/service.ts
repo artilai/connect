@@ -1,4 +1,4 @@
-import type { InboundMessage } from "@artil/channels/contract";
+import type { Channel, InboundMessage } from "@artil/channels/contract";
 import { AppError, messageOf } from "@artil/errors";
 import { shellQuoted } from "@artil/utils/shell";
 
@@ -21,6 +21,13 @@ const recipientSeparator = ", ";
 // The refusals a person mends by putting the sender on the account's list.
 const keptOut: ReadonlySet<Refusal> = new Set(["sender", "outsider"]);
 
+// What the sender of a message that woke the agent sees the agent do with it, by the channel's
+// method that shows it.
+const receipts = { read: "markRead", answered: "markAnswered" } as const satisfies Record<
+  string,
+  keyof Channel
+>;
+
 type CreateMessagesServiceOptions = {
   messagesRepository: MessagesRepository;
   accounts: AccountsService;
@@ -39,7 +46,8 @@ type ReceiveOptions = { channel: ChannelKind; message: InboundMessage };
 type Recipients = {
   channel: ChannelKind;
   to: string[];
-  replyTo?: string;
+  // The message this one answers.
+  answered?: MessageRow;
 };
 
 type SendDraftOptions = {
@@ -54,6 +62,8 @@ type SendOptions = SendDraftOptions & { recipients: Recipients };
 type ListOptions = { accountId: string; filter: MessageFilter };
 
 type FindOptions = { accountId: string; id: string };
+
+type SendReceiptOptions = { receipt: keyof typeof receipts; message: MessageRow };
 
 // An answer goes to whoever wrote the message, or to whom the agent wrote it.
 function replyRecipients(message: MessageRow): string[] {
@@ -126,15 +136,32 @@ export function createMessagesService({
     return {
       channel: repliedMessage.channel,
       to: draft.to ?? replyRecipients(repliedMessage),
-      // The channel threads the answer by its own id for the message, when it gave one.
-      replyTo: repliedMessage.externalId ?? undefined,
+      answered: repliedMessage,
     };
+  }
+
+  // Shows the sender of a message that woke the agent what the agent did with it, where its channel
+  // can. The agent goes on without waiting for the sender to see it, even when the channel fails.
+  function sendReceipt({ receipt, message }: SendReceiptOptions) {
+    const channel = channels.find(message.channel);
+    const mark = receipts[receipt];
+    const id = message.externalId;
+
+    if (!channel?.[mark] || message.status !== "received" || !id) return;
+
+    const token = addresses.findById(message.addressId)?.token ?? null;
+
+    Promise.try(channel[mark].bind(channel), { id, token }).catch((cause: unknown) => {
+      log(
+        `${channel.name} did not show ${message.counterpart} that the agent ${receipt} their message: ${messageOf(cause, String(cause))}`,
+      );
+    });
   }
 
   // Sends on the channel from the account's address there, and keeps the message among the
   // account's.
   async function send({ accountId, accountName, draft, uploads, recipients }: SendOptions) {
-    const { channel: kind, ...addressed } = recipients;
+    const { channel: kind, to, answered } = recipients;
     const channel = channels.find(kind);
 
     if (!channel) throw missingChannel(kind);
@@ -161,8 +188,9 @@ export function createMessagesService({
 
     const message = {
       from: address.value,
-      ...addressed,
-      to: addresses.readRecipients({ channel, to: addressed.to }),
+      to: addresses.readRecipients({ channel, to }),
+      // The channel threads an answer by its own id for the message, when it gave one.
+      replyTo: answered?.externalId ?? undefined,
       text: draft.text,
       files: outgoingFiles,
     };
@@ -221,6 +249,8 @@ export function createMessagesService({
             cause,
           });
     }
+
+    if (answered) sendReceipt({ receipt: "answered", message: answered });
 
     const sent = find({ accountId, id });
 
@@ -400,7 +430,14 @@ export function createMessagesService({
   }
 
   return {
-    find,
+    // A message of the account. Reading one that woke the agent shows its sender the agent read it.
+    read(options: FindOptions) {
+      const row = messagesRepository.find(options);
+
+      if (row) sendReceipt({ receipt: "read", message: row });
+
+      return row && toRecords([row])[0];
+    },
 
     // Who wrote to the account on the channel and was kept out for being on neither its team nor
     // its list, the latest first.

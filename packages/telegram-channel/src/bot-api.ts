@@ -11,6 +11,7 @@ import type {
   OutgoingTelegram,
   TelegramEvent,
   TelegramProvider,
+  TelegramReaction,
   TelegramUpdates,
 } from "./provider";
 
@@ -119,6 +120,13 @@ type MessageRequest = {
   reply_parameters?: ReplyParameters;
 };
 
+// A bot reacts with one emoji at most, and with none takes its reaction off.
+type ReactionRequest = {
+  chat_id: number;
+  message_id: number;
+  reaction: { type: "emoji"; emoji: string }[];
+};
+
 type FileRequest = { file_id: string };
 
 type CallOptions<T> = {
@@ -126,7 +134,7 @@ type CallOptions<T> = {
   method: string;
   schema: z.ZodType<T>;
   // Files go up as form data, everything else as JSON.
-  body?: Webhook | UpdatesRequest | MessageRequest | FileRequest | FormData;
+  body?: Webhook | UpdatesRequest | MessageRequest | ReactionRequest | FileRequest | FormData;
   signal?: AbortSignal;
 };
 
@@ -334,6 +342,29 @@ export function createBotApi({
     });
   }
 
+  async function react({ token, id, emoji }: TelegramReaction) {
+    const message = readId(id);
+
+    if (!message) return;
+
+    await call({
+      token,
+      method: "setMessageReaction",
+      schema: z.literal(true),
+      body: {
+        chat_id: message.chat,
+        message_id: message.messageId,
+        reaction: emoji ? [{ type: "emoji", emoji }] : [],
+      },
+    }).catch((cause: unknown) => {
+      // A reaction is only a courtesy, which a group that allows none, a deleted message or a
+      // blocked bot goes without.
+      if (cause instanceof TelegramError && (cause.status === 400 || cause.status === 403)) return;
+
+      throw cause;
+    });
+  }
+
   type DownloadOptions = { token: string; fileId: string };
 
   // A bot downloads what people send it at a link that holds its token, up to 20 MB a file.
@@ -472,6 +503,8 @@ export function createBotApi({
 
       return { id: idOf(sent.chat.id, sent.message_id) };
     },
+
+    react,
   };
 }
 
@@ -487,13 +520,18 @@ function idOf(chat: number, messageId: number) {
   return `${chat}:${messageId}`;
 }
 
-// What the answer quotes: the message's id in the chat it goes to, from the id Artil gave it.
-function replyParameters(replyTo: string | null): ReplyParameters | undefined {
-  const messageId = /^-?\d+:(\d+)$/v.exec(replyTo ?? "")?.[1];
+// A message's chat and its id there, from the id Artil gave it.
+function readId(id: string) {
+  const [, chat, messageId] = /^(-?\d+):(\d+)$/v.exec(id) ?? [];
 
-  return messageId
-    ? { message_id: Number(messageId), allow_sending_without_reply: true }
-    : undefined;
+  return chat && messageId ? { chat: Number(chat), messageId: Number(messageId) } : undefined;
+}
+
+// What the answer quotes: the message's id in the chat it goes to.
+function replyParameters(replyTo: string | null): ReplyParameters | undefined {
+  const messageId = replyTo && readId(replyTo)?.messageId;
+
+  return messageId ? { message_id: messageId, allow_sending_without_reply: true } : undefined;
 }
 
 function invalidToken() {

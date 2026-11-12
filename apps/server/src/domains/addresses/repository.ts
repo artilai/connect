@@ -43,6 +43,14 @@ export function createAddressesRepository(db: Database) {
   }
 
   return {
+    findById: (id: string) =>
+      db
+        .select()
+        .from(addresses)
+        .where(and(eq(addresses.id, id), connectedWhere))
+        .all()
+        .find(isConnected),
+
     findByValue,
 
     findByAccount,
