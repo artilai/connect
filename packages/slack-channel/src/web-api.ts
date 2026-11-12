@@ -25,7 +25,9 @@ const answerSchema = z.object({
   needed: z.string().optional(),
 });
 
-const botSchema = z.object({ user_id: z.string() });
+const botSchema = z.object({ user_id: z.string(), bot_id: z.string() });
+
+const botInfoSchema = z.object({ bot: z.object({ app_id: z.string() }) });
 
 const connectionSchema = z.object({ url: z.string() });
 
@@ -203,27 +205,28 @@ export function createWebApi({
 
   type DownloadOptions = { token: string; url: string; type: string };
 
-  // A bot downloads what people send it with its token.
+  // A bot downloads what people send it with its token. Slack has the message as delivered by then,
+  // so a file it does not hand over comes described, without its bytes, rather than holding the
+  // message back.
   async function download({ token, url, type }: DownloadOptions) {
-    const response = await fetch(url, {
-      method: "GET",
-      headers: { authorization: `Bearer ${token}` },
-      signal: AbortSignal.timeout(fileTimeout),
-    }).catch((cause: unknown) => {
-      throw new Error("Slack could not be reached", { cause });
-    });
+    try {
+      const response = await fetch(url, {
+        method: "GET",
+        headers: { authorization: `Bearer ${token}` },
+        signal: AbortSignal.timeout(fileTimeout),
+      });
 
-    const signInPage =
-      response.headers.get("content-type")?.startsWith("text/html") &&
-      !type.startsWith("text/html");
+      // Slack answers a bot without the files:read scope with its sign-in page.
+      const signInPage =
+        response.headers.get("content-type")?.startsWith("text/html") &&
+        !type.startsWith("text/html");
 
-    // Slack refuses a file the bot may not download, or answers a bot without the files:read scope
-    // with its sign-in page, and asking again would not change that.
-    if ((response.status >= 400 && response.status < 500) || signInPage) return null;
+      if (!response.ok || signInPage) return null;
 
-    if (!response.ok) throw new Error(`Slack returned HTTP ${response.status} for a file`);
-
-    return new Uint8Array(await response.arrayBuffer());
+      return new Uint8Array(await response.arrayBuffer());
+    } catch {
+      return null;
+    }
   }
 
   type FilesOfOptions = { token: string; files: File[] };
@@ -266,15 +269,14 @@ export function createWebApi({
       {
         type: "received",
         message: {
-          id: idOf({ conversation: channel, ts, threadTs }),
+          id: idOf({ conversation: channel, ts }),
           bot,
           group,
           senderId: user,
           senderName,
           text: unescaped(event.text ?? ""),
           files,
-          replyTo:
-            threadTs && threadTs !== ts ? idOf({ conversation: channel, ts: threadTs }) : null,
+          thread: idOf({ conversation: channel, ts: threadTs ?? ts }),
         },
       },
     ];
@@ -286,9 +288,11 @@ export function createWebApi({
     onEvent: (event: Event) => Promise<void>;
   };
 
-  // Takes what Slack sends over one Socket Mode connection, an envelope at a time, and acknowledges
-  // each once it is taken. Ends when Slack asks for a new connection or the signal aborts, and fails
-  // when the connection drops or an envelope is not taken, which Slack then sends again.
+  // Takes what Slack sends over one Socket Mode connection. Each envelope is acknowledged as it
+  // comes, within the three seconds Slack waits, and its event taken after, in order, so a slow
+  // download holds nothing up. Ends once the events Slack has as delivered are taken, when Slack
+  // asks for a new connection or the signal aborts, and fails when the connection drops or the
+  // server cannot take an event.
   function listen({ url, signal, onEvent }: ListenOptions) {
     const { promise, resolve, reject } = Promise.withResolvers<void>();
     const socket = new WebSocket(url);
@@ -314,30 +318,32 @@ export function createWebApi({
       clearInterval(beat);
       signal.removeEventListener("abort", stop);
       socket.close();
-
-      if (failure) reject(failure);
-      else resolve();
+      void taking.then(() => (failure ? reject(failure) : resolve()));
     }
 
     function stop() {
       end();
     }
 
-    async function take(data: string) {
-      if (!open) return;
-
+    function acknowledge(data: string) {
       const envelope = envelopeSchema.parse(JSON.parse(data));
 
       if (envelope.type === "disconnect") return end();
 
       if (!envelope.envelope_id) return;
 
+      socket.send(JSON.stringify({ envelope_id: envelope.envelope_id }));
+
       const event =
         envelope.type === "events_api" && payloadSchema.safeParse(envelope.payload).data?.event;
 
-      if (event) await onEvent(event);
-
-      socket.send(JSON.stringify({ envelope_id: envelope.envelope_id }));
+      if (event) {
+        taking = taking
+          .then(() => onEvent(event))
+          .catch((cause: unknown) =>
+            end(cause instanceof Error ? cause : new Error(String(cause))),
+          );
+      }
     }
 
     signal.addEventListener("abort", stop, { once: true });
@@ -348,9 +354,14 @@ export function createWebApi({
 
     socket.addEventListener("message", ({ data }) => {
       heard = true;
-      taking = taking
-        .then(() => take(z.string().parse(data)))
-        .catch((cause: unknown) => end(cause instanceof Error ? cause : new Error(String(cause))));
+
+      if (!open) return;
+
+      try {
+        acknowledge(z.string().parse(data));
+      } catch (cause) {
+        end(cause instanceof Error ? cause : new Error(String(cause)));
+      }
     });
 
     socket.addEventListener("close", () => end(new Error("Slack closed the connection")));
@@ -441,37 +452,56 @@ export function createWebApi({
   }
 
   // The text goes as Markdown, which agents write, and the files after it.
-  async function send({ token, to, text, files, replyTo }: OutgoingSlack) {
+  async function send({ token, to, text, files, replyTo, thread }: OutgoingSlack) {
     const conversation = isPerson(to) ? await openDirectMessage({ token, person: to }) : to;
-    const thread = threadOf({ conversation, replyTo });
+    const threadTs = threadOf({ conversation, replyTo, thread });
 
     const { ts } = await call({
       token,
       method: "chat.postMessage",
       schema: postedSchema,
-      params: { channel: conversation, markdown_text: text, thread_ts: thread },
+      params: { channel: conversation, markdown_text: text, thread_ts: threadTs },
     });
 
-    if (files.length > 0) await upload({ token, conversation, thread, files });
+    if (files.length > 0) await upload({ token, conversation, thread: threadTs, files });
 
-    return { id: idOf({ conversation, ts, threadTs: thread }) };
+    return { id: idOf({ conversation, ts }), thread: idOf({ conversation, ts: threadTs ?? ts }) };
   }
 
   return {
     connect: async ({ bot, app }) => {
-      const { user_id: botId } = await checkToken({
+      const { user_id: member, bot_id: botId } = await checkToken({
         request: call({ token: bot, method: "auth.test", schema: botSchema }),
         refusal: "Slack does not know that bot token",
       });
 
       // Opening a connection checks the app-level token and that the app has Socket Mode on; one
       // nothing connects to lapses.
-      await checkToken({
+      const { url } = await checkToken({
         request: call({ token: app, method: "apps.connections.open", schema: connectionSchema }),
         refusal: "Slack does not know that app-level token",
       });
 
-      return botId;
+      const { bot: found } = await call({
+        token: bot,
+        method: "bots.info",
+        schema: botInfoSchema,
+        params: { bot: botId },
+      });
+
+      // Slack names the app a connection is for in its URL. Tokens of two apps would read one app's
+      // messages and answer them as the other's bot.
+      const connectionApp = new URL(url).searchParams.get("app_id");
+
+      if (connectionApp && connectionApp !== found.app_id) {
+        throw new AppError({
+          code: "invalid_input",
+          message:
+            "The bot token and the app-level token belong to different Slack apps; give both of one app",
+        });
+      }
+
+      return member;
     },
 
     start,
@@ -480,27 +510,26 @@ export function createWebApi({
   };
 }
 
-type IdOfOptions = { conversation: string; ts: string; threadTs?: string };
+type IdOfOptions = { conversation: string; ts: string };
 
-// A message's id in Artil: its conversation, the thread it is in when it answers another, and the
-// timestamp Slack tells the messages of a conversation apart by.
-function idOf({ conversation, ts, threadTs }: IdOfOptions) {
-  return threadTs && threadTs !== ts
-    ? `${conversation}:${threadTs}:${ts}`
-    : `${conversation}:${ts}`;
+// A message's id in Artil, and a thread's by the message that starts it: the conversation, and the
+// timestamp Slack tells its messages apart by. Every message is in a thread: the one it answers in,
+// or else its own, which an answer to it starts.
+function idOf({ conversation, ts }: IdOfOptions) {
+  return `${conversation}:${ts}`;
 }
 
-type ThreadOfOptions = { conversation: string; replyTo: string | null };
+type ThreadOfOptions = { conversation: string; replyTo: string | null; thread: string | null };
 
-// The thread an answer goes in: the one the message it answers is in, or in a channel the one the
-// answer starts under it. A direct message is answered beside it, as people answer one, and an
-// answer that goes to another conversation starts no thread.
-function threadOf({ conversation, replyTo }: ThreadOfOptions) {
-  const [answered, threadTs, ts] = replyTo?.split(":") ?? [];
+// The timestamp of the thread an answer goes in: the one the message it answers is in, when the
+// answer goes to its conversation. A direct message that starts its own thread is answered beside
+// it, as people answer one.
+function threadOf({ conversation, replyTo, thread }: ThreadOfOptions) {
+  const [threadConversation, threadTs] = thread?.split(":") ?? [];
 
-  if (answered !== conversation) return undefined;
+  if (threadConversation !== conversation) return undefined;
 
-  return ts || !conversation.startsWith("D") ? threadTs : undefined;
+  return conversation.startsWith("D") && replyTo === thread ? undefined : threadTs;
 }
 
 // Slack escapes &, < and > in what people write, to tell them from its own markup, like <@U123>.

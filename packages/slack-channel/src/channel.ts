@@ -53,7 +53,7 @@ export class SlackChannel extends Channel {
     return readRecipient(input) ?? null;
   }
 
-  async send({ message: { to, text, files, replyTo }, token }: SendOptions) {
+  async send({ message: { to, text, files, replyTo, thread }, token }: SendOptions) {
     if (!token) throw new Error("A Slack bot sends with its token");
 
     return this.#provider.send({
@@ -62,6 +62,7 @@ export class SlackChannel extends Channel {
       text,
       files,
       replyTo: replyTo ?? null,
+      thread: thread ?? null,
     });
   }
 }
@@ -96,7 +97,7 @@ function onlyConversation(to: string[]) {
   return conversation;
 }
 
-function received({ id, bot, group, senderId, senderName, text, files, replyTo }: InboundSlack) {
+function received({ id, bot, group, senderId, senderName, text, files, thread }: InboundSlack) {
   return {
     type: "message.received",
     message: {
@@ -114,7 +115,8 @@ function received({ id, bot, group, senderId, senderName, text, files, replyTo }
       group: group ? { address: group.id, name: group.name } : undefined,
       text,
       files,
-      replyTo: replyTo ?? undefined,
+      // An answer in the thread wakes the client thread that last wrote in it.
+      thread,
     },
   } satisfies ChannelEvent;
 }

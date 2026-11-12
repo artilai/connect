@@ -17,8 +17,8 @@ export type InboundSlack = {
   senderName: string | null;
   text: string;
   files: InboundFile[];
-  // The id of the message that starts the thread it is in.
-  replyTo: string | null;
+  // The thread it is in, by the id of the message that starts it, which may be itself.
+  thread: string;
 };
 
 export type SlackEvent = { type: "received"; message: InboundSlack };
@@ -31,14 +31,15 @@ export type OutgoingSlack = {
   to: string;
   text: string;
   files: OutboundFile[];
-  // The id of the message this one answers, as Artil gave it, in whose thread the answer goes.
+  // The id of the message this one answers, and the thread it is in, which the answer goes in.
   replyTo: string | null;
+  thread: string | null;
 };
 
 export type SlackUpdates = {
   tokens: SlackTokens;
   signal: AbortSignal;
-  // Takes the events of one envelope; Slack sends the envelope again until this resolves.
+  // Takes the events of one envelope, which Slack has as delivered once the server acknowledged it.
   onEvents: (events: SlackEvent[]) => Promise<void>;
 };
 
@@ -48,5 +49,6 @@ export type SlackProvider = {
   // Keeps the bot's messages coming over Socket Mode until the signal aborts, on any server, since
   // the server opens the connection.
   start: (updates: SlackUpdates) => Promise<void>;
-  send: (message: OutgoingSlack) => Promise<{ id: string }>;
+  // Sends the message, and returns its id and the thread it went in.
+  send: (message: OutgoingSlack) => Promise<{ id: string; thread: string }>;
 };

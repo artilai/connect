@@ -32,7 +32,7 @@ function setup(inbound: SlackEvent[] = []) {
     send: async (message) => {
       sent.push(message);
 
-      return { id: "D0ADA0001:1700000000.000200" };
+      return { id: "D0ADA0001:1700000000.000200", thread: "D0ADA0001:1700000000.000200" };
     },
   };
 
@@ -65,7 +65,7 @@ const fromAda: InboundSlack = {
   senderName: "Ada Lovelace",
   text: "Hi",
   files: [],
-  replyTo: null,
+  thread: "D0ADA0001:1700000000.000100",
 };
 
 const outbound: OutboundMessage = {
@@ -74,6 +74,7 @@ const outbound: OutboundMessage = {
   text: "On my way",
   files: [],
   replyTo: "D0ADA0001:1700000000.000100",
+  thread: "D0ADA0001:1700000000.000100",
 };
 
 // Slack sends through its provider, so it never hands a message back to the server.
@@ -118,22 +119,23 @@ test("turns a direct message to the bot into a received message from the person"
         from: { address: "U0ADA0001", name: "Ada Lovelace", username: null, verified: true },
         text: "Hi",
         files: [],
+        thread: "D0ADA0001:1700000000.000100",
       },
     },
   ]);
   expect(started).toEqual([{ bot: "xoxb-1-bot", app: "xapp-1-app" }]);
 });
 
-test("turns a mention in a channel into a message from whoever wrote it, which an answer takes to the channel", async () => {
+test("turns a mention in a channel's thread into a message from whoever wrote it, which an answer takes to the channel", async () => {
   const { channel } = setup([
     {
       type: "received",
       message: {
         ...fromAda,
-        id: "C0LAUNCH01:1700000000.000100:1700000000.000300",
+        id: "C0LAUNCH01:1700000000.000300",
         group: { id: "C0LAUNCH01", name: "#launch" },
         text: "<@U0BOT0001> are you there?",
-        replyTo: "C0LAUNCH01:1700000000.000100",
+        thread: "C0LAUNCH01:1700000000.000100",
       },
     },
   ]);
@@ -142,23 +144,24 @@ test("turns a mention in a channel into a message from whoever wrote it, which a
     {
       type: "message.received",
       message: {
-        id: "C0LAUNCH01:1700000000.000100:1700000000.000300",
+        id: "C0LAUNCH01:1700000000.000300",
         to: ["U0BOT0001"],
         from: { address: "U0ADA0001", name: "Ada Lovelace", username: null, verified: true },
         group: { address: "C0LAUNCH01", name: "#launch" },
         text: "<@U0BOT0001> are you there?",
         files: [],
-        replyTo: "C0LAUNCH01:1700000000.000100",
+        thread: "C0LAUNCH01:1700000000.000100",
       },
     },
   ]);
 });
 
-test("sends to one person or channel with the bot token, answering by Slack's id for the message", async () => {
+test("sends to one person or channel with the bot token, in the thread of what it answers", async () => {
   const { channel, sent } = setup();
 
   expect(await channel.send({ message: outbound, token, deliver })).toEqual({
     id: "D0ADA0001:1700000000.000200",
+    thread: "D0ADA0001:1700000000.000200",
   });
   expect(sent).toEqual([
     {
@@ -167,6 +170,7 @@ test("sends to one person or channel with the bot token, answering by Slack's id
       text: "On my way",
       files: [],
       replyTo: "D0ADA0001:1700000000.000100",
+      thread: "D0ADA0001:1700000000.000100",
     },
   ]);
 });

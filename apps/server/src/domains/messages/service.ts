@@ -40,6 +40,7 @@ type Recipients = {
   channel: ChannelKind;
   to: string[];
   replyTo?: string;
+  thread?: string;
 };
 
 type SendDraftOptions = {
@@ -91,6 +92,7 @@ export function createMessagesService({
       ({
         accountId: _accountId,
         externalId: _externalId,
+        externalThread: _externalThread,
         clientThread: _clientThread,
         ...message
       }) => ({
@@ -126,8 +128,10 @@ export function createMessagesService({
     return {
       channel: repliedMessage.channel,
       to: draft.to ?? replyRecipients(repliedMessage),
-      // The channel threads the answer by its own id for the message, when it gave one.
+      // The channel threads the answer by its own id for the message, when it gave one, and in the
+      // provider's thread the message is in.
       replyTo: repliedMessage.externalId ?? undefined,
+      thread: repliedMessage.externalThread ?? undefined,
     };
   }
 
@@ -198,7 +202,7 @@ export function createMessagesService({
     try {
       await files.save({ accountId, messageId: id, uploads: outgoingFiles });
 
-      const { id: externalId } = await channel.send({
+      const { id: externalId, thread: externalThread } = await channel.send({
         message,
         token: address.token,
         // A channel without a provider, like the Message URL, hands the message back to reach the
@@ -207,7 +211,7 @@ export function createMessagesService({
           deliver({ channel: kind, message: delivered, fromThread: Boolean(draft.thread) }),
       });
 
-      messagesRepository.markSent(id, externalId);
+      messagesRepository.markSent({ id, externalId, externalThread });
     } catch (cause) {
       const reason = messageOf(cause, "the provider gave no reason");
 
@@ -261,11 +265,17 @@ export function createMessagesService({
     );
   }
 
-  type FindThreadToWakeOptions = { addressId: string; counterpart: string; replyTo?: string };
+  type FindThreadToWakeOptions = {
+    addressId: string;
+    counterpart: string;
+    replyTo?: string;
+    thread?: string;
+  };
 
   // The thread of the account's client a message is for: the one that wrote what it answers, or
-  // else the last one whose message reached whoever sent it, or the group it came in.
-  function findThreadToWake({ addressId, counterpart, replyTo }: FindThreadToWakeOptions) {
+  // else the last one that wrote in the provider's thread it is in, or else the last one whose
+  // message reached whoever sent it, or the group it came in.
+  function findThreadToWake({ addressId, counterpart, replyTo, thread }: FindThreadToWakeOptions) {
     const answered = replyTo
       ? messagesRepository.findByExternalId({
           addressId,
@@ -275,7 +285,14 @@ export function createMessagesService({
       : undefined;
 
     return (
-      answered?.clientThread ?? messagesRepository.findLastClientThread({ addressId, counterpart })
+      answered?.clientThread ??
+      (thread
+        ? messagesRepository.findLastClientThreadByExternalThread({
+            addressId,
+            externalThread: thread,
+          })
+        : null) ??
+      messagesRepository.findLastClientThreadByCounterpart({ addressId, counterpart })
     );
   }
 
@@ -333,6 +350,7 @@ export function createMessagesService({
       channel,
       direction: "inbound",
       externalId: message.id,
+      externalThread: message.thread,
       counterpart,
       counterpartName: group ? group.name : fromName,
       author: group ? from.address : null,
@@ -351,6 +369,7 @@ export function createMessagesService({
         addressId: address.id,
         counterpart,
         replyTo: message.replyTo,
+        thread: message.thread,
       });
 
       events.add({
