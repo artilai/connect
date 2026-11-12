@@ -84,6 +84,13 @@ test("creates accounts, lists them and makes a token to sign one in with", async
   expect(await cli(dataDir, "account", "token", "codex", "macbook")).toMatch(
     /named macbook\.\n.*\n\n {2}artil auth login --base-url http:\/\/localhost:4747 --token artil_[\w\-]{43}$/v,
   );
+
+  // A token by a name the account has replaces the one before.
+  await cli(dataDir, "account", "token", "codex", "MacBook");
+
+  expect(await cli(dataDir, "account", "show", "codex")).toMatch(
+    /Clients:\n {2}MacBook {2}signed in [^\n]+\n\n/v,
+  );
 });
 
 test("signs an account out of a client by a name in any case, letters beyond ASCII too", async () => {

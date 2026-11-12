@@ -41,7 +41,7 @@ Usage:
   artil-connect account show <account>                  Show an account's addresses, clients and who wakes it
   artil-connect account rename <account> <name>         Give an account another name
   artil-connect account remove <account>                Remove an account with its messages
-  artil-connect account token <account> <name>          Make a token by a name of its own, for a computer without a browser
+  artil-connect account token <account> <name>          Make a token by a name of its own, for a computer without a browser, replacing one of that name
   artil-connect account revoke <account> <client>       Sign the account out of a client by its name, or out of all
   artil-connect account connect <account> <channel>     Connect an address of a channel to an account, with what the channel asks for, typed or piped in
   artil-connect account disconnect <account> <channel>  Disconnect the account's address of the channel

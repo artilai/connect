@@ -93,6 +93,33 @@ test("signs the CLI in as the account picked on the sign-in page", async () => {
   expect(secondExchange.status).toBe(401);
 });
 
+type SignInCliOptions = { server: TestServer; accountId: string };
+
+// Signs the CLI on this machine in as the account, the way artil auth login does.
+async function signInCli({ server, accountId }: SignInCliOptions) {
+  const { verifier, challenge } = pkce();
+  const id = await askToSignIn({ server, challenge });
+  const allowed = await decide({ server, id, fields: { decision: "allow", account: accountId } });
+  const code = new URL(allowed.headers.get("location") ?? "").searchParams.get("code") ?? "";
+  const exchanged = await exchange({ server, code, verifier });
+
+  return z.object({ token: z.string() }).parse(await exchanged.json()).token;
+}
+
+test("replaces a sign-in of the CLI on the same computer when it signs in again", async () => {
+  const server = await createTestServer();
+  const codex = server.services.accounts.create("Codex");
+
+  const first = await signInCli({ server, accountId: codex.id });
+  const second = await signInCli({ server, accountId: codex.id });
+
+  expect(server.services.tokens.listByAccount(codex.id).map(({ name }) => name)).toEqual([
+    "artil on MacBook",
+  ]);
+  expect((await server.call("/api/me", { token: first })).status).toBe(401);
+  expect((await server.call("/api/me", { token: second })).status).toBe(200);
+});
+
 test("refuses a code traded without the verifier the sign-in was asked with", async () => {
   const server = await createTestServer();
   const account = server.services.accounts.create("Codex");
