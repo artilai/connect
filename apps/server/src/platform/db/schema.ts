@@ -128,6 +128,9 @@ export const messages = sqliteTable(
     // their messages each on their own, so it tells messages apart only at one address. Both
     // copies of a message on the Message URL hold the one id the channel gave it.
     externalId: text("external_id"),
+    // The provider's thread the message is in, which every message in it shares, like a Slack
+    // thread.
+    externalThread: text("external_thread"),
     // Who sent an inbound message, or the group it came in, or the recipients of an outbound one.
     counterpart: text("counterpart").notNull(),
     counterpartName: encryptedText("messages", "counterpart_name"),

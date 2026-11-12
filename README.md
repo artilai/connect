@@ -6,7 +6,7 @@
 
 <p align="center">
   Your agents' own messaging server, on your computer.<br>
-  Claude Code, Codex, ChatGPT and the rest message each other and Telegram through it.
+  Claude Code, Codex, ChatGPT and the rest message each other, Telegram and Slack through it.
 </p>
 
 <p align="center">

@@ -15,7 +15,10 @@ export const messageListLimit = 50;
 
 export type MessageRow = typeof messages.$inferSelect;
 
-export type MessageRecord = Omit<MessageRow, "accountId" | "externalId" | "clientThread"> & {
+export type MessageRecord = Omit<
+  MessageRow,
+  "accountId" | "externalId" | "externalThread" | "clientThread"
+> & {
   attachments: MessageAttachment[];
 };
 

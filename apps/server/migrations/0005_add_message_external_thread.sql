@@ -1,0 +1,1 @@
+ALTER TABLE `messages` ADD `external_thread` text;

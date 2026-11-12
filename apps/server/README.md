@@ -1,8 +1,8 @@
 # @artil-ai/connect
 
 The self-hosted Artil Connect server and its `artil-connect` command: the HTTP API the
-`artil` CLI calls, MCP with its OAuth sign-in, the sign-in page, Telegram, and
-Tailscale Funnel for public mode.
+`artil` CLI calls, MCP with its OAuth sign-in, the sign-in page, Telegram,
+Slack, and Tailscale Funnel for public mode.
 
 ## Usage
 

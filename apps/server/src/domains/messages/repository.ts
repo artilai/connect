@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, isNotNull, lt, max, or } from "drizzle-orm";
+import { and, desc, eq, inArray, isNotNull, lt, max, or, type SQL } from "drizzle-orm";
 
 import type { Database } from "../../platform/db/connection";
 import { messages } from "../../platform/db/schema";
@@ -25,7 +25,13 @@ type FindByExternalIdOptions = {
   externalId: string;
 };
 
-type FindLastClientThreadOptions = { addressId: string; counterpart: string };
+type FindLastClientThreadOptions = { addressId: string; where: SQL };
+
+type FindLastClientThreadByCounterpartOptions = { addressId: string; counterpart: string };
+
+type FindLastClientThreadByExternalThreadOptions = { addressId: string; externalThread: string };
+
+type MarkSentOptions = { id: string; externalId: string; externalThread?: string };
 
 type HasReceivedOptions = { addressId: string; externalId: string };
 
@@ -44,6 +50,28 @@ export function createMessagesRepository(db: Database) {
       .from(messages)
       .where(and(eq(messages.accountId, accountId), eq(messages.id, id)))
       .get();
+  }
+
+  // The thread of the client whose message from the address last went where the condition says, of
+  // those that named one.
+  function findLastClientThread({ addressId, where }: FindLastClientThreadOptions) {
+    return (
+      db
+        .select({ clientThread: messages.clientThread })
+        .from(messages)
+        .where(
+          and(
+            eq(messages.addressId, addressId),
+            eq(messages.direction, "outbound"),
+            where,
+            eq(messages.status, "sent"),
+            isNotNull(messages.clientThread),
+          ),
+        )
+        .orderBy(desc(messages.createdAt), desc(messages.id))
+        .limit(1)
+        .get()?.clientThread ?? null
+    );
   }
 
   // Newer messages first, the latest of those created in the same millisecond by id.
@@ -94,24 +122,17 @@ export function createMessagesRepository(db: Database) {
         )
         .get(),
 
-    // The thread of the client whose message from the address last reached someone, of those that
-    // named one.
-    findLastClientThread: ({ addressId, counterpart }: FindLastClientThreadOptions) =>
-      db
-        .select({ clientThread: messages.clientThread })
-        .from(messages)
-        .where(
-          and(
-            eq(messages.addressId, addressId),
-            eq(messages.direction, "outbound"),
-            eq(messages.counterpart, counterpart),
-            eq(messages.status, "sent"),
-            isNotNull(messages.clientThread),
-          ),
-        )
-        .orderBy(desc(messages.createdAt), desc(messages.id))
-        .limit(1)
-        .get()?.clientThread ?? null,
+    findLastClientThreadByCounterpart: ({
+      addressId,
+      counterpart,
+    }: FindLastClientThreadByCounterpartOptions) =>
+      findLastClientThread({ addressId, where: eq(messages.counterpart, counterpart) }),
+
+    findLastClientThreadByExternalThread: ({
+      addressId,
+      externalThread,
+    }: FindLastClientThreadByExternalThreadOptions) =>
+      findLastClientThread({ addressId, where: eq(messages.externalThread, externalThread) }),
 
     add: (message: NewMessage) => db.insert(messages).values(message).returning().get(),
 
@@ -164,9 +185,13 @@ export function createMessagesRepository(db: Database) {
         .orderBy(desc(max(messages.createdAt)))
         .all(),
 
-    // Marks a message the server sent with the id the provider gave it.
-    markSent: (id: string, externalId: string) =>
-      db.update(messages).set({ status: "sent", externalId }).where(eq(messages.id, id)).run(),
+    // Marks a message the server sent with the id the provider gave it, and the thread it went in.
+    markSent: ({ id, externalId, externalThread }: MarkSentOptions) =>
+      db
+        .update(messages)
+        .set({ status: "sent", externalId, externalThread })
+        .where(eq(messages.id, id))
+        .run(),
 
     markFailed: (id: string, error: string) =>
       db.update(messages).set({ status: "failed", error }).where(eq(messages.id, id)).run(),

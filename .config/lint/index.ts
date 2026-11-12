@@ -298,7 +298,12 @@ const noInlineParamTypesRule = defineRule({
 });
 
 // The workspaces from the bottom layer up; a workspace imports only from layers below its own.
-const layers = [["errors", "utils"], ["channels"], ["telegram-channel", "url-channel"], ["server"]];
+const layers = [
+  ["errors", "utils"],
+  ["channels"],
+  ["slack-channel", "telegram-channel", "url-channel"],
+  ["server"],
+];
 
 // A workspace's layer, or -1 for one without a layer.
 function layerOf(workspace: string) {

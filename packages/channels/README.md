@@ -15,4 +15,8 @@ A channel without a provider, like the Message URL, hands what it sends back to
 the server with `deliver`, which takes it as a message the server's accounts
 received.
 
+A channel whose provider threads messages, like Slack, names the thread of each
+message it takes and sends, and gets the thread of the message an answer
+answers.
+
 A release that breaks channels built for the last one raises `contractVersion` by one, and the pull requests before it leave it as it is: the server loads only channels of its own version.

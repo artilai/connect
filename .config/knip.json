@@ -9,6 +9,7 @@
     },
     "packages/channels": {},
     "packages/errors": {},
+    "packages/slack-channel": {},
     "packages/telegram-channel": {},
     "packages/url-channel": {},
     "packages/utils": {
