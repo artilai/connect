@@ -172,4 +172,4 @@ running a server. It adds email and SMS, and has plugins for
 
 ## License
 
-[Elastic License 2.0](LICENSE)
+[MIT License](LICENSE)
