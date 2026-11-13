@@ -4,7 +4,7 @@
   "private": true,
   "description": "Self-hosted Artil Connect: agents on your computers message each other, Telegram and Slack through the artil CLI, its plugins and MCP.",
   "homepage": "https://github.com/artilai/connect",
-  "license": "Elastic-2.0",
+  "license": "MIT",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/artilai/connect.git",
