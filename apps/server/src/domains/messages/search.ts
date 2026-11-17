@@ -60,7 +60,7 @@ export function createSearchIndex() {
 
   index.run(`create table messages (
     rowid integer primary key,
-    id text not null,
+    id text not null unique,
     account_id text not null,
     channel text not null,
     direction text not null,
@@ -70,7 +70,7 @@ export function createSearchIndex() {
 
   // Each word matches as the start of a longer one too, which the prefix indexes keep quick.
   index.run(`create virtual table words using fts5(
-    subject, text, content = '', tokenize = 'unicode61', prefix = '2 3 4'
+    subject, text, content = '', contentless_delete = 1, tokenize = 'unicode61', prefix = '2 3 4'
   )`);
 
   const insertMessage = index.prepare(
@@ -78,6 +78,12 @@ export function createSearchIndex() {
   );
 
   const insertWords = index.prepare("insert into words (rowid, subject, text) values (?, ?, ?)");
+
+  const removeWords = index.prepare(
+    "delete from words where rowid = (select rowid from messages where id = ?)",
+  );
+
+  const removeMessage = index.prepare("delete from messages where id = ?");
 
   return {
     add({
@@ -102,6 +108,11 @@ export function createSearchIndex() {
       insertWords.run(lastInsertRowid, folded(subject ?? ""), folded(text));
     },
 
+    remove(id: string) {
+      removeWords.run(id);
+      removeMessage.run(id);
+    },
+
     // The ids of the messages that hold any of the words, best match first: a word in the subject
     // counts twice, and the newest comes first among equal matches.
     search({ words, limit, ...narrowing }: IndexQuery) {
@@ -121,7 +132,7 @@ export function createSearchIndex() {
         .query<{ id: string }, (string | number)[]>(
           `select messages.id from words join messages on messages.rowid = words.rowid
            where words match ?${narrowed}
-           order by bm25(words, 2, 1), messages.created_at desc
+           order by bm25(words, 2, 1), messages.created_at desc, messages.rowid desc
            limit ?`,
         )
         .all(match, ...columns.map(({ value }) => value), limit)
