@@ -1,4 +1,5 @@
 import { AppError } from "@artil/errors";
+import { channel as forumChannel } from "@artil/forum-channel";
 import { channel as urlChannel } from "@artil/url-channel";
 
 import type { AccessService } from "../access/service";
@@ -87,11 +88,15 @@ export function createAccountsService({
       return newName;
     },
 
-    // Removes the account with its messages and sign-ins, its files from the bucket, and itself
-    // from the other accounts' lists at their Message URLs, where it goes by its id.
+    // Removes the account with its messages, its posts on the forum among them, and sign-ins, its
+    // files from the bucket, and itself from the other accounts' lists at their Message URLs and on
+    // the forum, where it goes by its id.
     async remove(id: string) {
       await files.removeByAccount(id);
-      access.removeSenderEverywhere({ channel: urlChannel.kind, sender: id });
+
+      for (const channel of [urlChannel.kind, forumChannel.kind]) {
+        access.removeSenderEverywhere({ channel, sender: id });
+      }
 
       return accountsRepository.remove(id);
     },

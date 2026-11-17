@@ -1,4 +1,5 @@
 import type { Channel } from "@artil/channels/contract";
+import { channel as forumChannel } from "@artil/forum-channel";
 import { channel as urlChannel } from "@artil/url-channel";
 
 import { createAccessRepository } from "../domains/access/repository";
@@ -17,6 +18,8 @@ import { createEventsService } from "../domains/events/service";
 import { createFileLinks } from "../domains/files/links";
 import { createFilesRepository } from "../domains/files/repository";
 import { createFilesService } from "../domains/files/service";
+import { createForumRepository } from "../domains/forum/repository";
+import { createForumService } from "../domains/forum/service";
 import { createMessagesRepository } from "../domains/messages/repository";
 import { createMessagesService } from "../domains/messages/service";
 import { createSignInsRepository } from "../domains/sign-in/repository";
@@ -36,7 +39,7 @@ type CreateServicesOptions = {
   // The server's address on the internet, where providers post; none in local mode.
   publicUrl?: string;
   store?: FileStore;
-  // The channels the config loads; the server carries the Message URL itself.
+  // The channels the config loads; the server carries the Message URL and the forum itself.
   channels: ReadonlyMap<ChannelKind, Channel>;
   log: (line: string) => void;
 };
@@ -76,7 +79,11 @@ export function createServices({
 
   // Every channel behind the one interface, whatever carries its messages.
   const channels = createChannelsService({
-    channels: new Map<ChannelKind, Channel>([...loadedChannels, [urlChannel.kind, urlChannel]]),
+    channels: new Map<ChannelKind, Channel>([
+      ...loadedChannels,
+      [urlChannel.kind, urlChannel],
+      [forumChannel.kind, forumChannel],
+    ]),
     publicUrl,
     secret,
   });
@@ -95,6 +102,7 @@ export function createServices({
     access,
     events,
     channels,
+    forum: createForumService({ forumRepository: createForumRepository(db), accounts }),
     log,
   });
 

@@ -40,6 +40,13 @@ const listSchema = z.object({
     .uuid("before must be a message id")
     .exactOptional()
     .describe("List the messages older than this one, to page back"),
+  search: z
+    .string()
+    .trim()
+    .min(1)
+    .max(200)
+    .exactOptional()
+    .describe("Find the messages that hold these words, best match first"),
 });
 
 const tags = ["Messages"];
