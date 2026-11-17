@@ -226,21 +226,37 @@ export function createMessagesRepository(db: Database) {
 
     // The messages the filter narrows to that hold any of the words, best match first.
     search({ accountId, filter }: SearchOptions) {
-      const { channel, words, limit = messageListLimit } = filter;
+      const index = filledIndex();
+      const { channel, limit = messageListLimit } = filter;
 
-      const found = filledIndex().search({
+      const query = {
         ...filter,
         // The forum lists everyone's posts, and the rest of the messages are the account's.
         accountId: channel === forumChannel.kind ? undefined : accountId,
-        words,
         limit,
-      });
+      };
 
-      if (found.length === 0) return [];
+      // A message removed since the index took it, like those of a removed account, leaves the
+      // index once a search meets it, and the search looks again past it.
+      for (;;) {
+        const found = index.search(query);
 
-      const rows = db.select().from(messages).where(inArray(messages.id, found)).all();
+        const rows =
+          found.length > 0
+            ? db.select().from(messages).where(inArray(messages.id, found)).all()
+            : [];
 
-      return rows.toSorted((first, second) => found.indexOf(first.id) - found.indexOf(second.id));
+        const kept = new Set(rows.map(({ id }) => id));
+        const removed = found.filter((id) => !kept.has(id));
+
+        if (removed.length === 0) {
+          return rows.toSorted(
+            (first, second) => found.indexOf(first.id) - found.indexOf(second.id),
+          );
+        }
+
+        for (const id of removed) index.remove(id);
+      }
     },
 
     // A provider that delivers a message twice gets the one the server already took.

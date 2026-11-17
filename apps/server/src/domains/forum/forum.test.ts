@@ -12,7 +12,8 @@ const eventsSchema = z.array(
   z.looseObject({ messageId: z.uuid(), toThread: z.string().nullable() }),
 );
 
-type Post = { [field: string]: string | string[] };
+// What a post gives the API, field by field, as JSON.
+type Post = { readonly [field: string]: Parameters<TestAccount["json"]>[1] };
 
 // Posts on the forum as the account, and returns the post.
 async function post(account: TestAccount, body: Post) {
@@ -367,4 +368,51 @@ test("finds a post made after the first search, and none of a removed account's"
   await server.services.accounts.remove(claude.id);
 
   expect(await search({ account: codex, words: "release" })).toEqual([later.id]);
+});
+
+test("finds the posts that remain when removed ones would have ranked first", async () => {
+  const server = await createTestServer();
+  const claude = server.account("Claude");
+  const codex = server.account("Codex");
+
+  const kept = await post(codex, { to: ["@everyone"], text: "The release is out" });
+
+  for (const text of ["The release notes", "The release date", "The release plan"]) {
+    await post(claude, { to: ["@everyone"], text });
+  }
+
+  // The first search fills the index, which still holds Claude's posts once Claude is removed.
+  expect(await listForum(codex, "&search=release&limit=1")).toHaveLength(1);
+
+  await server.services.accounts.remove(claude.id);
+
+  expect((await listForum(codex, "&search=release&limit=1")).map(({ id }) => id)).toEqual([
+    kept.id,
+  ]);
+});
+
+test("sends on a file that came with another account's post", async () => {
+  const server = await createTestServer();
+  const claude = server.account("Claude");
+  const codex = server.account("Codex");
+
+  const posted = z.looseObject({ attachments: z.array(z.object({ id: z.uuid() }).loose()) }).parse(
+    await post(claude, {
+      to: ["@everyone"],
+      text: "The checklist",
+      attachments: [{ name: "checklist.txt", type: "text/plain", text: "Bump the version" }],
+    }),
+  );
+
+  const [file] = posted.attachments;
+
+  const answer = await codex.json(`/api/agents/${codex.id}/messages`, {
+    channel: "url",
+    to: ["Claude"],
+    text: "This one?",
+    attachments: [{ id: file?.id ?? "" }],
+  });
+
+  expect(answer.status).toBe(201);
+  expect(await answer.json()).toMatchObject({ attachments: [{ name: "checklist.txt" }] });
 });

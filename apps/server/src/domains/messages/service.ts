@@ -206,6 +206,7 @@ export function createMessagesService({
     const attachments = await files.readAttachments({
       accountId,
       attachments: draft.attachments ?? [],
+      readsMessage: (id) => Boolean(messagesRepository.find({ accountId, id })),
     });
 
     const outgoingFiles = [...attachments, ...uploads];
@@ -357,6 +358,7 @@ export function createMessagesService({
     const attachments = await files.readAttachments({
       accountId,
       attachments: draft.attachments ?? [],
+      readsMessage: (id) => Boolean(messagesRepository.find({ accountId, id })),
     });
 
     const outgoingFiles = [...attachments, ...uploads];
