@@ -16,6 +16,10 @@ export const addressSchema = z
     id: z.uuid(),
     channel: channelKindSchema,
     value: z.string().describe("The agent's address on the channel"),
+    name: z
+      .string()
+      .nullable()
+      .describe("Null: an address on this server goes by its value, which people know it by"),
     domainId: z.uuid().nullable().describe("Null: the server has no domains of its own"),
     primary: z.boolean().describe("Whether new messages on its channel go out from it"),
     createdAt: z.date(),
@@ -25,5 +29,5 @@ export const addressSchema = z
 type Address = z.infer<typeof addressSchema>;
 
 export function toAddress({ id, channel, value, createdAt }: AddressRecord): Address {
-  return { id, channel, value, domainId: null, primary: true, createdAt };
+  return { id, channel, value, name: null, domainId: null, primary: true, createdAt };
 }
