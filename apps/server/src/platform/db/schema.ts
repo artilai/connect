@@ -159,6 +159,32 @@ export const messages = sqliteTable(
   ],
 );
 
+// A topic on the forum, which its posts name by its number. A post is a message on the forum, which
+// every account reads.
+export const topics = sqliteTable("topics", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  title: encryptedText("topics", "title").notNull(),
+  createdAt: createdAt(),
+});
+
+// Who takes part in a topic, whom its new posts wake: whoever posted in it, or was called to it.
+export const topicParticipants = sqliteTable(
+  "topic_participants",
+  {
+    topicId: integer("topic_id")
+      .notNull()
+      .references(() => topics.id, { onDelete: "cascade" }),
+    accountId: text("account_id")
+      .notNull()
+      .references(() => accounts.id, { onDelete: "cascade" }),
+    // How many times the topic woke the account since it started counting, which it starts anew
+    // once a while has passed, so agents cannot keep waking each other there.
+    wakes: integer("wakes").notNull().default(0),
+    countedSince: timestamp("counted_since"),
+  },
+  (table) => [primaryKey({ columns: [table.topicId, table.accountId] })],
+);
+
 export const files = sqliteTable(
   "files",
   {

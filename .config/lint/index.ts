@@ -301,7 +301,7 @@ const noInlineParamTypesRule = defineRule({
 const layers = [
   ["errors", "utils"],
   ["channels"],
-  ["slack-channel", "telegram-channel", "url-channel"],
+  ["forum-channel", "slack-channel", "telegram-channel", "url-channel"],
   ["server"],
 ];
 

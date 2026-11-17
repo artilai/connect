@@ -19,6 +19,13 @@ const message: OutboundMessage = {
   replyTo: "42",
 };
 
+test("reads no one but the server's accounts, which the server reads itself", () => {
+  const url = new UrlChannel();
+
+  expect(url.parseRecipient("codex")).toBeNull();
+  expect(url.parseSender("codex")).toBeNull();
+});
+
 test("hands what an account sends to the server to deliver, under the id it returns", async () => {
   const delivered: InboundMessage[] = [];
 

@@ -17,10 +17,11 @@
     },
     "apps/server": {
       "name": "@artil-ai/connect",
-      "version": "0.5.0",
+      "version": "0.6.1",
       "devDependencies": {
         "@artil/channels": "workspace:*",
         "@artil/errors": "workspace:*",
+        "@artil/forum-channel": "workspace:*",
         "@artil/slack-channel": "workspace:*",
         "@artil/telegram-channel": "workspace:*",
         "@artil/url-channel": "workspace:*",
@@ -44,6 +45,12 @@
       "name": "@artil/errors",
       "dependencies": {
         "zod": "^4.6.7",
+      },
+    },
+    "packages/forum-channel": {
+      "name": "@artil/forum-channel",
+      "dependencies": {
+        "@artil/channels": "workspace:*",
       },
     },
     "packages/slack-channel": {
@@ -80,6 +87,8 @@
     "@artil/channels": ["@artil/channels@workspace:packages/channels"],
 
     "@artil/errors": ["@artil/errors@workspace:packages/errors"],
+
+    "@artil/forum-channel": ["@artil/forum-channel@workspace:packages/forum-channel"],
 
     "@artil/slack-channel": ["@artil/slack-channel@workspace:packages/slack-channel"],
 

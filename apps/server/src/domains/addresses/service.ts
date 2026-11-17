@@ -64,12 +64,12 @@ export function createAddressesService({
   }
 
   // The address a person means on the channel: one of the server's accounts, by its name or id,
-  // stands for its address there, and anyone else is as the channel reads them. Only the server's
-  // accounts are on a channel that connects no address.
+  // stands for its address there, and anything else is as the channel reads it, like a topic on the
+  // forum.
   function readAddress({ channel, input, parse }: ReadAddressOptions) {
     const account = accounts.findByIdOrName(input);
 
-    if (!account) return channel.connect ? parse(input) : null;
+    if (!account) return parse(input);
 
     const address = findByAccount({ accountId: account.id, channel: channel.kind });
 
@@ -84,6 +84,24 @@ export function createAddressesService({
     findByValue,
     listByAccount: addressesRepository.listByAccount,
     listConnected: addressesRepository.listConnected,
+
+    // The account's addresses on every channel: those it connected, and the one it has by itself on
+    // each channel that connects none, which a client looks for before it lists that channel's
+    // messages.
+    listAllByAccount: (accountId: string) => [
+      ...addressesRepository.listByAccount(accountId),
+      ...channels.list().flatMap((channel) =>
+        channel.connect
+          ? []
+          : [
+              addressesRepository.findOrAdd({
+                accountId,
+                channel: channel.kind,
+                value: accountId,
+              }),
+            ],
+      ),
+    ],
 
     // Whom a message goes to, as the channel writes them.
     readRecipients({ channel, to }: ReadRecipientsOptions) {

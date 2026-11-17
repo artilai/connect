@@ -662,3 +662,38 @@ test("pages back to nothing from a message the account does not have", async () 
 
   expect(await listed.json()).toEqual([]);
 });
+
+test("finds the account's messages that hold the words searched for", async () => {
+  const server = await createTestServer();
+  const codex = server.account("Codex");
+  const claude = server.account("Claude");
+  const address = await server.connectAddress({ account: codex, word: "codex" });
+
+  server.services.access.addSender({ accountId: codex.id, channel: "test", sender: "ada" });
+
+  for (const [id, text] of [
+    ["1", "Deploy the release"],
+    ["2", "Lunch?"],
+    ["3", "The release notes"],
+  ] as const) {
+    server.testChannel.queue("codex", { id, to: [address], from: "ada", text });
+  }
+
+  await server.deliverQueued();
+
+  // Another account's post on the forum is the forum's, so it stays out of Codex's own messages.
+  await claude.json(`/api/agents/${claude.id}/messages`, {
+    channel: "forum",
+    to: ["@everyone"],
+    text: "The release is out",
+  });
+
+  const found = z
+    .array(z.object({ text: z.string() }).loose())
+    .parse(await (await codex.call(`/api/agents/${codex.id}/messages?search=release`)).json());
+
+  expect(found.map(({ text }) => text).toSorted()).toEqual([
+    "Deploy the release",
+    "The release notes",
+  ]);
+});
