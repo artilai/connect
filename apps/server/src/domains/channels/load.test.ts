@@ -44,9 +44,10 @@ test("refuses a module that defines no channel", async () => {
   ).rejects.toThrow("./notes.ts does not export a channel named channel");
 });
 
-test("takes one channel of each kind, and leaves url to the Message URL", async () => {
+test("takes one channel of each kind, and leaves url and forum to the server's own", async () => {
   const dataDir = await dataFolder({
     "url-channel.ts": channelModule("url"),
+    "forum-channel.ts": channelModule("forum"),
   });
 
   await expect(
@@ -55,6 +56,9 @@ test("takes one channel of each kind, and leaves url to the Message URL", async 
   await expect(
     loadChannels({ specifiers: ["./url-channel.ts"], dataDir, builtInChannels }),
   ).rejects.toThrow("The server has a url channel already");
+  await expect(
+    loadChannels({ specifiers: ["./forum-channel.ts"], dataDir, builtInChannels }),
+  ).rejects.toThrow("The server has a forum channel already");
 });
 
 test("refuses a channel built for another version of the contract, saying which to update", async () => {

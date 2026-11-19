@@ -10,7 +10,8 @@ import { loadChannels } from "../src/domains/channels/load";
 import { newConfig } from "../src/platform/config";
 
 // Runs the published artil CLI against the server, the way a person sets up two accounts on one
-// computer: both sign in with a token, one listens, and the other writes to its Message URL.
+// computer: both sign in with a token, one listens, and the other writes to its Message URL and
+// calls it to a topic on the forum.
 const artil = process.argv[2] ?? Bun.which("artil");
 
 if (!artil) throw new Error("Give the artil CLI's path, or put artil on the PATH");
@@ -107,26 +108,31 @@ try {
       })(),
     );
 
-    await run({ account: "claude", args: ["url", "send", "codex", "--", "Review the release"] });
-
     const reader = channel.stdout.pipeThrough(new TextDecoderStream()).getReader();
 
-    const heard = await within(
-      20,
-      (async () => {
-        let text = "";
+    // What the channel prints until it says the phrase.
+    function hear(phrase: string) {
+      return within(
+        20,
+        (async () => {
+          let text = "";
 
-        while (!text.includes("Review the release")) {
-          const chunk = await reader.read();
+          while (!text.includes(phrase)) {
+            const chunk = await reader.read();
 
-          if (chunk.done) throw new Error(`The channel ended: ${text}`);
+            if (chunk.done) throw new Error(`The channel ended: ${text}`);
 
-          text += chunk.value;
-        }
+            text += chunk.value;
+          }
 
-        return text;
-      })(),
-    );
+          return text;
+        })(),
+      );
+    }
+
+    await run({ account: "claude", args: ["url", "send", "codex", "--", "Review the release"] });
+
+    const heard = await hear("Review the release");
 
     if (!heard.includes("From: claude"))
       throw new Error(`Codex heard the message without its sender: ${heard}`);
@@ -137,8 +143,71 @@ try {
       throw new Error(`The team does not show Codex listening: ${team}`);
     }
 
+    // The id of the post the CLI says it posted.
+    function postId(output: string) {
+      const id = /forum:([\da-f\-]{36})/v.exec(output)?.[1];
+
+      if (!id) throw new Error(`The CLI did not say which post it made: ${output}`);
+
+      return id;
+    }
+
+    // A topic for everyone wakes no one, and a post that calls Codex to it wakes Codex.
+    const opening = postId(
+      await run({
+        account: "claude",
+        args: [
+          "messages",
+          "send",
+          "--channel",
+          "forum",
+          "--to",
+          "@everyone",
+          "--subject",
+          "How do we release?",
+          "--",
+          "Bump the version first",
+        ],
+      }),
+    );
+
+    const call = postId(
+      await run({
+        account: "claude",
+        args: [
+          "messages",
+          "send",
+          "--channel",
+          "forum",
+          "--to",
+          "1",
+          "--to",
+          "codex",
+          "--",
+          "Check the changelog",
+        ],
+      }),
+    );
+
+    // The channel tells of a message on a channel artil has no commands for by its sender and
+    // subject, and the agent reads it with artil messages.
+    const called = await hear(`artil messages read forum:${call}`);
+
+    if (called.includes(opening) || !called.includes("Subject: How do we release?")) {
+      throw new Error(`Codex heard of the forum other than called to topic 1: ${called}`);
+    }
+
+    const topic = await run({
+      account: "codex",
+      args: ["messages", "list", "--channel", "forum", "--from", "1"],
+    });
+
+    if (topic.split("How do we release?").length !== 3) {
+      throw new Error(`Codex does not see both posts in the topic: ${topic}`);
+    }
+
     console.log(
-      "The artil CLI signed in as two accounts, and one heard the other at its Message URL.",
+      "The artil CLI signed in as two accounts, and one heard the other at its Message URL and on the forum.",
     );
   } finally {
     channel.kill();

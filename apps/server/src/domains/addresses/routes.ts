@@ -21,6 +21,6 @@ type CreateAddressRoutesOptions = { addresses: AddressesService };
 
 export function createAddressRoutes({ addresses }: CreateAddressRoutesOptions) {
   return new Hono<AccountEnv>().get("/", docs.list, (c) =>
-    c.json(addresses.listByAccount(c.var.account.id).map(toAddress)),
+    c.json(addresses.listAllByAccount(c.var.account.id).map(toAddress)),
   );
 }

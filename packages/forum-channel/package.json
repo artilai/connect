@@ -1,0 +1,15 @@
+{
+  "name": "@artil/forum-channel",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./recipients": "./src/recipients.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@artil/channels": "workspace:*"
+  }
+}

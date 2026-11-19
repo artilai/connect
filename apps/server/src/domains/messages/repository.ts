@@ -1,10 +1,13 @@
-import { and, desc, eq, inArray, isNotNull, lt, max, or, type SQL } from "drizzle-orm";
+import { and, asc, desc, eq, gt, inArray, isNotNull, lt, max, or, type SQL } from "drizzle-orm";
+
+import { channel as forumChannel } from "@artil/forum-channel";
 
 import type { Database } from "../../platform/db/connection";
 import { messages } from "../../platform/db/schema";
 import type { Refusal } from "../access/schema";
 import type { ChannelKind } from "../channels/schema";
-import { messageListLimit, type MessageRow, type NewMessage } from "./schema";
+import { messageListLimit, type MessageRow, type NewMessage, subjectOf } from "./schema";
+import { createSearchIndex, type IndexedMessage } from "./search";
 
 export type MessageFilter = {
   channel?: ChannelKind;
@@ -16,6 +19,12 @@ export type MessageFilter = {
 };
 
 type ListOptions = { accountId: string; filter: MessageFilter };
+
+// A search narrows the messages as a list does, and lists its best matches, so it pages back from
+// no message.
+type SearchFilter = Omit<MessageFilter, "before"> & { words: readonly string[] };
+
+type SearchOptions = { accountId: string; filter: SearchFilter };
 
 type FindOptions = { accountId: string; id: string };
 
@@ -31,6 +40,12 @@ type FindLastClientThreadByCounterpartOptions = { addressId: string; counterpart
 
 type FindLastClientThreadByExternalThreadOptions = { addressId: string; externalThread: string };
 
+type FindLastClientThreadByGroupOptions = {
+  accountId: string;
+  channel: ChannelKind;
+  counterpart: string;
+};
+
 type MarkSentOptions = { id: string; externalId: string; externalThread?: string };
 
 type HasReceivedOptions = { addressId: string; externalId: string };
@@ -43,12 +58,56 @@ type ListRefusedSendersOptions = {
   refusals: readonly Refusal[];
 };
 
+// The forum's posts are the whole team's, which every account reads. Any other message is only its
+// account's.
+function readableBy(accountId: string) {
+  return or(eq(messages.accountId, accountId), eq(messages.channel, forumChannel.kind));
+}
+
+// How many messages the index takes from the database at a time when it fills, so the server does
+// not decrypt every one of them at once.
+const indexPage = 1000;
+
+function toIndexed(row: MessageRow): IndexedMessage {
+  return { ...row, subject: subjectOf(row) };
+}
+
 export function createMessagesRepository(db: Database) {
+  const searchIndex = createSearchIndex();
+  let indexFilled = false;
+
+  // The index, which takes every message the first time a search needs it, and each one added from
+  // then on. The server is the one process that adds messages; one removed meanwhile, with its
+  // account, is left out of what a search finds.
+  function filledIndex() {
+    if (indexFilled) return searchIndex;
+
+    let page = db.select().from(messages).orderBy(asc(messages.id)).limit(indexPage).all();
+
+    while (page.length > 0) {
+      for (const row of page) searchIndex.add(toIndexed(row));
+
+      const last = page.at(-1)?.id ?? "";
+
+      page = db
+        .select()
+        .from(messages)
+        .where(gt(messages.id, last))
+        .orderBy(asc(messages.id))
+        .limit(indexPage)
+        .all();
+    }
+
+    indexFilled = true;
+
+    return searchIndex;
+  }
+
   function find({ accountId, id }: FindOptions) {
     return db
       .select()
       .from(messages)
-      .where(and(eq(messages.accountId, accountId), eq(messages.id, id)))
+      .where(and(readableBy(accountId), eq(messages.id, id)))
       .get();
   }
 
@@ -97,7 +156,8 @@ export function createMessagesRepository(db: Database) {
         .from(messages)
         .where(
           and(
-            eq(messages.accountId, accountId),
+            // The forum lists everyone's posts, and the rest of the messages are the account's.
+            channel === forumChannel.kind ? undefined : eq(messages.accountId, accountId),
             channel ? eq(messages.channel, channel) : undefined,
             direction && eq(messages.direction, direction),
             counterpart ? eq(messages.counterpart, counterpart) : undefined,
@@ -134,7 +194,70 @@ export function createMessagesRepository(db: Database) {
     }: FindLastClientThreadByExternalThreadOptions) =>
       findLastClientThread({ addressId, where: eq(messages.externalThread, externalThread) }),
 
-    add: (message: NewMessage) => db.insert(messages).values(message).returning().get(),
+    // The thread of the account's client that last wrote in a group of the channel, like a topic on
+    // the forum, of the messages that named one.
+    findLastClientThreadByGroup: ({
+      accountId,
+      channel,
+      counterpart,
+    }: FindLastClientThreadByGroupOptions) =>
+      db
+        .select({ clientThread: messages.clientThread })
+        .from(messages)
+        .where(
+          and(
+            eq(messages.accountId, accountId),
+            eq(messages.channel, channel),
+            eq(messages.counterpart, counterpart),
+            isNotNull(messages.clientThread),
+          ),
+        )
+        .orderBy(desc(messages.createdAt), desc(messages.id))
+        .limit(1)
+        .get()?.clientThread ?? null,
+
+    add(message: NewMessage) {
+      const added = db.insert(messages).values(message).returning().get();
+
+      if (indexFilled) searchIndex.add(toIndexed(added));
+
+      return added;
+    },
+
+    // The messages the filter narrows to that hold any of the words, best match first.
+    search({ accountId, filter }: SearchOptions) {
+      const index = filledIndex();
+      const { channel, limit = messageListLimit } = filter;
+
+      const query = {
+        ...filter,
+        // The forum lists everyone's posts, and the rest of the messages are the account's.
+        accountId: channel === forumChannel.kind ? undefined : accountId,
+        limit,
+      };
+
+      // A message removed since the index took it, like those of a removed account, leaves the
+      // index once a search meets it, and the search looks again past it.
+      for (;;) {
+        const found = index.search(query);
+
+        const rows =
+          found.length > 0
+            ? db.select().from(messages).where(inArray(messages.id, found)).all()
+            : [];
+
+        const kept = new Set(rows.map(({ id }) => id));
+        const removed = found.filter((id) => !kept.has(id));
+
+        if (removed.length === 0) {
+          return rows.toSorted(
+            (first, second) => found.indexOf(first.id) - found.indexOf(second.id),
+          );
+        }
+
+        for (const id of removed) index.remove(id);
+      }
+    },
 
     // A provider that delivers a message twice gets the one the server already took.
     hasReceived: ({ addressId, externalId }: HasReceivedOptions) =>

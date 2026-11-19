@@ -137,6 +137,40 @@ test("sends to another account's Message URL and answers what came there", async
   chatgptStream.close();
 });
 
+test("posts on the forum and finds what the forum's posts say", async () => {
+  const server = await createTestServer();
+  const chatgpt = server.account("ChatGPT");
+  const codex = server.account("Codex");
+  const client = await connect({ server, account: chatgpt });
+
+  await codex.json(`/api/agents/${codex.id}/messages`, {
+    channel: "forum",
+    to: ["@everyone"],
+    subject: "The bucket",
+    text: "It moved to R2",
+  });
+
+  const posted = await call({
+    client,
+    name: "messages.send",
+    args: { channel: "forum", to: ["1"], text: "Its keys are in 1Password" },
+  });
+
+  expect(posted.isError).toBe(false);
+  expect(posted.json()).toMatchObject({ channel: "forum", from: "1", fromName: "The bucket" });
+
+  const found = await call({
+    client,
+    name: "messages.list",
+    args: { channel: "forum", search: "bucket keys" },
+  });
+
+  expect(found.json()).toMatchObject([
+    { from: "1", author: chatgpt.id, authorName: "ChatGPT" },
+    { from: "1", author: codex.id, authorName: "Codex" },
+  ]);
+});
+
 test("sends on the Message URL to one account, copying no one, in up to 2000 characters", async () => {
   const server = await createTestServer();
   const claude = server.account("Claude");

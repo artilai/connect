@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { channel as forumChannel } from "@artil/forum-channel";
+
 import { admissions, type messages, refusals } from "../../platform/db/schema";
 import { labelSchema } from "../../platform/http/validate";
 import { channelKindSchema } from "../channels/schema";
@@ -84,7 +86,9 @@ export const messageSchema = z
     subject: z
       .string()
       .nullable()
-      .describe("Null: subjects are email's, which only Artil Cloud carries"),
+      .describe(
+        "The title of the topic a post on the forum is in. Null on the other channels: subjects are email's, which only Artil Cloud carries",
+      ),
     text: z.string(),
     attachments: z.array(attachmentSchema),
     thread: z
@@ -106,12 +110,20 @@ export const messageSchema = z
 
 type Message = z.infer<typeof messageSchema>;
 
+type Subjected = Pick<MessageRow, "channel" | "counterpartName">;
+
+// Subjects are email's, which only Artil Cloud carries, and a post on the forum goes by its topic's
+// title.
+export function subjectOf({ channel, counterpartName }: Subjected) {
+  return channel === forumChannel.kind ? counterpartName : null;
+}
+
 export function toMessage({ attachments, ...message }: MessageRecord, links: FileLinks): Message {
   return {
     ...message,
-    // Copies, subjects and Message-IDs are email's, which only Artil Cloud carries.
+    // Copies and Message-IDs are email's, which only Artil Cloud carries.
     cc: [],
-    subject: null,
+    subject: subjectOf(message),
     thread: null,
     attachments: attachments.map((attachment) => toAttachment(attachment, { links })),
   };
