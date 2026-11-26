@@ -26,7 +26,7 @@ test("sends to another account at its Message URL, which wakes it and keeps the 
     direction: "outbound",
     counterpart: codex.id,
     to: [codex.id],
-    toNames: ["Codex"],
+    toNames: { [codex.id]: "Codex" },
     text: "Review the PR",
     status: "sent",
   });
@@ -43,7 +43,7 @@ test("sends to another account at its Message URL, which wakes it and keeps the 
     counterpart: claude.id,
     counterpartName: "Claude",
     to: [codex.id],
-    toNames: ["Codex"],
+    toNames: { [codex.id]: "Codex" },
     text: "Review the PR",
     status: "received",
     admission: "team",

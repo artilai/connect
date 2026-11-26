@@ -143,7 +143,7 @@ export function createMessagesService({
   function accountNameAt({ channel, value }: AccountNameAtOptions) {
     const address = channels.find(channel) && addresses.findByValue({ channel, value });
 
-    return (address && accounts.findById(address.accountId)?.name) ?? null;
+    return address && accounts.findById(address.accountId)?.name;
   }
 
   function toRecords(rows: MessageRow[]): MessageRecord[] {
@@ -159,7 +159,13 @@ export function createMessagesService({
         ...message
       }) => ({
         ...message,
-        toNames: message.to.map((value) => accountNameAt({ channel: message.channel, value })),
+        toNames: Object.fromEntries(
+          message.to.flatMap((value) => {
+            const name = accountNameAt({ channel: message.channel, value });
+
+            return name ? [[value, name]] : [];
+          }),
+        ),
         attachments: attachmentsByMessage.get(message.id) ?? [],
       }),
     );
