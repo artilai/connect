@@ -7,6 +7,7 @@ import { createAccountsRepository } from "../domains/accounts/repository";
 import { createAccountsService } from "../domains/accounts/service";
 import { createAddressesRepository } from "../domains/addresses/repository";
 import { createAddressesService } from "../domains/addresses/service";
+import { createChannelStateRepository } from "../domains/channels/repository";
 import type { ChannelKind } from "../domains/channels/schema";
 import { createChannelsService } from "../domains/channels/service";
 import { createConnectionsRepository } from "../domains/connections/repository";
@@ -56,10 +57,19 @@ export function createServices({
 
   const access = createAccessService({ accessRepository: createAccessRepository(db) });
 
+  // Every channel behind the one interface, whatever carries its messages.
+  const channels = createChannelsService({
+    channels: new Map<ChannelKind, Channel>([...loadedChannels, [urlChannel.kind, urlChannel]]),
+    stateRepository: createChannelStateRepository(db),
+    publicUrl,
+    secret,
+  });
+
   const accounts = createAccountsService({
     accountsRepository: createAccountsRepository(db),
     access,
     files,
+    channels,
   });
 
   const tokens = createTokensService({ tokensRepository: createTokensRepository(db) });
@@ -72,13 +82,6 @@ export function createServices({
   const connections = createConnectionsService({
     connectionsRepository: createConnectionsRepository(db),
     events,
-  });
-
-  // Every channel behind the one interface, whatever carries its messages.
-  const channels = createChannelsService({
-    channels: new Map<ChannelKind, Channel>([...loadedChannels, [urlChannel.kind, urlChannel]]),
-    publicUrl,
-    secret,
   });
 
   const addresses = createAddressesService({

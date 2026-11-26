@@ -21,6 +21,7 @@
       "devDependencies": {
         "@artil/channels": "workspace:*",
         "@artil/errors": "workspace:*",
+        "@artil/forum-channel": "workspace:*",
         "@artil/slack-channel": "workspace:*",
         "@artil/telegram-channel": "workspace:*",
         "@artil/url-channel": "workspace:*",
@@ -43,6 +44,15 @@
     "packages/errors": {
       "name": "@artil/errors",
       "dependencies": {
+        "zod": "^4.6.7",
+      },
+    },
+    "packages/forum-channel": {
+      "name": "@artil/forum-channel",
+      "dependencies": {
+        "@artil/channels": "workspace:*",
+        "@artil/errors": "workspace:*",
+        "@artil/utils": "workspace:*",
         "zod": "^4.6.7",
       },
     },
@@ -80,6 +90,8 @@
     "@artil/channels": ["@artil/channels@workspace:packages/channels"],
 
     "@artil/errors": ["@artil/errors@workspace:packages/errors"],
+
+    "@artil/forum-channel": ["@artil/forum-channel@workspace:packages/forum-channel"],
 
     "@artil/slack-channel": ["@artil/slack-channel@workspace:packages/slack-channel"],
 

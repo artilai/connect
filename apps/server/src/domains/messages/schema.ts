@@ -2,7 +2,7 @@ import { z } from "zod";
 
 import { admissions, type messages, refusals } from "../../platform/db/schema";
 import { labelSchema } from "../../platform/http/validate";
-import { channelKindSchema } from "../channels/schema";
+import { type ChannelKind, channelKindSchema } from "../channels/schema";
 import {
   attachmentSchema,
   attachmentsSchema,
@@ -24,7 +24,26 @@ export type MessageRecord = Omit<
 
 export type NewMessage = Omit<typeof messages.$inferInsert, "createdAt">;
 
+// A null accountId lists every account's messages, as on a shared channel.
+export type MessageFilter = {
+  accountId: string | null;
+  channel?: ChannelKind;
+  direction?: "inbound" | "outbound";
+  counterpart?: string;
+  // Lists the messages older than this one, to page back.
+  before?: string;
+  limit?: number;
+};
+
 export const directionSchema = z.enum(["inbound", "outbound"]);
+
+export const searchSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(200)
+  .exactOptional()
+  .describe("Find the messages that hold any of these words, up to 10, best match first");
 
 const maxRecipients = 10;
 
@@ -41,7 +60,6 @@ export const draftSchema = z.object({
     .describe("The channel to start a conversation on, by its kind, from listChannels"),
   to: z
     .array(z.string().trim().min(1).max(320))
-    .min(1, "Give at least one recipient")
     .max(maxRecipients, `Send to at most ${maxRecipients} recipients`)
     .optional(),
   cc: z.array(z.string().trim().min(1).max(320)).max(50, "Copy at most 50 addresses").optional(),
@@ -81,10 +99,7 @@ export const messageSchema = z
       .describe("The name the author goes by, when the channel tells it"),
     to: z.array(z.string()).describe("Whom the message names as its recipients"),
     cc: z.array(z.string()).describe("Empty: copies are email's, which only Artil Cloud carries"),
-    subject: z
-      .string()
-      .nullable()
-      .describe("Null: subjects are email's, which only Artil Cloud carries"),
+    subject: z.string().nullable().describe("The subject, on a channel whose messages have them"),
     text: z.string(),
     attachments: z.array(attachmentSchema),
     thread: z
@@ -109,9 +124,8 @@ type Message = z.infer<typeof messageSchema>;
 export function toMessage({ attachments, ...message }: MessageRecord, links: FileLinks): Message {
   return {
     ...message,
-    // Copies, subjects and Message-IDs are email's, which only Artil Cloud carries.
+    // Copies and Message-IDs are email's, which only Artil Cloud carries.
     cc: [],
-    subject: null,
     thread: null,
     attachments: attachments.map((attachment) => toAttachment(attachment, { links })),
   };

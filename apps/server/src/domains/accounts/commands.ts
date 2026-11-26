@@ -89,7 +89,7 @@ export function createAccountCommands({
       const listening = connections.isListening(account.id) ? "listening" : "not listening";
 
       const accountAddresses = addresses
-        .listByAccount(account.id)
+        .listConnectedByAccount(account.id)
         .map(({ channel, value }) => `${channels.get(channel).name} ${value}`);
 
       // What differs from the default, where only the server's accounts wake the agent.
@@ -129,7 +129,7 @@ export function createAccountCommands({
     const account = accounts.getByIdOrName(name);
     const listening = connections.isListening(account.id);
     const connection = connections.findByAccount(account.id);
-    const accountAddresses = addresses.listByAccount(account.id);
+    const accountAddresses = addresses.listConnectedByAccount(account.id);
     const signIns = tokens.listByAccount(account.id);
     const serverUrl = await baseUrl();
 

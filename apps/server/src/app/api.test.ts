@@ -23,21 +23,33 @@ test("tells an account who it signs in as, the way the CLI reads Artil Cloud", a
 test("lists the team with each account's addresses and whether it listens", async () => {
   const server = await createTestServer();
   const codex = server.account("Codex");
+  const claude = server.account("Claude");
 
-  server.account("Claude");
   await server.connectAddress({ account: codex, word: "codex" });
 
   const team = await (await codex.call("/api/team")).json();
+
+  // Every account has its address by itself on each channel that connects none, its id.
+  function ownAddresses(id: string) {
+    return [
+      { channel: "forum", value: id },
+      { channel: "url", value: id },
+    ];
+  }
 
   expect(team).toEqual([
     expect.objectContaining({
       id: codex.id,
       kind: "agent",
       name: "Codex",
-      addresses: [{ channel: "test", value: "@codex" }],
+      addresses: [{ channel: "test", value: "@codex" }, ...ownAddresses(codex.id)],
       listening: false,
     }),
-    expect.objectContaining({ name: "Claude", addresses: [], listening: false }),
+    expect.objectContaining({
+      name: "Claude",
+      addresses: ownAddresses(claude.id),
+      listening: false,
+    }),
   ]);
 });
 
@@ -57,12 +69,21 @@ test("lists the server's channels with the words and limits a client works with"
         token: "word, which names the address @word",
       },
       limits: { recipients: 1, text: 100, files: 2, fileSize: 10 },
+      shared: false,
+    },
+    {
+      kind: "forum",
+      name: "Forum",
+      labels: { address: "account id", contact: "topic number or account name" },
+      limits: { recipients: 10, text: 32_000, files: 10 },
+      shared: true,
     },
     {
       kind: "url",
       name: "Message URL",
       labels: { address: "account id", contact: "account name or id" },
       limits: { recipients: 1, text: 2000, files: 10 },
+      shared: false,
     },
   ]);
 });

@@ -16,7 +16,7 @@ import { describeRefusal, type Refusal } from "../access/schema";
 import type { ChannelsService } from "../channels/service";
 import { type FileLinks, toAttachment } from "../files/schema";
 import type { Actor } from "../tokens/schema";
-import { draftSchema, type MessageRecord } from "./schema";
+import { draftSchema, type MessageRecord, searchSchema } from "./schema";
 import type { MessagesService } from "./service";
 
 const listSchema = z.object({
@@ -35,11 +35,12 @@ const listSchema = z.object({
     .min(1)
     .max(320)
     .exactOptional()
-    .describe("Keep the messages from this address"),
+    .describe("Keep the messages from this address, or in this group"),
   before: z
     .uuid("before must be a message id")
     .exactOptional()
     .describe("List the messages older than this one; pass the last id listed to page back"),
+  search: searchSchema,
 });
 
 const readSchema = z.object({
@@ -71,7 +72,7 @@ function sendSchemaFor(channels: readonly DescribedChannel[]) {
       `Who to send to: ${channels.map(({ kind, name, labels }) => `${kind} takes a ${name} ${labels.contact}`).join("; ")}`,
     ),
     cc: draftFields.cc.describe("Not on this server's channels, which copy no one"),
-    subject: draftFields.subject.describe("Not on this server's channels, which have no subjects"),
+    subject: draftFields.subject.describe("The subject, on a channel whose messages have them"),
     text: draftFields.text.describe("The message, in plain text"),
     attachments: draftFields.attachments.describe(
       "Files to send: a file from a message the agent received or sent, by the id in its attachments, or a small text file by name, type and text",
@@ -170,7 +171,7 @@ export function registerMessageTools({
     {
       ...withTitle("List messages", readOnlyHints),
       description:
-        "List the messages the agent account received, newest first. A refused message did not wake the agent, and its reason says why; a received one's admission says whether its sender is on the team, on the channel's list, or anyone else.",
+        "List the messages the agent account received, newest first. A refused message did not wake the agent, and its reason says why; a received one's admission says whether its sender is on the team, on the channel's list, or anyone else. On a channel the server's accounts share, it lists every account's messages.",
       inputSchema: listSchema,
     },
     ({ agent, from, ...filter }) =>
@@ -214,7 +215,7 @@ export function registerMessageTools({
     {
       ...withTitle("Send a message", sendingHints),
       description:
-        "Send a message from the agent account. To answer one, give its id in replyTo: the answer goes back the way it came. To start a conversation, give a channel and recipients in to. Files to send go in attachments.",
+        "Send a message from the agent account. To answer one, give its id in replyTo: the answer goes back the way it came. To start a conversation, give a channel and recipients in to. Files to send go in attachments. On a channel the server's accounts share, every account reads the message, and to may name no one.",
       inputSchema: sendSchema,
     },
     ({ agent, ...draft }) =>

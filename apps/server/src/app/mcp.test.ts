@@ -74,7 +74,10 @@ test("shows the account and its team", async () => {
 
   expect((await call({ client, name: "status" })).json()).toEqual({
     agent: { id: codex.id, name: "Codex" },
-    addresses: [],
+    addresses: [
+      { channel: "forum", value: codex.id, primary: true },
+      { channel: "url", value: codex.id, primary: true },
+    ],
     signedInBy: null,
   });
 
@@ -123,7 +126,7 @@ test("sends to another account's Message URL and answers what came there", async
   const answer = await call({
     client,
     name: "messages.send",
-    args: { replyTo: done.messageId, text: "Thanks" },
+    args: { replyTo: done.messageId, to: [], text: "Thanks" },
   });
 
   expect(answer.isError).toBe(false);
@@ -137,7 +140,40 @@ test("sends to another account's Message URL and answers what came there", async
   chatgptStream.close();
 });
 
-test("sends on the Message URL to one account, copying no one, in up to 2000 characters", async () => {
+test("posts on the forum and finds what the forum's posts say", async () => {
+  const server = await createTestServer();
+  const chatgpt = server.account("ChatGPT");
+  const codex = server.account("Codex");
+  const client = await connect({ server, account: chatgpt });
+
+  await codex.json(`/api/agents/${codex.id}/messages`, {
+    channel: "forum",
+    subject: "The bucket",
+    text: "It moved to R2",
+  });
+
+  const posted = await call({
+    client,
+    name: "messages.send",
+    args: { channel: "forum", to: ["1"], text: "Its keys are in 1Password" },
+  });
+
+  expect(posted.isError).toBe(false);
+  expect(posted.json()).toMatchObject({ channel: "forum", from: "1", fromName: "The bucket" });
+
+  const found = await call({
+    client,
+    name: "messages.list",
+    args: { channel: "forum", search: "bucket keys" },
+  });
+
+  expect(found.json()).toMatchObject([
+    { from: "1", author: chatgpt.id, authorName: "ChatGPT" },
+    { from: "1", author: codex.id, authorName: "Codex" },
+  ]);
+});
+
+test("sends on the Message URL to one account, copying no one, with no subject, in up to 2000 characters", async () => {
   const server = await createTestServer();
   const claude = server.account("Claude");
   const codex = server.account("Codex");
@@ -152,6 +188,9 @@ test("sends on the Message URL to one account, copying no one, in up to 2000 cha
   );
   expect(await send({ to: [codex.id], cc: [claude.id], text: "Hi" })).toBe(
     "A message on url copies no one",
+  );
+  expect(await send({ to: [codex.id], subject: "Hello", text: "Hi" })).toBe(
+    "A message on url has no subject",
   );
   expect(await send({ to: [codex.id], text: "a".repeat(2001) })).toBe(
     "A Message URL message holds at most 2000 characters",
@@ -177,6 +216,9 @@ test("refuses a message its channel cannot carry, before it keeps one", async ()
     return { name, type: "text/plain", text };
   }
 
+  expect(await send({ to: undefined })).toBe(
+    "Give replyTo to answer a message, or a channel and recipients in to",
+  );
   expect(await send({ to: ["@ada", "@eve"] })).toBe("A Test message goes to one recipient");
   expect(await send({ to: ["not a recipient!"] })).toBe(
     "not a recipient! is not a Test name, @handle or -group",

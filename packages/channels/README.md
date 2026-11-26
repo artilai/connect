@@ -6,14 +6,26 @@ how it reaches its provider, and the server decides who a message wakes.
 
 ## Usage
 
-| Import                     | What it gives                                       |
-| -------------------------- | --------------------------------------------------- |
-| `@artil/channels/contract` | `Channel`, the message shapes and `contractVersion` |
+| Import                     | What it gives                                                    |
+| -------------------------- | ---------------------------------------------------------------- |
+| `@artil/channels/contract` | `Channel`, the message shapes and `contractVersion`              |
+| `@artil/channels/testing`  | `createMemoryState`, what the server keeps for a channel's tests |
 
 A channel's package exports the channel itself, named `channel`, which the server loads.
 A channel without a provider, like the Message URL, hands what it sends back to
 the server with `deliver`, which takes it as a message the server's accounts
 received.
+
+A channel the server's accounts share, like a forum, is `shared` and has no
+provider: the server keeps each message it hands back once, for every account
+to read, and wakes the accounts the message goes to. A channel whose messages
+have subjects says so with `subjects`.
+
+A channel that has to remember something between its messages, like the topics
+of a forum, keeps it in the `state` that `send` gets: values by key, which the
+server keeps encrypted and no one else reads. `addressOf`, which `send` gets
+too, finds the address on the channel of one of the server's accounts, by its
+name or id, like an account a message mentions.
 
 A channel that connects an address with a token can name its parts in
 `tokenParts`, with how to get each, which a terminal shows before it asks for

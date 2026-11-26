@@ -22,6 +22,8 @@ type ReadAddressOptions = {
   parse: (input: string) => string | null;
 };
 
+type FindByAccountIdOrNameOptions = { channel: ChannelKind; account: string };
+
 type ReadRecipientsOptions = { channel: Channel; to: readonly string[] };
 
 type ReadSenderOptions = { channel: Channel; input: string };
@@ -64,12 +66,11 @@ export function createAddressesService({
   }
 
   // The address a person means on the channel: one of the server's accounts, by its name or id,
-  // stands for its address there, and anyone else is as the channel reads them. Only the server's
-  // accounts are on a channel that connects no address.
+  // stands for its address there, and anything else is as the channel reads it.
   function readAddress({ channel, input, parse }: ReadAddressOptions) {
     const account = accounts.findByIdOrName(input);
 
-    if (!account) return channel.connect ? parse(input) : null;
+    if (!account) return parse(input);
 
     const address = findByAccount({ accountId: account.id, channel: channel.kind });
 
@@ -82,8 +83,26 @@ export function createAddressesService({
     findById: addressesRepository.findById,
     findByAccount,
     findByValue,
-    listByAccount: addressesRepository.listByAccount,
+
+    // The address on the channel of one of the server's accounts, by the account's name or id.
+    findByAccountIdOrName({ channel, account }: FindByAccountIdOrNameOptions) {
+      const found = accounts.findByIdOrName(account);
+
+      return found && findByAccount({ accountId: found.id, channel });
+    },
+
+    listConnectedByAccount: addressesRepository.listConnectedByAccount,
     listConnected: addressesRepository.listConnected,
+
+    // The addresses the account connected, and its own on each channel that connects none.
+    listByAccount: (accountId: string) => [
+      ...addressesRepository.listConnectedByAccount(accountId),
+      ...channels
+        .list()
+        .flatMap((channel) =>
+          channel.connect ? [] : (findByAccount({ accountId, channel: channel.kind }) ?? []),
+        ),
+    ],
 
     // Whom a message goes to, as the channel writes them.
     readRecipients({ channel, to }: ReadRecipientsOptions) {

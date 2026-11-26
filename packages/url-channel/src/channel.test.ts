@@ -1,6 +1,7 @@
 import { expect, test } from "bun:test";
 
 import type { InboundMessage, OutboundMessage } from "@artil/channels/contract";
+import { createMemoryState } from "@artil/channels/testing";
 
 import { UrlChannel } from "./channel";
 
@@ -19,10 +20,19 @@ const message: OutboundMessage = {
   replyTo: "42",
 };
 
+test("reads no one but the server's accounts, which the server reads itself", () => {
+  const url = new UrlChannel();
+
+  expect(url.parseRecipient("codex")).toBeNull();
+  expect(url.parseSender("codex")).toBeNull();
+});
+
 test("hands what an account sends to the server to deliver, under the id it returns", async () => {
   const delivered: InboundMessage[] = [];
 
   const sent = await new UrlChannel().send({
+    state: createMemoryState(),
+    addressOf: () => null,
     message,
     token: null,
     deliver: async (inbound) => {
@@ -44,6 +54,8 @@ test("hands what an account sends to the server to deliver, under the id it retu
 
 test("fails to send what the server does not deliver", async () => {
   const sending = new UrlChannel().send({
+    state: createMemoryState(),
+    addressOf: () => null,
     message,
     token: null,
     deliver: async () => {

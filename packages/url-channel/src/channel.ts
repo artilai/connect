@@ -11,6 +11,15 @@ export class UrlChannel extends Channel {
 
   override readonly limits = { recipients: 1, text: 2000, files: 10 };
 
+  // Only the server's accounts are on the Message URL, which the server reads by name or id.
+  override parseSender(_input: string) {
+    return null;
+  }
+
+  override parseRecipient(_input: string) {
+    return null;
+  }
+
   async send({ message: { from, to, text, files, replyTo }, deliver }: SendOptions) {
     const id = crypto.randomUUID();
 

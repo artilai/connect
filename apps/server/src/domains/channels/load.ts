@@ -52,7 +52,13 @@ function checkChannel({ specifier, channel }: CheckChannelOptions) {
 
   // SAFETY: only Channel gives a channel this server's version of the contract, so the channel
   // extends Channel of this version, from whichever copy of the package it brought.
-  return channel as Channel;
+  const checked = channel as Channel;
+
+  if (checked.shared && (checked.connect || checked.handleWebhook)) {
+    throw invalid(`The ${kind} channel is shared, so it connects no address to a provider`);
+  }
+
+  return checked;
 }
 
 type ImportChannelOptions = { specifier: string; dataDir: string };

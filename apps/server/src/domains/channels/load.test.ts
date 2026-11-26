@@ -57,6 +57,20 @@ test("takes one channel of each kind, and leaves url to the Message URL", async 
   ).rejects.toThrow("The server has a url channel already");
 });
 
+test("refuses a shared channel that connects addresses to a provider", async () => {
+  // The echo channel connects addresses, and here says it is shared besides.
+  const shared = channelModule("echo").replace(
+    'name = "Echo";',
+    'name = "Echo";\n  shared = true;',
+  );
+
+  const dataDir = await dataFolder({ "echo-channel.ts": shared });
+
+  await expect(
+    loadChannels({ specifiers: ["./echo-channel.ts"], dataDir, builtInChannels }),
+  ).rejects.toThrow("The echo channel is shared, so it connects no address to a provider");
+});
+
 test("refuses a channel built for another version of the contract, saying which to update", async () => {
   const cases = [
     {

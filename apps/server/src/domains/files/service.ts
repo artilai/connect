@@ -23,9 +23,14 @@ type SaveOptions = {
   uploads: readonly InboundFile[];
 };
 
-type ReadForSendingOptions = { accountId: string; fileId: string };
+type ReadForSendingOptions = {
+  fileId: string;
+  readsMessage: (messageId: string) => boolean;
+};
 
-type ReadAttachmentsOptions = { accountId: string; attachments: readonly AttachmentInput[] };
+type ReadAttachmentsOptions = Omit<ReadForSendingOptions, "fileId"> & {
+  attachments: readonly AttachmentInput[];
+};
 
 const encoder = new TextEncoder();
 
@@ -79,12 +84,12 @@ export function createFilesService({ filesRepository, store, log }: CreateFilesS
     }
   }
 
-  // A file the account received or sent, to send on.
-  async function readForSending({ accountId, fileId }: ReadForSendingOptions): Promise<Upload> {
+  // A file that came with a message the account reads, to send on.
+  async function readForSending({ fileId, readsMessage }: ReadForSendingOptions): Promise<Upload> {
     if (!store) throw unavailableError();
 
     const file = filesRepository.findById(fileId);
-    const content = file?.accountId === accountId ? await readContent(file) : undefined;
+    const content = file && readsMessage(file.messageId) ? await readContent(file) : undefined;
 
     if (!file || !content) {
       throw new AppError({
@@ -103,10 +108,10 @@ export function createFilesService({ filesRepository, store, log }: CreateFilesS
 
     // Reads the files a message to send names, with their bytes: ones the account has, and text
     // files written for it.
-    readAttachments: ({ accountId, attachments }: ReadAttachmentsOptions): Promise<Upload[]> =>
+    readAttachments: ({ attachments, ...reader }: ReadAttachmentsOptions): Promise<Upload[]> =>
       Promise.all(
         attachments.map(async (file) => {
-          if ("id" in file) return readForSending({ accountId, fileId: file.id });
+          if ("id" in file) return readForSending({ ...reader, fileId: file.id });
 
           const content = encoder.encode(file.text);
 

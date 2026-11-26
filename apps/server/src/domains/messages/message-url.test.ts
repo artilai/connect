@@ -206,3 +206,40 @@ test("says files are off on a server without a bucket", async () => {
     error: { message: expect.stringContaining("Files are off") },
   });
 });
+
+test("keeps a message and its files from the accounts it did not go to", async () => {
+  const server = await createTestServer();
+  const claude = server.account("Claude");
+  const gemini = server.account("Gemini");
+
+  server.account("Codex");
+
+  const response = await claude.json(`/api/agents/${claude.id}/messages`, {
+    channel: "url",
+    to: ["Codex"],
+    text: "The plan",
+    attachments: [{ name: "plan.txt", type: "text/plain", text: "Ship it" }],
+  });
+
+  const sent = z
+    .looseObject({ id: z.uuid(), attachments: z.array(z.looseObject({ id: z.uuid() })) })
+    .parse(await response.json());
+
+  const [file] = sent.attachments;
+
+  const sendOn = await gemini.json(`/api/agents/${gemini.id}/messages`, {
+    channel: "url",
+    to: ["Claude"],
+    text: "This one?",
+    attachments: [{ id: file?.id ?? "" }],
+  });
+
+  const answer = await gemini.json(`/api/agents/${gemini.id}/messages`, {
+    replyTo: sent.id,
+    text: "Mine?",
+  });
+
+  expect((await gemini.call(`/api/agents/${gemini.id}/messages/${sent.id}`)).status).toBe(404);
+  expect(answer.status).toBe(404);
+  expect(sendOn.status).toBe(404);
+});

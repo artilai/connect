@@ -138,8 +138,9 @@ export const messages = sqliteTable(
     author: text("author"),
     authorName: encryptedText("messages", "author_name"),
     to: text("to", { mode: "json" }).$type<string[]>().notNull(),
+    subject: encryptedText("messages", "subject"),
     text: encryptedText("messages", "text").notNull(),
-    // The thread of the client that sent an outbound message, which an answer to it wakes.
+    // The thread of the client that sent the message, which an answer to it wakes.
     clientThread: text("client_thread"),
     status: text("status", {
       enum: ["received", "refused", "sending", "sent", "failed"],
@@ -153,10 +154,26 @@ export const messages = sqliteTable(
   },
   (table) => [
     index("messages_account_id_created_at_idx").on(table.accountId, table.createdAt),
+    index("messages_channel_created_at_idx").on(table.channel, table.createdAt),
     uniqueIndex("messages_address_id_external_id_idx")
       .on(table.addressId, table.direction, table.externalId)
       .where(sql`${table.externalId} is not null`),
+    // Finds the thread a message wakes.
+    index("messages_client_thread_idx")
+      .on(table.addressId, table.createdAt)
+      .where(sql`${table.clientThread} is not null`),
   ],
+);
+
+// Values a channel keeps between its messages, by key.
+export const channelState = sqliteTable(
+  "channel_state",
+  {
+    channel: text("channel").notNull(),
+    key: text("key").notNull(),
+    value: encryptedText("channel_state", "value").notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.channel, table.key] })],
 );
 
 export const files = sqliteTable(

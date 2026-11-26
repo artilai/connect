@@ -1,6 +1,7 @@
 import { expect, test } from "bun:test";
 
 import type { ChannelEvent, OutboundMessage } from "@artil/channels/contract";
+import { createMemoryState } from "@artil/channels/testing";
 
 import { TelegramChannel } from "./channel";
 import type {
@@ -241,7 +242,13 @@ test("quotes the message a reply answers above its text", async () => {
 test("sends to one chat as the bot, answering by Telegram's id for the message", async () => {
   const { channel, sent } = setup();
 
-  await channel.send({ message: outbound, token: "123456:ABC", deliver });
+  await channel.send({
+    message: outbound,
+    token: "123456:ABC",
+    state: createMemoryState(),
+    addressOf: () => null,
+    deliver,
+  });
 
   expect(sent).toEqual([
     { token: "123456:ABC", chat: "42", text: "On my way", files: [], replyTo: "42:7" },
@@ -320,7 +327,13 @@ test("carries one chat, 4096 characters and up to 10 files of up to 50 MB each",
   const { channel, sent } = setup();
   const photo = { name: "a.png", type: "image/png", size: 1, content: new Uint8Array(1) };
 
-  await channel.send({ message: { ...outbound, files: [photo] }, token: "123456:ABC", deliver });
+  await channel.send({
+    message: { ...outbound, files: [photo] },
+    token: "123456:ABC",
+    state: createMemoryState(),
+    addressOf: () => null,
+    deliver,
+  });
 
   expect(sent).toMatchObject([{ files: [photo] }]);
   expect(channel.limits).toEqual({ recipients: 1, text: 4096, files: 10, fileSize: 50_000_000 });

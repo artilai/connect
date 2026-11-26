@@ -11,7 +11,14 @@ import { readId, validateQuery } from "../../platform/http/validate";
 import type { AccountEnv } from "../accounts/schema";
 import type { ChannelsService } from "../channels/service";
 import type { FileLinks } from "../files/schema";
-import { directionSchema, draftSchema, messageListLimit, messageSchema, toMessage } from "./schema";
+import {
+  directionSchema,
+  draftSchema,
+  messageListLimit,
+  messageSchema,
+  searchSchema,
+  toMessage,
+} from "./schema";
 import type { MessagesService } from "./service";
 
 const listSchema = z.object({
@@ -40,6 +47,7 @@ const listSchema = z.object({
     .uuid("before must be a message id")
     .exactOptional()
     .describe("List the messages older than this one, to page back"),
+  search: searchSchema,
 });
 
 const tags = ["Messages"];
@@ -65,7 +73,7 @@ const docs = {
     operationId: "sendMessage",
     summary: "Send a message",
     description:
-      "Answer a message by giving its id as replyTo, or start a new one with a channel and recipients in to. Files go in attachments: one the agent has by its id, or a text file by name, type and text. To send files from disk, post multipart form data with the message as JSON in draft and one file per file part.",
+      "Answer a message by giving its id as replyTo, or start a new one with a channel and recipients in to. Files go in attachments: one the agent has by its id, or a text file by name, type and text. To send files from disk, post multipart form data with the message as JSON in draft and one file per file part. On a channel the server's accounts share, every account reads the message, and to may name no one.",
     responses: { 201: jsonResponse("The sent message", messageSchema) },
   }),
 };

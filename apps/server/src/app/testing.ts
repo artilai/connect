@@ -13,6 +13,7 @@ import {
   type StartOptions,
 } from "@artil/channels/contract";
 import { AppError } from "@artil/errors";
+import { channel as forumChannel } from "@artil/forum-channel";
 
 import { createReceivers } from "../domains/channels/receivers";
 import type { ChannelKind } from "../domains/channels/schema";
@@ -250,7 +251,12 @@ export async function createTestServer({
   const baseUrl = publicUrl ?? origin;
   const hashed = password ? await hashPassword(password) : null;
 
-  const channels = new Map<ChannelKind, Channel>([["test", testChannel]]);
+  // The test channel in place of the ones with a provider, and the forum, as the server comes with it.
+  const channels = new Map<ChannelKind, Channel>([
+    ["test", testChannel],
+    [forumChannel.kind, forumChannel],
+  ]);
+
   // What the server logs, as its terminal shows it.
   const logs: string[] = [];
 

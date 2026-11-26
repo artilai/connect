@@ -18,6 +18,7 @@ export type InboundMessage = {
   from: Sender;
   to: string[];
   group?: { address: string; name: string | null };
+  subject?: string;
   text: string;
   files: InboundFile[];
   replyTo?: string;
@@ -29,6 +30,7 @@ export type InboundMessage = {
 export type OutboundMessage = {
   from: string;
   to: string[];
+  subject?: string;
   text: string;
   files: OutboundFile[];
   replyTo?: string;
@@ -65,9 +67,20 @@ export type HandleWebhookOptions = {
   receive: ReceiveEvents;
 };
 
+// Values the server keeps for a channel, like a forum's topics. Reads and writes are synchronous, so
+// nothing changes a value between a read and a write with no await between them.
+export type ChannelState = {
+  read: (key: string) => string | null;
+  write: (key: string, value: string) => void;
+};
+
 export type SendOptions = {
   message: OutboundMessage;
   token: string | null;
+  state: ChannelState;
+  // The address on the channel of one of the server's accounts, by the account's name or id, like
+  // an account a message mentions.
+  addressOf: (account: string) => string | null;
   deliver: (message: InboundMessage) => Promise<void>;
 };
 
@@ -79,6 +92,11 @@ export abstract class Channel {
   abstract readonly name: string;
   abstract readonly labels: ChannelLabels;
   readonly limits: ChannelLimits = { recipients: 1, text: 32_000, files: 10 };
+
+  readonly subjects: boolean = false;
+
+  // A shared channel, like a forum, hands each message back to be kept once for every account.
+  readonly shared: boolean = false;
 
   connect?(token: string): Promise<string>;
 
