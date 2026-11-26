@@ -22,7 +22,7 @@ import {
   type MessageRow,
   type NewMessage,
 } from "./schema";
-import { rankByWords, readSearchWords } from "./search";
+import { readSearchWords } from "./search";
 
 const recipientSeparator = ", ";
 
@@ -627,10 +627,7 @@ export function createMessagesService({
       messagesRepository.listRefusedSenders({ accountId, channel, refusals: [...keptOut] }),
 
     // A shared channel's messages are every account's.
-    list({
-      accountId,
-      filter: { search, before, limit = messageListLimit, ...narrowing },
-    }: ListOptions) {
+    list({ accountId, filter: { search, before, limit, ...narrowing } }: ListOptions) {
       const filter = {
         ...narrowing,
         accountId: isShared(narrowing.channel) ? null : accountId,
@@ -645,10 +642,13 @@ export function createMessagesService({
         });
       }
 
-      const words = readSearchWords(search);
-      const found = rankByWords({ rows: messagesRepository.listAll(filter), words });
-
-      return toRecords(found.slice(0, limit));
+      return toRecords(
+        messagesRepository.listByWords({
+          ...filter,
+          words: readSearchWords(search),
+          limit: limit ?? messageListLimit,
+        }),
+      );
     },
 
     // Takes a message a channel brought to the addresses it went to: it wakes the agent of each

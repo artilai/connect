@@ -5,6 +5,7 @@ import { messages } from "../../platform/db/schema";
 import type { Refusal } from "../access/schema";
 import type { ChannelKind } from "../channels/schema";
 import { type MessageFilter, messageListLimit, type MessageRow, type NewMessage } from "./schema";
+import { createMessageSearch, type SearchQuery } from "./search";
 
 type FindLastClientThreadOptions = { addressId: string; where: SQL };
 
@@ -27,6 +28,8 @@ type ListRefusedSendersOptions = {
 };
 
 export function createMessagesRepository(db: Database) {
+  const messageSearch = createMessageSearch(db);
+
   function findById(id: string) {
     return db.select().from(messages).where(eq(messages.id, id)).get();
   }
@@ -51,15 +54,6 @@ export function createMessagesRepository(db: Database) {
     );
   }
 
-  function matching({ accountId, channel, direction, counterpart }: MessageFilter) {
-    return and(
-      accountId === null ? undefined : eq(messages.accountId, accountId),
-      channel ? eq(messages.channel, channel) : undefined,
-      direction && eq(messages.direction, direction),
-      counterpart ? eq(messages.counterpart, counterpart) : undefined,
-    );
-  }
-
   // Newer messages first, the latest of those created in the same millisecond by id.
   function olderThan(anchor: MessageRow) {
     return or(
@@ -72,13 +66,22 @@ export function createMessagesRepository(db: Database) {
     findById,
 
     list(filter: MessageFilter) {
-      const { accountId, before, limit = messageListLimit } = filter;
+      const {
+        accountId,
+        channel,
+        direction,
+        counterpart,
+        before,
+        limit = messageListLimit,
+      } = filter;
+
+      const owned = accountId === null ? undefined : eq(messages.accountId, accountId);
 
       const anchor = before
         ? db
             .select()
             .from(messages)
-            .where(and(matching({ accountId }), eq(messages.id, before)))
+            .where(and(owned, eq(messages.id, before)))
             .get()
         : undefined;
 
@@ -88,20 +91,19 @@ export function createMessagesRepository(db: Database) {
       return db
         .select()
         .from(messages)
-        .where(and(matching(filter), anchor && olderThan(anchor)))
+        .where(
+          and(
+            owned,
+            channel ? eq(messages.channel, channel) : undefined,
+            direction && eq(messages.direction, direction),
+            counterpart ? eq(messages.counterpart, counterpart) : undefined,
+            anchor && olderThan(anchor),
+          ),
+        )
         .orderBy(desc(messages.createdAt), desc(messages.id))
         .limit(limit)
         .all();
     },
-
-    // Every message the filter keeps, newest first.
-    listAll: (filter: MessageFilter) =>
-      db
-        .select()
-        .from(messages)
-        .where(matching(filter))
-        .orderBy(desc(messages.createdAt), desc(messages.id))
-        .all(),
 
     findClientThreadByExternalId: ({
       addressId,
@@ -121,7 +123,15 @@ export function createMessagesRepository(db: Database) {
     }: FindLastClientThreadByExternalThreadOptions) =>
       findLastClientThread({ addressId, where: eq(messages.externalThread, externalThread) }),
 
-    add: (message: NewMessage) => db.insert(messages).values(message).returning().get(),
+    add(message: NewMessage) {
+      const added = db.insert(messages).values(message).returning().get();
+
+      messageSearch.add(added);
+
+      return added;
+    },
+
+    listByWords: (query: SearchQuery) => messageSearch.find(query),
 
     // A provider that delivers a message twice gets the one the server already took.
     hasReceived: ({ addressId, externalId }: HasReceivedOptions) =>
