@@ -60,7 +60,6 @@ export const draftSchema = z.object({
     .describe("The channel to start a conversation on, by its kind, from listChannels"),
   to: z
     .array(z.string().trim().min(1).max(320))
-    .min(1, "Give at least one recipient")
     .max(maxRecipients, `Send to at most ${maxRecipients} recipients`)
     .optional(),
   cc: z.array(z.string().trim().min(1).max(320)).max(50, "Copy at most 50 addresses").optional(),

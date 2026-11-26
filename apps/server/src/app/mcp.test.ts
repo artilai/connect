@@ -126,7 +126,7 @@ test("sends to another account's Message URL and answers what came there", async
   const answer = await call({
     client,
     name: "messages.send",
-    args: { replyTo: done.messageId, text: "Thanks" },
+    args: { replyTo: done.messageId, to: [], text: "Thanks" },
   });
 
   expect(answer.isError).toBe(false);

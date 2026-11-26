@@ -193,7 +193,7 @@ export function createMessagesService({
 
     return {
       channel: repliedMessage.channel,
-      to: draft.to ?? replyRecipients(repliedMessage),
+      to: draft.to?.length ? draft.to : replyRecipients(repliedMessage),
       answered: repliedMessage,
     };
   }

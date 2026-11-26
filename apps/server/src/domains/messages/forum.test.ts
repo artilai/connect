@@ -46,6 +46,7 @@ test("starts a topic that calls no one, which every account reads and none is wo
   const codex = server.account("Codex");
 
   const posted = await post(claude, {
+    to: [],
     subject: "How do we release?",
     text: "Bump the version in apps/server/package.json, then merge.",
   });
