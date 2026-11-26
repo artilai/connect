@@ -13,15 +13,22 @@ export type SearchQuery = Omit<MessageFilter, "before" | "limit"> & {
   limit: number;
 };
 
-type IndexedMessage = Pick<
-  MessageRow,
-  "id" | "accountId" | "channel" | "direction" | "counterpart" | "subject" | "text"
->;
-
 const shortestWord = 2;
 
 // Each word widens the match, so a long query would hold up the server.
 const mostWords = 10;
+
+const indexedColumns = {
+  id: messages.id,
+  accountId: messages.accountId,
+  channel: messages.channel,
+  direction: messages.direction,
+  counterpart: messages.counterpart,
+  subject: messages.subject,
+  text: messages.text,
+};
+
+type IndexedMessage = Pick<MessageRow, keyof typeof indexedColumns>;
 
 // Folds case and drops the marks on letters, so ё matches е.
 function folded(text: string) {
@@ -52,25 +59,26 @@ export function readSearchWords(search: string) {
   return [...words];
 }
 
-// Messages are encrypted at rest, so their words are indexed in memory, from the first search on.
+// Messages are encrypted at rest, so their words are indexed in memory. The first search indexes
+// every message, and each message added after it joins the index.
 export function createMessageSearch(db: Database) {
   const index = new Sqlite(":memory:", { strict: true });
 
-  index.run(`create virtual table messages using fts5(
+  index.run(`create virtual table words using fts5(
     id unindexed, account_id unindexed, channel unindexed, direction unindexed,
-    counterpart unindexed, words, tokenize = 'unicode61', prefix = '2 3 4'
+    counterpart unindexed, text
   )`);
 
-  const insert = index.prepare(`insert into messages
-    (id, account_id, channel, direction, counterpart, words)
-    values ($id, $accountId, $channel, $direction, $counterpart, $words)`);
+  const insert = index.prepare(`insert into words
+    (id, account_id, channel, direction, counterpart, text)
+    values ($id, $accountId, $channel, $direction, $counterpart, $text)`);
 
-  const remove = index.prepare("delete from messages where id = $id");
+  const remove = index.prepare("delete from words where id = $id");
 
   // The best match first, and of equal ones, the newest.
   const findIds = index.prepare<{ id: string }, Record<string, string | number | null>>(`
-    select id from messages
-    where messages match $match
+    select id from words
+    where words match $match
       and ($accountId is null or account_id = $accountId)
       and ($channel is null or channel = $channel)
       and ($direction is null or direction = $direction)
@@ -78,7 +86,7 @@ export function createMessageSearch(db: Database) {
     order by rank, rowid desc
     limit $limit`);
 
-  const add = index.transaction((added: readonly IndexedMessage[]) => {
+  const addAll = index.transaction((added: readonly IndexedMessage[]) => {
     for (const message of added) {
       insert.run({
         id: message.id,
@@ -86,25 +94,18 @@ export function createMessageSearch(db: Database) {
         channel: message.channel,
         direction: message.direction,
         counterpart: message.counterpart,
-        words: folded(`${message.subject ?? ""}\n${message.text}`),
+        text: folded(`${message.subject ?? ""}\n${message.text}`),
       });
     }
   });
 
   let filled = false;
 
+  // Oldest first, so the newer of two messages has the greater rowid.
   function fill() {
-    add(
+    addAll(
       db
-        .select({
-          id: messages.id,
-          accountId: messages.accountId,
-          channel: messages.channel,
-          direction: messages.direction,
-          counterpart: messages.counterpart,
-          subject: messages.subject,
-          text: messages.text,
-        })
+        .select(indexedColumns)
         .from(messages)
         .orderBy(asc(messages.createdAt), asc(messages.id))
         .all(),
@@ -115,7 +116,7 @@ export function createMessageSearch(db: Database) {
 
   return {
     add(message: MessageRow) {
-      if (filled) add([message]);
+      if (filled) addAll([message]);
     },
 
     find({ words, limit, accountId, channel, direction, counterpart }: SearchQuery) {
@@ -124,7 +125,7 @@ export function createMessageSearch(db: Database) {
       // Words hold only letters and digits, so they need no escaping.
       const match = words.map((word) => `"${word}"*`).join(" OR ");
 
-      const filter = {
+      const params = {
         match,
         accountId,
         channel: channel ?? null,
@@ -133,9 +134,10 @@ export function createMessageSearch(db: Database) {
         limit,
       };
 
-      // Drops the messages removed since they were indexed, and searches again.
+      // A message removed from the database, as with its account, stays in the index until a search
+      // finds it gone, drops it and runs again.
       for (;;) {
-        const ids = findIds.all(filter).map(({ id }) => id);
+        const ids = findIds.all(params).map(({ id }) => id);
         const rows = db.select().from(messages).where(inArray(messages.id, ids)).all();
         const found = new Map(rows.map((row) => [row.id, row]));
         const removed = ids.filter((id) => !found.has(id));
