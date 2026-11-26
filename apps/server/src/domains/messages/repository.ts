@@ -1,30 +1,11 @@
-import { and, asc, desc, eq, gt, inArray, isNotNull, lt, max, or, type SQL } from "drizzle-orm";
+import { and, desc, eq, inArray, isNotNull, lt, max, or, type SQL } from "drizzle-orm";
 
 import type { Database } from "../../platform/db/connection";
 import { messages } from "../../platform/db/schema";
 import type { Refusal } from "../access/schema";
 import type { ChannelKind } from "../channels/schema";
-import { messageListLimit, type MessageRow, type NewMessage } from "./schema";
-import { createSearchIndex } from "./search";
-
-export type MessageFilter = {
-  channel?: ChannelKind;
-  direction?: "inbound" | "outbound";
-  counterpart?: string;
-  // Lists the messages older than this one, to page back.
-  before?: string;
-  limit?: number;
-};
-
-type ListOptions = { accountId: string; filter: MessageFilter };
-
-// A search narrows the messages as a list does, and lists its best matches, so it pages back from
-// no message.
-type SearchFilter = Omit<MessageFilter, "before"> & { words: readonly string[] };
-
-type SearchOptions = { accountId: string; filter: SearchFilter };
-
-type FindOptions = { accountId: string; id: string };
+import { type MessageFilter, messageListLimit, type MessageRow, type NewMessage } from "./schema";
+import { createMessageSearch, type SearchQuery } from "./search";
 
 type FindByExternalIdOptions = {
   addressId: string;
@@ -32,17 +13,13 @@ type FindByExternalIdOptions = {
   externalId: string;
 };
 
-type FindLastClientThreadOptions = { addressId: string; where: SQL };
+type FindLastClientThreadOptions = { addressId: string; conditions: SQL[] };
 
 type FindLastClientThreadByCounterpartOptions = { addressId: string; counterpart: string };
 
 type FindLastClientThreadByExternalThreadOptions = { addressId: string; externalThread: string };
 
-type FindLastClientThreadByGroupOptions = {
-  accountId: string;
-  channel: ChannelKind;
-  counterpart: string;
-};
+type FindLastSharedClientThreadOptions = { addressId: string; counterpart: string };
 
 type MarkSentOptions = { id: string; externalId: string; externalThread?: string };
 
@@ -56,80 +33,26 @@ type ListRefusedSendersOptions = {
   refusals: readonly Refusal[];
 };
 
-// How many messages the index takes from the database at a time when it fills, so the server does
-// not decrypt every one of them at once.
-const indexPage = 1000;
+// A message the server sent, as the account that sent it keeps it.
+const sent = [eq(messages.direction, "outbound"), eq(messages.status, "sent")];
 
-type CreateMessagesRepositoryOptions = {
-  // The channels the server's accounts share, whose messages every account reads.
-  sharedChannels: readonly ChannelKind[];
-};
+export function createMessagesRepository(db: Database) {
+  const messageSearch = createMessageSearch(db);
 
-export function createMessagesRepository(
-  db: Database,
-  { sharedChannels }: CreateMessagesRepositoryOptions,
-) {
-  const shared = new Set(sharedChannels);
-
-  // A message on a shared channel is the whole team's, which every account reads. Any other message
-  // is only its account's.
-  function readableBy(accountId: string) {
-    return or(eq(messages.accountId, accountId), inArray(messages.channel, [...shared]));
+  // A message of any account's.
+  function findById(id: string) {
+    return db.select().from(messages).where(eq(messages.id, id)).get();
   }
 
-  const searchIndex = createSearchIndex();
-  let indexFilled = false;
-
-  // The index, which takes every message the first time a search needs it, and each one added from
-  // then on. The server is the one process that adds messages; one removed meanwhile, with its
-  // account, is left out of what a search finds.
-  function filledIndex() {
-    if (indexFilled) return searchIndex;
-
-    let page = db.select().from(messages).orderBy(asc(messages.id)).limit(indexPage).all();
-
-    while (page.length > 0) {
-      for (const row of page) searchIndex.add(row);
-
-      const last = page.at(-1)?.id ?? "";
-
-      page = db
-        .select()
-        .from(messages)
-        .where(gt(messages.id, last))
-        .orderBy(asc(messages.id))
-        .limit(indexPage)
-        .all();
-    }
-
-    indexFilled = true;
-
-    return searchIndex;
-  }
-
-  function find({ accountId, id }: FindOptions) {
-    return db
-      .select()
-      .from(messages)
-      .where(and(readableBy(accountId), eq(messages.id, id)))
-      .get();
-  }
-
-  // The thread of the client whose message from the address last went where the condition says, of
-  // those that named one.
-  function findLastClientThread({ addressId, where }: FindLastClientThreadOptions) {
+  // The thread of the client whose message from the address last met the conditions, of those that
+  // named one.
+  function findLastClientThread({ addressId, conditions }: FindLastClientThreadOptions) {
     return (
       db
         .select({ clientThread: messages.clientThread })
         .from(messages)
         .where(
-          and(
-            eq(messages.addressId, addressId),
-            eq(messages.direction, "outbound"),
-            where,
-            eq(messages.status, "sent"),
-            isNotNull(messages.clientThread),
-          ),
+          and(eq(messages.addressId, addressId), ...conditions, isNotNull(messages.clientThread)),
         )
         .orderBy(desc(messages.createdAt), desc(messages.id))
         .limit(1)
@@ -146,13 +69,29 @@ export function createMessagesRepository(
   }
 
   return {
-    find,
+    findById,
 
-    list({ accountId, filter }: ListOptions) {
-      const { channel, direction, counterpart, before, limit = messageListLimit } = filter;
-      const anchor = before ? find({ accountId, id: before }) : undefined;
+    list(filter: MessageFilter) {
+      const {
+        accountId,
+        channel,
+        direction,
+        counterpart,
+        before,
+        limit = messageListLimit,
+      } = filter;
 
-      // A message the account does not have leaves nothing older.
+      const owned = accountId === null ? undefined : eq(messages.accountId, accountId);
+
+      const anchor = before
+        ? db
+            .select()
+            .from(messages)
+            .where(and(owned, eq(messages.id, before)))
+            .get()
+        : undefined;
+
+      // A message the list does not keep leaves nothing older.
       if (before && !anchor) return [];
 
       return db
@@ -160,8 +99,7 @@ export function createMessagesRepository(
         .from(messages)
         .where(
           and(
-            // A shared channel lists everyone's messages, and the rest of them are the account's.
-            channel && shared.has(channel) ? undefined : eq(messages.accountId, accountId),
+            owned,
             channel ? eq(messages.channel, channel) : undefined,
             direction && eq(messages.direction, direction),
             counterpart ? eq(messages.counterpart, counterpart) : undefined,
@@ -190,78 +128,35 @@ export function createMessagesRepository(
       addressId,
       counterpart,
     }: FindLastClientThreadByCounterpartOptions) =>
-      findLastClientThread({ addressId, where: eq(messages.counterpart, counterpart) }),
+      findLastClientThread({
+        addressId,
+        conditions: [...sent, eq(messages.counterpart, counterpart)],
+      }),
 
     findLastClientThreadByExternalThread: ({
       addressId,
       externalThread,
     }: FindLastClientThreadByExternalThreadOptions) =>
-      findLastClientThread({ addressId, where: eq(messages.externalThread, externalThread) }),
+      findLastClientThread({
+        addressId,
+        conditions: [...sent, eq(messages.externalThread, externalThread)],
+      }),
 
-    // The thread of the account's client that last wrote in a group of the channel, of the messages
-    // that named one.
-    findLastClientThreadByGroup: ({
-      accountId,
-      channel,
-      counterpart,
-    }: FindLastClientThreadByGroupOptions) =>
-      db
-        .select({ clientThread: messages.clientThread })
-        .from(messages)
-        .where(
-          and(
-            eq(messages.accountId, accountId),
-            eq(messages.channel, channel),
-            eq(messages.counterpart, counterpart),
-            isNotNull(messages.clientThread),
-          ),
-        )
-        .orderBy(desc(messages.createdAt), desc(messages.id))
-        .limit(1)
-        .get()?.clientThread ?? null,
+    // On a shared channel, where the server keeps each message once, as an inbound message under
+    // its author's address.
+    findLastSharedClientThread: ({ addressId, counterpart }: FindLastSharedClientThreadOptions) =>
+      findLastClientThread({ addressId, conditions: [eq(messages.counterpart, counterpart)] }),
 
     add(message: NewMessage) {
       const added = db.insert(messages).values(message).returning().get();
 
-      if (indexFilled) searchIndex.add(added);
+      messageSearch.add(added);
 
       return added;
     },
 
-    // The messages the filter narrows to that hold any of the words, best match first.
-    search({ accountId, filter }: SearchOptions) {
-      const index = filledIndex();
-      const { channel, limit = messageListLimit } = filter;
-
-      const query = {
-        ...filter,
-        // A shared channel lists everyone's messages, and the rest of them are the account's.
-        accountId: channel && shared.has(channel) ? undefined : accountId,
-        limit,
-      };
-
-      // A message removed since the index took it, like those of a removed account, leaves the
-      // index once a search meets it, and the search looks again past it.
-      for (;;) {
-        const found = index.search(query);
-
-        const rows =
-          found.length > 0
-            ? db.select().from(messages).where(inArray(messages.id, found)).all()
-            : [];
-
-        const kept = new Set(rows.map(({ id }) => id));
-        const removed = found.filter((id) => !kept.has(id));
-
-        if (removed.length === 0) {
-          return rows.toSorted(
-            (first, second) => found.indexOf(first.id) - found.indexOf(second.id),
-          );
-        }
-
-        for (const id of removed) index.remove(id);
-      }
-    },
+    // The messages that hold the words, best match first.
+    listByWords: (query: SearchQuery) => messageSearch.find(query),
 
     // A provider that delivers a message twice gets the one the server already took.
     hasReceived: ({ addressId, externalId }: HasReceivedOptions) =>

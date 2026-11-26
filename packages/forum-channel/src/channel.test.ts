@@ -37,13 +37,13 @@ function createForum() {
   return { forum, post };
 }
 
-test("reads a topic by its number, and everyone, besides the server's accounts", () => {
+test("reads a topic by its number, with or without a #, and everyone, besides the server's accounts", () => {
   const { forum } = createForum();
 
   expect(forum.parseRecipient(" 7 ")).toBe("#7");
+  expect(forum.parseRecipient("#7")).toBe("#7");
   expect(forum.parseRecipient("@Everyone")).toBe("@everyone");
   expect(forum.parseRecipient("07")).toBeNull();
-  expect(forum.parseRecipient("#7")).toBeNull();
   expect(forum.parseRecipient("@codex")).toBeNull();
   expect(forum.parseSender("7")).toBeNull();
 });
@@ -108,7 +108,7 @@ test("says what a post cannot name", async () => {
   await post({ from: "claude01", to: ["@everyone"], text: "Release" });
   await post({ from: "claude01", to: ["@everyone"], text: "Bucket" });
 
-  const refusals: [Pick<OutboundMessage, "to"> & Partial<OutboundMessage>, string][] = [
+  const refusals: [Omit<Post, "from">, string][] = [
     [{ to: ["#1", "#2"] }, "A post goes in one topic"],
     [{ to: ["#9"] }, "There is no topic 9 on the forum"],
     [{ to: ["#1", "@everyone"] }, "@everyone starts a new topic. Leave it out to post in topic 1."],

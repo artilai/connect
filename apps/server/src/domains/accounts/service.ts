@@ -1,7 +1,7 @@
 import { AppError } from "@artil/errors";
-import { channel as urlChannel } from "@artil/url-channel";
 
 import type { AccessService } from "../access/service";
+import type { ChannelsService } from "../channels/service";
 import type { FilesService } from "../files/service";
 import type { AccountsRepository } from "./repository";
 
@@ -20,6 +20,7 @@ type CreateAccountsServiceOptions = {
   accountsRepository: AccountsRepository;
   access: AccessService;
   files: FilesService;
+  channels: ChannelsService;
 };
 
 type ReadNameOptions = { name: string; accountId?: string };
@@ -30,6 +31,7 @@ export function createAccountsService({
   accountsRepository,
   access,
   files,
+  channels,
 }: CreateAccountsServiceOptions) {
   // A name a person gives the account: 1 to 80 characters, and no other account's name or id.
   function readName({ name, accountId }: ReadNameOptions) {
@@ -88,10 +90,14 @@ export function createAccountsService({
     },
 
     // Removes the account with its messages and sign-ins, its files from the bucket, and itself
-    // from the other accounts' lists at their Message URLs, where it goes by its id.
+    // from the other accounts' lists on the channels that connect no address, like the Message URL,
+    // where it goes by its id.
     async remove(id: string) {
       await files.removeByAccount(id);
-      access.removeSenderEverywhere({ channel: urlChannel.kind, sender: id });
+
+      for (const channel of channels.list()) {
+        if (!channel.connect) access.removeSenderEverywhere({ channel: channel.kind, sender: id });
+      }
 
       return accountsRepository.remove(id);
     },

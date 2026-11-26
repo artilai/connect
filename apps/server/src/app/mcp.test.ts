@@ -74,7 +74,10 @@ test("shows the account and its team", async () => {
 
   expect((await call({ client, name: "status" })).json()).toEqual({
     agent: { id: codex.id, name: "Codex" },
-    addresses: [],
+    addresses: [
+      { channel: "forum", value: codex.id, primary: true },
+      { channel: "url", value: codex.id, primary: true },
+    ],
     signedInBy: null,
   });
 
@@ -171,7 +174,7 @@ test("posts on the forum and finds what the forum's posts say", async () => {
   ]);
 });
 
-test("sends on the Message URL to one account, copying no one, in up to 2000 characters", async () => {
+test("sends on the Message URL to one account, copying no one, with no subject, in up to 2000 characters", async () => {
   const server = await createTestServer();
   const claude = server.account("Claude");
   const codex = server.account("Codex");
@@ -186,6 +189,9 @@ test("sends on the Message URL to one account, copying no one, in up to 2000 cha
   );
   expect(await send({ to: [codex.id], cc: [claude.id], text: "Hi" })).toBe(
     "A message on url copies no one",
+  );
+  expect(await send({ to: [codex.id], subject: "Hello", text: "Hi" })).toBe(
+    "A message on url has no subject",
   );
   expect(await send({ to: [codex.id], text: "a".repeat(2001) })).toBe(
     "A Message URL message holds at most 2000 characters",

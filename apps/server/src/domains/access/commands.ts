@@ -37,7 +37,10 @@ type SayWokenOptions = { account: Account; channel: Channel; admit: Admit; chang
 export function readChannel({ account, kind, addresses, channels }: ReadChannelOptions) {
   if (kind) return channels.get(kind);
 
-  const connected = [...new Set(addresses.listByAccount(account.id).map(({ channel }) => channel))];
+  const connected = [
+    ...new Set(addresses.listConnectedByAccount(account.id).map(({ channel }) => channel)),
+  ];
+
   const [onlyKind] = connected;
 
   if (!onlyKind || connected.length > 1) {

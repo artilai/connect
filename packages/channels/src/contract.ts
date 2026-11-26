@@ -18,6 +18,7 @@ export type InboundMessage = {
   from: Sender;
   to: string[];
   group?: { address: string; name: string | null };
+  // The subject, on a channel whose messages have them.
   subject?: string;
   text: string;
   files: InboundFile[];
@@ -30,7 +31,7 @@ export type InboundMessage = {
 export type OutboundMessage = {
   from: string;
   to: string[];
-  // Only on a channel with subjects.
+  // The subject, on a channel whose messages have them.
   subject?: string;
   text: string;
   files: OutboundFile[];
@@ -68,9 +69,9 @@ export type HandleWebhookOptions = {
   receive: ReceiveEvents;
 };
 
-// What the server keeps for a channel between its messages, like a forum's topics, encrypted at
-// rest. Both run at once, so what a channel reads and writes with nothing awaited between happens
-// together.
+// What the server keeps for a channel between its messages, like a forum's topics, by key and
+// encrypted at rest. Reads and writes are synchronous, so a channel that reads a value and writes it
+// back with no await between does so before anything else changes it.
 export type ChannelState = {
   read: (key: string) => string | null;
   write: (key: string, value: string) => void;
@@ -92,11 +93,11 @@ export abstract class Channel {
   abstract readonly labels: ChannelLabels;
   readonly limits: ChannelLimits = { recipients: 1, text: 32_000, files: 10 };
 
-  // Whether a message on the channel can have a subject.
+  // Whether the channel's messages have subjects.
   readonly subjects: boolean = false;
 
-  // Whether the server's accounts share the channel: the server keeps each message once, for every
-  // account to read, and wakes the accounts it delivers it to.
+  // Whether the server's accounts share the channel, like a forum: the server keeps each message it
+  // hands back once, for every account to read, and wakes the accounts the message goes to.
   readonly shared: boolean = false;
 
   connect?(token: string): Promise<string>;

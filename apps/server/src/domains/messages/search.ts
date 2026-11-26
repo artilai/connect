@@ -1,34 +1,25 @@
-import { Database } from "bun:sqlite";
+import { Database as Sqlite } from "bun:sqlite";
+
+import { asc, gt, inArray } from "drizzle-orm";
 
 import { AppError } from "@artil/errors";
 
-import type { ChannelKind } from "../channels/schema";
+import type { Database } from "../../platform/db/connection";
+import { messages } from "../../platform/db/schema";
+import type { MessageFilter, MessageRow } from "./schema";
 
-// What the index keeps of a message: what a search finds it by, and what a list narrows it by.
-export type IndexedMessage = {
-  id: string;
-  accountId: string;
-  channel: ChannelKind;
-  direction: "inbound" | "outbound";
-  counterpart: string;
-  createdAt: Date;
-  subject: string | null;
-  text: string;
-};
-
-// Which messages a search reads: the account's, or everyone's when it names none, and of those, the
-// ones on the channel, in the direction and with the counterpart it names.
-type IndexQuery = {
-  accountId?: string;
-  channel?: ChannelKind;
-  direction?: "inbound" | "outbound";
-  counterpart?: string;
+// Which messages a search reads, as a list narrows them, and the words it looks for.
+export type SearchQuery = Omit<MessageFilter, "before" | "limit"> & {
   words: readonly string[];
   limit: number;
 };
 
 // A one-letter word begins nearly every word, so it finds nothing in particular.
 const shortestWord = 2;
+
+// How many messages the index takes from the database at a time as it fills, so the server never
+// holds them all in memory at once.
+const fillPage = 1000;
 
 // Lowercases the text and leaves the marks off its letters, so a word matches with them or
 // without, like ё and е, and so й and и, which brings деплой to деплоить.
@@ -52,14 +43,15 @@ export function readSearchWords(search: string) {
   return words;
 }
 
-// A full-text index of messages, which lives in memory because they are encrypted at rest. The
-// server fills it once and adds each new message, so a search reads the index rather than decrypting
-// the messages. It keeps the words and what a list narrows by, not the text.
-export function createSearchIndex() {
-  const index = new Database(":memory:");
+// A full-text index of the messages' words, in memory, since the messages are encrypted at rest. It
+// keeps the words and what a list narrows by, never the text.
+function createWordIndex() {
+  const index = new Sqlite(":memory:");
 
+  // A removed message leaves this table, whose rowids are never used again, and its words stay
+  // behind in the index with nothing to join to.
   index.run(`create table messages (
-    rowid integer primary key,
+    rowid integer primary key autoincrement,
     id text not null unique,
     account_id text not null,
     channel text not null,
@@ -70,7 +62,7 @@ export function createSearchIndex() {
 
   // Each word matches as the start of a longer one too, which the prefix indexes keep quick.
   index.run(`create virtual table words using fts5(
-    subject, text, content = '', contentless_delete = 1, tokenize = 'unicode61', prefix = '2 3 4'
+    subject, text, content = '', tokenize = 'unicode61', prefix = '2 3 4'
   )`);
 
   const insertMessage = index.prepare(
@@ -79,64 +71,99 @@ export function createSearchIndex() {
 
   const insertWords = index.prepare("insert into words (rowid, subject, text) values (?, ?, ?)");
 
-  const removeWords = index.prepare(
-    "delete from words where rowid = (select rowid from messages where id = ?)",
-  );
-
   const removeMessage = index.prepare("delete from messages where id = ?");
 
   return {
-    add({
-      id,
-      accountId,
-      channel,
-      direction,
-      counterpart,
-      createdAt,
-      subject,
-      text,
-    }: IndexedMessage) {
+    add(message: MessageRow) {
       const { lastInsertRowid } = insertMessage.run(
-        id,
-        accountId,
-        channel,
-        direction,
-        counterpart,
-        createdAt.getTime(),
+        message.id,
+        message.accountId,
+        message.channel,
+        message.direction,
+        message.counterpart,
+        message.createdAt.getTime(),
       );
 
-      insertWords.run(lastInsertRowid, folded(subject ?? ""), folded(text));
+      insertWords.run(lastInsertRowid, folded(message.subject ?? ""), folded(message.text));
     },
 
     remove(id: string) {
-      removeWords.run(id);
       removeMessage.run(id);
     },
 
     // The ids of the messages that hold any of the words, best match first: a word in the subject
     // counts twice, and the newest comes first among equal matches.
-    search({ words, limit, ...narrowing }: IndexQuery) {
-      const columns = Object.entries({
-        account_id: narrowing.accountId,
-        channel: narrowing.channel,
-        direction: narrowing.direction,
-        counterpart: narrowing.counterpart,
-      }).flatMap(([column, value]) => (value ? [{ column, value }] : []));
+    find({ words, limit, accountId, channel, direction, counterpart }: SearchQuery) {
+      const narrowing = [
+        ["account_id", accountId],
+        ["channel", channel],
+        ["direction", direction],
+        ["counterpart", counterpart],
+      ].flatMap(([column, value]) => (value ? [{ column, value }] : []));
 
       // Each word is letters and digits only, so as a phrase it needs no escaping.
       const match = words.map((word) => `"${word}"*`).join(" OR ");
 
-      const narrowed = columns.map(({ column }) => ` and messages.${column} = ?`).join("");
-
       return index
         .query<{ id: string }, (string | number)[]>(
           `select messages.id from words join messages on messages.rowid = words.rowid
-           where words match ?${narrowed}
+           where words match ?${narrowing.map(({ column }) => ` and messages.${column} = ?`).join("")}
            order by bm25(words, 2, 1), messages.created_at desc, messages.rowid desc
            limit ?`,
         )
-        .all(match, ...columns.map(({ value }) => value), limit)
+        .all(match, ...narrowing.map(({ value }) => value), limit)
         .map(({ id }) => id);
+    },
+  };
+}
+
+// The search of the server's messages. Its index takes every message the first time a search needs
+// it, and each one the server adds from then on.
+export function createMessageSearch(db: Database) {
+  const index = createWordIndex();
+  let filled = false;
+
+  // Takes every message, a page at a time in the order of their ids.
+  function fill() {
+    let page: MessageRow[] = [];
+
+    do {
+      page = db
+        .select()
+        .from(messages)
+        .where(gt(messages.id, page.at(-1)?.id ?? ""))
+        .orderBy(asc(messages.id))
+        .limit(fillPage)
+        .all();
+
+      for (const message of page) index.add(message);
+    } while (page.length === fillPage);
+
+    filled = true;
+  }
+
+  return {
+    add(message: MessageRow) {
+      if (filled) index.add(message);
+    },
+
+    // The messages that hold the words, best match first. A message removed since the index took
+    // it, with its account, leaves the index once a search meets it, and the search looks again
+    // past it.
+    find(query: SearchQuery) {
+      if (!filled) fill();
+
+      for (;;) {
+        const ids = index.find(query);
+
+        const kept = db.select().from(messages).where(inArray(messages.id, ids)).all();
+        const found = new Map(kept.map((message) => [message.id, message]));
+        const removed = ids.filter((id) => !found.has(id));
+
+        if (removed.length === 0) return ids.flatMap((id) => found.get(id) ?? []);
+
+        for (const id of removed) index.remove(id);
+      }
     },
   };
 }

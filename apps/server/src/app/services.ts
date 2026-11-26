@@ -57,10 +57,19 @@ export function createServices({
 
   const access = createAccessService({ accessRepository: createAccessRepository(db) });
 
+  // Every channel behind the one interface, whatever carries its messages.
+  const channels = createChannelsService({
+    channels: new Map<ChannelKind, Channel>([...loadedChannels, [urlChannel.kind, urlChannel]]),
+    stateRepository: createChannelStateRepository(db),
+    publicUrl,
+    secret,
+  });
+
   const accounts = createAccountsService({
     accountsRepository: createAccountsRepository(db),
     access,
     files,
+    channels,
   });
 
   const tokens = createTokensService({ tokensRepository: createTokensRepository(db) });
@@ -75,14 +84,6 @@ export function createServices({
     events,
   });
 
-  // Every channel behind the one interface, whatever carries its messages.
-  const channels = createChannelsService({
-    channels: new Map<ChannelKind, Channel>([...loadedChannels, [urlChannel.kind, urlChannel]]),
-    stateRepository: createChannelStateRepository(db),
-    publicUrl,
-    secret,
-  });
-
   const addresses = createAddressesService({
     addressesRepository: createAddressesRepository(db),
     accounts,
@@ -90,12 +91,7 @@ export function createServices({
   });
 
   const messages = createMessagesService({
-    messagesRepository: createMessagesRepository(db, {
-      sharedChannels: channels
-        .list()
-        .filter(({ shared }) => shared)
-        .map(({ kind }) => kind),
-    }),
+    messagesRepository: createMessagesRepository(db),
     accounts,
     files,
     addresses,

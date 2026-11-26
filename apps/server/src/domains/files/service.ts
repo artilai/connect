@@ -24,10 +24,9 @@ type SaveOptions = {
 };
 
 type ReadForSendingOptions = {
-  accountId: string;
   fileId: string;
-  // Whether the account reads the message a file came with, like one on a shared channel, whose
-  // files it sends on too.
+  // Whether the account that sends reads the message a file came with: its own, or one on a shared
+  // channel.
   readsMessage: (messageId: string) => boolean;
 };
 
@@ -87,17 +86,12 @@ export function createFilesService({ filesRepository, store, log }: CreateFilesS
     }
   }
 
-  // A file the account received or sent, or that came with a message it reads, to send on.
-  async function readForSending({
-    accountId,
-    fileId,
-    readsMessage,
-  }: ReadForSendingOptions): Promise<Upload> {
+  // A file that came with a message the account reads, to send on.
+  async function readForSending({ fileId, readsMessage }: ReadForSendingOptions): Promise<Upload> {
     if (!store) throw unavailableError();
 
     const file = filesRepository.findById(fileId);
-    const sendable = file && (file.accountId === accountId || readsMessage(file.messageId));
-    const content = sendable ? await readContent(file) : undefined;
+    const content = file && readsMessage(file.messageId) ? await readContent(file) : undefined;
 
     if (!file || !content) {
       throw new AppError({

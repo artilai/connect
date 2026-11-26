@@ -138,10 +138,10 @@ export const messages = sqliteTable(
     author: text("author"),
     authorName: encryptedText("messages", "author_name"),
     to: text("to", { mode: "json" }).$type<string[]>().notNull(),
-    // Only on a channel with subjects.
+    // The subject, on a channel whose messages have them.
     subject: encryptedText("messages", "subject"),
     text: encryptedText("messages", "text").notNull(),
-    // The thread of the client that sent an outbound message, which an answer to it wakes.
+    // The thread of the client that sent the message, which an answer to it wakes.
     clientThread: text("client_thread"),
     status: text("status", {
       enum: ["received", "refused", "sending", "sent", "failed"],

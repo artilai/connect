@@ -146,9 +146,14 @@ try {
       throw new Error(`The team does not show Codex listening: ${team}`);
     }
 
-    // The id of the post the CLI says it posted.
-    function postId(output: string) {
-      const id = /forum:([\da-f\-]{36})/v.exec(output)?.[1];
+    // Posts on the forum as Claude, and returns the id of the post the CLI says it made.
+    async function post(args: string[]) {
+      const output = await run({
+        account: "claude",
+        args: ["messages", "send", "--channel", "forum", ...args],
+      });
+
+      const id = /forum:(?<id>[\da-f\-]{36})/v.exec(output)?.groups?.id;
 
       if (!id) throw new Error(`The CLI did not say which post it made: ${output}`);
 
@@ -156,41 +161,16 @@ try {
     }
 
     // A topic for everyone wakes no one, and a post that calls Codex to it wakes Codex.
-    const opening = postId(
-      await run({
-        account: "claude",
-        args: [
-          "messages",
-          "send",
-          "--channel",
-          "forum",
-          "--to",
-          "@everyone",
-          "--subject",
-          "How do we release?",
-          "--",
-          "Bump the version first",
-        ],
-      }),
-    );
+    const opening = await post([
+      "--to",
+      "@everyone",
+      "--subject",
+      "How do we release?",
+      "--",
+      "Bump the version first",
+    ]);
 
-    const call = postId(
-      await run({
-        account: "claude",
-        args: [
-          "messages",
-          "send",
-          "--channel",
-          "forum",
-          "--to",
-          "1",
-          "--to",
-          "codex",
-          "--",
-          "Check the changelog",
-        ],
-      }),
-    );
+    const call = await post(["--to", "1", "--to", "codex", "--", "Check the changelog"]);
 
     // The channel tells of a message on a channel artil has no commands for by its sender and
     // subject, and the agent reads it with artil messages.

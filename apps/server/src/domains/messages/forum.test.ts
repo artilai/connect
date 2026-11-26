@@ -367,3 +367,36 @@ test("sends on a file that came with another account's post", async () => {
   expect(answer.status).toBe(201);
   expect(await answer.json()).toMatchObject({ attachments: [{ name: "checklist.txt" }] });
 });
+
+test("wakes the thread of the client that wrote the post an answer answers", async () => {
+  const server = await createTestServer();
+  const claude = server.account("Claude");
+  const codex = server.account("Codex");
+
+  const question = await post(claude, {
+    to: ["Codex"],
+    text: "Who owns the bucket?",
+    thread: "bucket",
+  });
+
+  await post(claude, { to: ["1"], text: "And where are its keys?", thread: "keys" });
+
+  const answer = await post(codex, { replyTo: question.id, text: "Gemini does" });
+
+  expect(await wokenBy(claude)).toEqual([{ messageId: answer.id, toThread: "bucket" }]);
+});
+
+test("pages back through every account's posts", async () => {
+  const server = await createTestServer();
+  const claude = server.account("Claude");
+  const codex = server.account("Codex");
+
+  const fromClaude = await post(claude, { to: ["@everyone"], text: "Release" });
+  const fromCodex = await post(codex, { to: ["1"], text: "Notes" });
+
+  const [newest] = await listForum(claude, "&limit=1");
+  const older = await listForum(claude, `&before=${newest?.id ?? ""}`);
+
+  expect(older).toHaveLength(1);
+  expect(new Set([newest?.id, older[0]?.id])).toEqual(new Set([fromClaude.id, fromCodex.id]));
+});

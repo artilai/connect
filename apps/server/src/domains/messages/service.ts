@@ -13,8 +13,15 @@ import type { ChannelKind } from "../channels/schema";
 import { checkLimits, type ChannelsService } from "../channels/service";
 import type { EventsService } from "../events/service";
 import type { FilesService } from "../files/service";
-import type { MessageFilter, MessagesRepository } from "./repository";
-import type { Draft, MessageRecord, MessageRow } from "./schema";
+import type { MessagesRepository } from "./repository";
+import {
+  type Draft,
+  type MessageFilter,
+  messageListLimit,
+  type MessageRecord,
+  type MessageRow,
+  type NewMessage,
+} from "./schema";
 import { readSearchWords } from "./search";
 
 const recipientSeparator = ", ";
@@ -53,10 +60,11 @@ type SendDraftOptions = {
 
 type SendOptions = SendDraftOptions & { recipients: Recipients };
 
-// Which of the account's messages to list, or a shared channel's, and the words to search them for.
-type ListFilter = MessageFilter & { search?: string };
-
-type ListOptions = { accountId: string; filter: ListFilter };
+// Which messages to list, and the words to search them for.
+type ListOptions = {
+  accountId: string;
+  filter: Omit<MessageFilter, "accountId"> & { search?: string };
+};
 
 type FindOptions = { accountId: string; id: string };
 
@@ -74,6 +82,37 @@ function checkCarried(draft: Draft, kind: ChannelKind) {
   if ((draft.cc ?? []).length > 0) {
     throw new AppError({ code: "invalid_input", message: `A message on ${kind} copies no one` });
   }
+}
+
+type ToInboundRowOptions = {
+  channel: ChannelKind;
+  message: InboundMessage;
+  // The address the message reached.
+  address: AddressRecord;
+  // The name its sender goes by, which for one of the server's accounts is the account's.
+  fromName: string | null;
+};
+
+// What the server keeps of a message that reached an address. A message in a group is the group's,
+// which an answer goes to, and names who wrote it.
+function toInboundRow({ channel, message, address, fromName }: ToInboundRowOptions) {
+  const { from, group } = message;
+
+  return {
+    accountId: address.accountId,
+    addressId: address.id,
+    channel,
+    direction: "inbound",
+    externalId: message.id,
+    externalThread: message.thread,
+    counterpart: group?.address ?? from.address,
+    counterpartName: group ? group.name : fromName,
+    author: group ? from.address : null,
+    authorName: group ? fromName : null,
+    to: message.to,
+    subject: message.subject,
+    text: message.text,
+  } satisfies Omit<NewMessage, "id" | "status">;
 }
 
 type NotTakenOptions = { channel: Channel; cause: unknown };
@@ -117,8 +156,20 @@ export function createMessagesService({
     );
   }
 
+  // Whether the server's accounts share the channel, whose messages each of them reads.
+  function isShared(kind: ChannelKind | undefined) {
+    return Boolean(kind && channels.find(kind)?.shared);
+  }
+
+  // A message the account reads: its own, or one on a shared channel.
+  function findReadable({ accountId, id }: FindOptions) {
+    const row = messagesRepository.findById(id);
+
+    return row && (row.accountId === accountId || isShared(row.channel)) ? row : undefined;
+  }
+
   function find(options: FindOptions) {
-    const row = messagesRepository.find(options);
+    const row = findReadable(options);
 
     return row && toRecords([row])[0];
   }
@@ -136,7 +187,7 @@ export function createMessagesService({
       return { channel: draft.channel, to: draft.to };
     }
 
-    const repliedMessage = messagesRepository.find({ accountId, id: draft.replyTo });
+    const repliedMessage = findReadable({ accountId, id: draft.replyTo });
 
     if (!repliedMessage) throw new AppError({ code: "not_found", message: "Message not found" });
 
@@ -183,7 +234,7 @@ export function createMessagesService({
     receiptsInFlight.set(id, shown);
   }
 
-  type SendOnOptions = {
+  type SendOnChannelOptions = {
     accountId: string;
     channel: Channel;
     address: AddressRecord;
@@ -193,7 +244,13 @@ export function createMessagesService({
   };
 
   // Sends the message, which the account keeps a copy of, and returns the copy's id.
-  async function sendOwn({ accountId, channel, address, message, clientThread }: SendOnOptions) {
+  async function sendOutbound({
+    accountId,
+    channel,
+    address,
+    message,
+    clientThread,
+  }: SendOnChannelOptions) {
     const id = crypto.randomUUID();
 
     messagesRepository.add({
@@ -233,100 +290,96 @@ export function createMessagesService({
     return id;
   }
 
-  type KeepSharedOptions = Pick<SendOnOptions, "clientThread"> & {
+  type KeepSharedOptions = Pick<SendOnChannelOptions, "address" | "clientThread"> & {
     channel: ChannelKind;
     message: InboundMessage;
   };
 
-  // Keeps a message on a shared channel once, for every account to read, and wakes the accounts it
-  // went to whose lists let the team wake them, in the thread of their client that last wrote in
-  // its group. Returns the message's id.
-  async function keepShared({ channel, message, clientThread }: KeepSharedOptions) {
+  // Keeps a message on a shared channel once, as an inbound message under its author's address, for
+  // every account to read. It wakes the accounts it went to whose lists let the team wake them, in
+  // the thread of their client that wrote what it answers, or else that last wrote in its group.
+  async function keepShared({ channel, message, address, clientThread }: KeepSharedOptions) {
     const { from, group } = message;
-    const sender = addresses.findByValue({ channel, value: from.address });
 
-    if (!sender) throw new Error(`There is no ${channel} address ${from.address}`);
+    // An account removed since the channel named it is no longer there to take the message.
+    const recipients = message.to.flatMap(
+      (value) => addresses.findByValue({ channel, value }) ?? [],
+    );
 
-    const senderName = accounts.findById(sender.accountId)?.name ?? from.name;
-    const counterpart = group?.address ?? from.address;
+    const fromName = accounts.findById(address.accountId)?.name ?? from.name;
     const id = crypto.randomUUID();
 
-    messagesRepository.add({
-      id,
-      accountId: sender.accountId,
-      addressId: sender.id,
+    const row = toInboundRow({
       channel,
-      direction: "inbound",
-      externalId: message.id,
-      externalThread: message.thread,
-      counterpart,
-      counterpartName: group ? group.name : senderName,
-      author: group ? from.address : null,
-      authorName: group ? senderName : null,
-      to: message.to,
-      subject: message.subject,
-      text: message.text,
-      clientThread,
-      status: "received",
-      admission: "team",
+      message: { ...message, to: recipients.map(({ value }) => value) },
+      address,
+      fromName,
     });
 
-    await files.save({ accountId: sender.accountId, messageId: id, uploads: message.files });
+    messagesRepository.add({ id, ...row, clientThread, status: "received", admission: "team" });
 
-    for (const value of message.to) {
-      const address = addresses.findByValue({ channel, value });
+    await files.save({ accountId: address.accountId, messageId: id, uploads: message.files });
 
-      if (!address || address.accountId === sender.accountId) continue;
-
+    for (const recipient of recipients) {
       const { refusal } = access.decide({
-        accountId: address.accountId,
+        accountId: recipient.accountId,
         channel,
         from: from.address,
         username: from.username,
         group: group?.address ?? null,
-        fromSelf: false,
+        fromSelf: recipient.accountId === address.accountId,
         fromTeam: true,
         fromVerified: from.verified,
       });
 
       if (refusal) continue;
 
-      const toThread = messagesRepository.findLastClientThreadByGroup({
-        accountId: address.accountId,
-        channel,
-        counterpart,
-      });
+      const answered = message.replyTo
+        ? messagesRepository.findByExternalId({
+            addressId: recipient.id,
+            direction: "inbound",
+            externalId: message.replyTo,
+          })
+        : undefined;
+
+      const toThread =
+        answered?.clientThread ??
+        messagesRepository.findLastSharedClientThread({
+          addressId: recipient.id,
+          counterpart: row.counterpart,
+        });
 
       events.add({
-        accountId: address.accountId,
+        accountId: recipient.accountId,
         event: { type: "message.received", channel, messageId: id, toThread },
       });
     }
-
-    return id;
   }
 
-  // Sends the message on a shared channel, which hands it back for the server to keep once, and
-  // returns the id it keeps it under.
-  async function sendShared({ channel, address, message, clientThread }: SendOnOptions) {
-    let keptId: string | undefined;
-
-    try {
-      await channel.send({
+  // Sends the message on a shared channel, which hands it back for the server to keep once, under
+  // the id the channel gives it, and returns the id the server keeps it by.
+  async function sendShared({ channel, address, message, clientThread }: SendOnChannelOptions) {
+    const { id: externalId } = await channel
+      .send({
         message,
         token: address.token,
         state: channels.stateOf(channel.kind),
-        deliver: async (delivered) => {
-          keptId = await keepShared({ channel: channel.kind, message: delivered, clientThread });
-        },
+        deliver: (delivered) =>
+          keepShared({ channel: channel.kind, message: delivered, address, clientThread }),
+      })
+      .catch((cause: unknown) => {
+        throw notTaken({ channel, cause });
       });
-    } catch (cause) {
-      throw notTaken({ channel, cause });
-    }
 
-    if (!keptId) throw new Error(`${channel.name} handed back no message to keep`);
+    const kept = messagesRepository.findByExternalId({
+      addressId: address.id,
+      direction: "inbound",
+      externalId,
+    });
 
-    return keptId;
+    if (!kept) throw new Error(`${channel.name} handed back no message to keep`);
+
+    return kept.id;
   }
 
   // Sends on the channel from the account's address there, and keeps the message among the
@@ -351,9 +404,8 @@ export function createMessagesService({
     }
 
     const attachments = await files.readAttachments({
-      accountId,
       attachments: draft.attachments ?? [],
-      readsMessage: (id) => Boolean(messagesRepository.find({ accountId, id })),
+      readsMessage: (id) => Boolean(findReadable({ accountId, id })),
     });
 
     const outgoingFiles = [...attachments, ...uploads];
@@ -388,9 +440,10 @@ export function createMessagesService({
     }
 
     const sending = { accountId, channel, address, message, clientThread: draft.thread };
-    const id = channel.shared ? await sendShared(sending) : await sendOwn(sending);
+    const id = channel.shared ? await sendShared(sending) : await sendOutbound(sending);
 
-    if (answered) {
+    // An account answers only its own copy of a message, as a shared one's is its author's.
+    if (answered?.accountId === accountId) {
       messagesRepository.markAnswered(answered.id);
       sendReceipt({ receipt: "answered", message: answered });
     }
@@ -487,9 +540,8 @@ export function createMessagesService({
     const betweenThreads = fromSelf && fromThread;
     // The server's own accounts go by their names.
     const fromName = (sender && accounts.findById(sender.accountId)?.name) ?? from.name;
-
-    // A message in a group is the group's, which an answer goes to, and names who wrote it.
-    const counterpart = group?.address ?? from.address;
+    const row = toInboundRow({ channel, message, address, fromName });
+    const { counterpart } = row;
 
     const { refusal, admission } = access.decide({
       accountId,
@@ -519,19 +571,7 @@ export function createMessagesService({
     // Stored before anything waits, so a message delivered twice at once is taken once.
     messagesRepository.add({
       id,
-      accountId,
-      addressId: address.id,
-      channel,
-      direction: "inbound",
-      externalId: message.id,
-      externalThread: message.thread,
-      counterpart,
-      counterpartName: group ? group.name : fromName,
-      author: group ? from.address : null,
-      authorName: group ? fromName : null,
-      to: message.to,
-      subject: message.subject,
-      text: message.text,
+      ...row,
       status: refusal ? "refused" : "received",
       refusal,
       admission,
@@ -594,12 +634,14 @@ export function createMessagesService({
   }
 
   return {
-    // A message of the account. Reading one that woke the agent shows its sender the agent read it,
-    // until the agent answers it.
+    // A message the account reads. Reading its own copy of one that woke the agent shows its sender
+    // the agent read it, until the agent answers it.
     read(options: FindOptions) {
-      const row = messagesRepository.find(options);
+      const row = findReadable(options);
 
-      if (row && !row.answeredAt) sendReceipt({ receipt: "read", message: row });
+      if (row?.accountId === options.accountId && !row.answeredAt) {
+        sendReceipt({ receipt: "read", message: row });
+      }
 
       return row && toRecords([row])[0];
     },
@@ -609,12 +651,15 @@ export function createMessagesService({
     listKeptOut: ({ accountId, channel }: ListKeptOutOptions) =>
       messagesRepository.listRefusedSenders({ accountId, channel, refusals: [...keptOut] }),
 
-    // The account's messages, or a shared channel's, newest first, or those that hold the words
-    // searched for, best match first.
-    list({ accountId, filter: { search, ...filter } }: ListOptions) {
-      if (!search) return toRecords(messagesRepository.list({ accountId, filter }));
+    // The account's messages, or everyone's on a shared channel, newest first, or those that hold
+    // the words searched for, best match first.
+    list({ accountId, filter: { search, before, limit, ...narrowing } }: ListOptions) {
+      const filter = {
+        ...narrowing,
+        accountId: isShared(narrowing.channel) ? null : accountId,
+      };
 
-      const { before, ...narrowing } = filter;
+      if (!search) return toRecords(messagesRepository.list({ ...filter, before, limit }));
 
       if (before) {
         throw new AppError({
@@ -624,9 +669,10 @@ export function createMessagesService({
       }
 
       return toRecords(
-        messagesRepository.search({
-          accountId,
-          filter: { ...narrowing, words: readSearchWords(search) },
+        messagesRepository.listByWords({
+          ...filter,
+          words: readSearchWords(search),
+          limit: limit ?? messageListLimit,
         }),
       );
     },

@@ -81,25 +81,18 @@ export function createAddressesService({
     findById: addressesRepository.findById,
     findByAccount,
     findByValue,
-    listByAccount: addressesRepository.listByAccount,
+    listConnectedByAccount: addressesRepository.listByAccount,
     listConnected: addressesRepository.listConnected,
 
-    // The account's addresses on every channel: those it connected, and the one it has by itself on
-    // each channel that connects none, which a client looks for before it lists that channel's
-    // messages.
-    listAllByAccount: (accountId: string) => [
+    // The addresses the account connected, and the one it has by itself on each channel that
+    // connects none, which a client looks for before it lists that channel's messages.
+    listByAccount: (accountId: string) => [
       ...addressesRepository.listByAccount(accountId),
-      ...channels.list().flatMap((channel) =>
-        channel.connect
-          ? []
-          : [
-              addressesRepository.findOrAdd({
-                accountId,
-                channel: channel.kind,
-                value: accountId,
-              }),
-            ],
-      ),
+      ...channels
+        .list()
+        .flatMap((channel) =>
+          channel.connect ? [] : (findByAccount({ accountId, channel: channel.kind }) ?? []),
+        ),
     ],
 
     // Whom a message goes to, as the channel writes them.

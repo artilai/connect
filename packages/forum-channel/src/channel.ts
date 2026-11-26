@@ -1,43 +1,52 @@
-import { Channel, type SendOptions } from "@artil/channels/contract";
+import { Channel, type OutboundMessage, type SendOptions } from "@artil/channels/contract";
 import { AppError } from "@artil/errors";
 
-import { createTopics, type Topic, type Topics } from "./topics";
+import { createTopics, type Topics } from "./topics";
+import { countWake } from "./wakes";
 
 // The word that starts a topic for the whole team, as Slack's @everyone writes to all of a channel.
 const everyone = "@everyone";
 
-// A topic goes by its number, which the forum gives it. The server hands it over with a # before
-// it, which no account's id has.
-const topicPattern = /^[1-9]\d{0,9}$/v;
+// A topic goes by its number, which a person may write with a # before it.
+const topicPattern = /^#?(?<number>[1-9]\d{0,9})$/v;
 
+// The server hands a topic over with the # before its number, so an account's id, which can be all
+// digits, never reads as a topic.
 const topicMark = "#";
 
 // A topic's title holds as much as a subject does.
 const titleLength = 240;
 
-type NamedRecipients = { everyone?: string[]; topics?: string[]; accounts?: string[] };
+type Recipients = { everyone: boolean; topics: Set<string>; accounts: string[] };
 
-type PlaceOptions = {
+type TopicNumberOptions = { recipients: Recipients; thread: string | undefined };
+
+type TopicForOptions = {
   topics: Topics;
-  named: NamedRecipients;
-  // The topic of the post it answers, which the server gives as its thread.
-  thread?: string;
-  subject?: string;
-  text: string;
+  recipients: Recipients;
+  message: OutboundMessage;
 };
-
-type TitleOptions = Pick<PlaceOptions, "subject" | "text">;
 
 function invalid(message: string) {
   return new AppError({ code: "invalid_input", message });
 }
 
-function subjectInTopic() {
-  return invalid("Only a new topic takes a subject");
+// Whom a post names, as the server hands them over: everyone, topics by their marked numbers, and
+// accounts by their ids.
+function readRecipients(to: readonly string[]): Recipients {
+  return {
+    everyone: to.includes(everyone),
+    topics: new Set(
+      to.flatMap((recipient) =>
+        recipient.startsWith(topicMark) ? [recipient.slice(topicMark.length)] : [],
+      ),
+    ),
+    accounts: to.filter((recipient) => recipient !== everyone && !recipient.startsWith(topicMark)),
+  };
 }
 
 // A new topic goes by the post's subject, or else by its first line.
-function titleOf({ subject, text }: TitleOptions) {
+function titleOf({ subject, text }: OutboundMessage) {
   const title = subject?.trim() || text.trim().split("\n", 1)[0]?.trim();
 
   if (!title) {
@@ -49,37 +58,41 @@ function titleOf({ subject, text }: TitleOptions) {
   return title.length > titleLength ? `${title.slice(0, titleLength - 1)}…` : title;
 }
 
-// The topic a post goes in, by whom it names and what it answers, or the title of the one it starts:
-// for everyone, or for the accounts it calls.
-function place({ topics, named, thread, subject, text }: PlaceOptions): Topic | { title: string } {
-  const numbers = new Set((named.topics ?? []).map((topic) => topic.slice(topicMark.length)));
-  const toEveryone = Boolean(named.everyone);
-
+// The number of the topic a post goes in: the one of the post it answers, which the server gives as
+// its thread, or the one it names, or none for a post that starts a topic.
+function topicNumberOf({ recipients, thread }: TopicNumberOptions) {
   if (thread) {
-    if (toEveryone || numbers.difference(new Set([thread])).size > 0) {
+    if (recipients.everyone || recipients.topics.difference(new Set([thread])).size > 0) {
       throw invalid(
         "An answer stays in the topic of the post it answers. Name in to only the accounts to call.",
       );
     }
 
-    if (subject) throw subjectInTopic();
-
-    return topics.get(thread);
+    return thread;
   }
 
-  if (numbers.size > 1) throw invalid("A post goes in one topic");
+  if (recipients.topics.size > 1) throw invalid("A post goes in one topic");
 
-  const [number] = numbers;
+  const [number] = recipients.topics;
 
-  if (!number) return { title: titleOf({ subject, text }) };
-
-  if (toEveryone) {
+  if (number && recipients.everyone) {
     throw invalid(`@everyone starts a new topic. Leave it out to post in topic ${number}.`);
   }
 
-  if (subject) throw subjectInTopic();
+  return number;
+}
 
-  return topics.get(number);
+// The topic a post goes in, which the poster and the accounts it calls take part in from then on: a
+// topic it answers or names, or else a new one, for everyone or for the accounts it calls.
+function topicFor({ topics, recipients, message }: TopicForOptions) {
+  const number = topicNumberOf({ recipients, thread: message.thread });
+  const accounts = [message.from, ...recipients.accounts];
+
+  if (!number) return topics.open({ title: titleOf(message), participants: accounts });
+
+  if (message.subject) throw invalid("Only a new topic takes a subject");
+
+  return topics.join({ topic: topics.get(number), accounts });
 }
 
 // The forum, where the server's accounts post in topics that every account reads. Whoever posted in
@@ -95,7 +108,7 @@ export class ForumChannel extends Channel {
   // A post names its topic and the accounts it calls, and can hold what an agent learned in full.
   override readonly limits = { recipients: 10, text: 32_000, files: 10 };
 
-  // A new topic goes by its subject.
+  // A new topic goes by its subject, and every post by its topic's title.
   override readonly subjects = true;
 
   override readonly shared = true;
@@ -111,41 +124,25 @@ export class ForumChannel extends Channel {
 
     if (trimmed.toLowerCase() === everyone) return everyone;
 
-    return topicPattern.test(trimmed) ? `${topicMark}${trimmed}` : null;
+    const number = topicPattern.exec(trimmed)?.groups?.number;
+
+    return number ? `${topicMark}${number}` : null;
   }
 
   async send({ message, state, deliver }: SendOptions) {
-    const { from, to, subject, text, files, replyTo, thread } = message;
-    const topics = createTopics(state);
-
-    const named: NamedRecipients = Object.groupBy(new Set(to), (recipient) => {
-      if (recipient === everyone) return "everyone";
-
-      return recipient.startsWith(topicMark) ? "topics" : "accounts";
-    });
-
-    const called = (named.accounts ?? []).filter((account) => account !== from);
-    const placed = place({ topics, named, thread, subject, text });
-    const accounts = [from, ...called];
-
-    const topic =
-      "number" in placed
-        ? topics.join({ topic: placed, accounts })
-        : topics.open({ title: placed.title, participants: accounts });
-
-    const woken = topic.participants.filter(
-      (account) => account !== from && topics.countWake({ from, to: account }),
-    );
-
+    const { from, text, files, replyTo } = message;
+    const recipients = readRecipients(message.to);
+    const topic = topicFor({ topics: createTopics(state), recipients, message });
     const id = crypto.randomUUID();
 
     // The account that posts signed in to post, so the server vouches for it.
     await deliver({
       id,
       from: { address: from, name: null, username: null, verified: true },
-      to: woken,
+      to: topic.participants.filter(
+        (account) => account !== from && countWake({ state, from, to: account }),
+      ),
       group: { address: topic.number, name: topic.title },
-      // Every post goes by its topic's title, as an answer to an email keeps its subject.
       subject: topic.title,
       text,
       files,

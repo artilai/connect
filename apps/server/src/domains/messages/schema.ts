@@ -2,7 +2,7 @@ import { z } from "zod";
 
 import { admissions, type messages, refusals } from "../../platform/db/schema";
 import { labelSchema } from "../../platform/http/validate";
-import { channelKindSchema } from "../channels/schema";
+import { type ChannelKind, channelKindSchema } from "../channels/schema";
 import {
   attachmentSchema,
   attachmentsSchema,
@@ -23,6 +23,18 @@ export type MessageRecord = Omit<
 };
 
 export type NewMessage = Omit<typeof messages.$inferInsert, "createdAt">;
+
+// Which messages a list keeps: an account's, or every account's on a shared channel, and of those,
+// the ones on a channel, in a direction and with a counterpart.
+export type MessageFilter = {
+  accountId: string | null;
+  channel?: ChannelKind;
+  direction?: "inbound" | "outbound";
+  counterpart?: string;
+  // Lists the messages older than this one, to page back.
+  before?: string;
+  limit?: number;
+};
 
 export const directionSchema = z.enum(["inbound", "outbound"]);
 
