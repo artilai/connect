@@ -2,7 +2,6 @@ import { z } from "zod";
 
 import { type Channel, contractVersion } from "@artil/channels/contract";
 import { AppError } from "@artil/errors";
-import { channel as forumChannel } from "@artil/forum-channel";
 import { channel as urlChannel } from "@artil/url-channel";
 
 import type { ChannelKind } from "./schema";
@@ -84,10 +83,8 @@ type LoadChannelsOptions = {
   builtInChannels: readonly Channel[];
 };
 
-// The channels the server carries itself, which the config cannot load another of.
-const ownKinds = new Set([urlChannel.kind, forumChannel.kind]);
-
-// The channels the config names, one of each kind, besides the server's own.
+// The channels the config names, one of each kind; the Message URL is the server's own, so the
+// config cannot load another.
 export async function loadChannels({ specifiers, dataDir, builtInChannels }: LoadChannelsOptions) {
   const channels = new Map<ChannelKind, Channel>();
 
@@ -98,7 +95,7 @@ export async function loadChannels({ specifiers, dataDir, builtInChannels }: Loa
       ? checkChannel({ specifier, channel: builtIn })
       : await importChannel({ specifier, dataDir });
 
-    if (ownKinds.has(channel.kind) || channels.has(channel.kind)) {
+    if (channel.kind === urlChannel.kind || channels.has(channel.kind)) {
       throw invalid(
         `The server has a ${channel.kind} channel already; ${specifier} cannot be another`,
       );

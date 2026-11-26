@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { channel as forumChannel } from "@artil/forum-channel";
 import { channel as telegramChannel } from "@artil/telegram-channel";
 
 import { startServer } from "../src/app/server";
@@ -20,7 +21,9 @@ const migrationsFolder = fileURLToPath(new URL("../migrations", import.meta.url)
 
 const folder = await mkdtemp(join(tmpdir(), "artil-connect-e2e-"));
 
-const config = { ...newConfig({ channels: [telegramChannel.kind] }), port: 0 };
+const builtInChannels = [telegramChannel, forumChannel];
+
+const config = { ...newConfig({ channels: builtInChannels.map(({ kind }) => kind) }), port: 0 };
 
 const server = await startServer({
   config,
@@ -29,7 +32,7 @@ const server = await startServer({
   channels: await loadChannels({
     specifiers: config.channels,
     dataDir: folder,
-    builtInChannels: [telegramChannel],
+    builtInChannels,
   }),
   password: async () => null,
   log: (line) => console.log(`server: ${line}`),

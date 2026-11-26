@@ -26,8 +26,8 @@ type SaveOptions = {
 type ReadForSendingOptions = {
   accountId: string;
   fileId: string;
-  // Whether the account reads the message a file came with, like a post on the forum, whose files it
-  // sends on too.
+  // Whether the account reads the message a file came with, like one on a shared channel, whose
+  // files it sends on too.
   readsMessage: (messageId: string) => boolean;
 };
 

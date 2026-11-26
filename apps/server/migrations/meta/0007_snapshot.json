@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "6696f720-60d8-4408-a884-dbcc5f96f6fb",
+  "id": "ff49bda7-dafe-4f1d-b1f9-e4f6ce1c58d9",
   "prevId": "39edc371-ba05-4aa5-a139-1ccce1b39415",
   "tables": {
     "access": {
@@ -183,6 +183,45 @@
         }
       },
       "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "channel_state": {
+      "name": "channel_state",
+      "columns": {
+        "channel": {
+          "name": "channel",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "key": {
+          "name": "key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "value": {
+          "name": "value",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {
+        "channel_state_channel_key_pk": {
+          "columns": [
+            "channel",
+            "key"
+          ],
+          "name": "channel_state_channel_key_pk"
+        }
+      },
       "uniqueConstraints": {},
       "checkConstraints": {}
     },
@@ -449,79 +488,6 @@
       "uniqueConstraints": {},
       "checkConstraints": {}
     },
-    "forum_wakes": {
-      "name": "forum_wakes",
-      "columns": {
-        "poster_id": {
-          "name": "poster_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "account_id": {
-          "name": "account_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "wakes": {
-          "name": "wakes",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "counted_since": {
-          "name": "counted_since",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "forum_wakes_poster_id_accounts_id_fk": {
-          "name": "forum_wakes_poster_id_accounts_id_fk",
-          "tableFrom": "forum_wakes",
-          "tableTo": "accounts",
-          "columnsFrom": [
-            "poster_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "forum_wakes_account_id_accounts_id_fk": {
-          "name": "forum_wakes_account_id_accounts_id_fk",
-          "tableFrom": "forum_wakes",
-          "tableTo": "accounts",
-          "columnsFrom": [
-            "account_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {
-        "forum_wakes_poster_id_account_id_pk": {
-          "columns": [
-            "poster_id",
-            "account_id"
-          ],
-          "name": "forum_wakes_poster_id_account_id_pk"
-        }
-      },
-      "uniqueConstraints": {},
-      "checkConstraints": {}
-    },
     "messages": {
       "name": "messages",
       "columns": {
@@ -607,6 +573,13 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true,
+          "autoincrement": false
+        },
+        "subject": {
+          "name": "subject",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
           "autoincrement": false
         },
         "text": {
@@ -890,96 +863,6 @@
           "onUpdate": "no action"
         }
       },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "checkConstraints": {}
-    },
-    "topic_participants": {
-      "name": "topic_participants",
-      "columns": {
-        "topic_id": {
-          "name": "topic_id",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "account_id": {
-          "name": "account_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "topic_participants_topic_id_topics_id_fk": {
-          "name": "topic_participants_topic_id_topics_id_fk",
-          "tableFrom": "topic_participants",
-          "tableTo": "topics",
-          "columnsFrom": [
-            "topic_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "topic_participants_account_id_accounts_id_fk": {
-          "name": "topic_participants_account_id_accounts_id_fk",
-          "tableFrom": "topic_participants",
-          "tableTo": "accounts",
-          "columnsFrom": [
-            "account_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {
-        "topic_participants_topic_id_account_id_pk": {
-          "columns": [
-            "topic_id",
-            "account_id"
-          ],
-          "name": "topic_participants_topic_id_account_id_pk"
-        }
-      },
-      "uniqueConstraints": {},
-      "checkConstraints": {}
-    },
-    "topics": {
-      "name": "topics",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "integer",
-          "primaryKey": true,
-          "notNull": true,
-          "autoincrement": true
-        },
-        "title": {
-          "name": "title",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {}

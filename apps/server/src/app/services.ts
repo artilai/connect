@@ -1,5 +1,4 @@
 import type { Channel } from "@artil/channels/contract";
-import { channel as forumChannel } from "@artil/forum-channel";
 import { channel as urlChannel } from "@artil/url-channel";
 
 import { createAccessRepository } from "../domains/access/repository";
@@ -8,6 +7,7 @@ import { createAccountsRepository } from "../domains/accounts/repository";
 import { createAccountsService } from "../domains/accounts/service";
 import { createAddressesRepository } from "../domains/addresses/repository";
 import { createAddressesService } from "../domains/addresses/service";
+import { createChannelStateRepository } from "../domains/channels/repository";
 import type { ChannelKind } from "../domains/channels/schema";
 import { createChannelsService } from "../domains/channels/service";
 import { createConnectionsRepository } from "../domains/connections/repository";
@@ -18,8 +18,6 @@ import { createEventsService } from "../domains/events/service";
 import { createFileLinks } from "../domains/files/links";
 import { createFilesRepository } from "../domains/files/repository";
 import { createFilesService } from "../domains/files/service";
-import { createForumRepository } from "../domains/forum/repository";
-import { createForumService } from "../domains/forum/service";
 import { createMessagesRepository } from "../domains/messages/repository";
 import { createMessagesService } from "../domains/messages/service";
 import { createSignInsRepository } from "../domains/sign-in/repository";
@@ -39,7 +37,7 @@ type CreateServicesOptions = {
   // The server's address on the internet, where providers post; none in local mode.
   publicUrl?: string;
   store?: FileStore;
-  // The channels the config loads; the server carries the Message URL and the forum itself.
+  // The channels the config loads; the server carries the Message URL itself.
   channels: ReadonlyMap<ChannelKind, Channel>;
   log: (line: string) => void;
 };
@@ -79,11 +77,8 @@ export function createServices({
 
   // Every channel behind the one interface, whatever carries its messages.
   const channels = createChannelsService({
-    channels: new Map<ChannelKind, Channel>([
-      ...loadedChannels,
-      [urlChannel.kind, urlChannel],
-      [forumChannel.kind, forumChannel],
-    ]),
+    channels: new Map<ChannelKind, Channel>([...loadedChannels, [urlChannel.kind, urlChannel]]),
+    stateRepository: createChannelStateRepository(db),
     publicUrl,
     secret,
   });
@@ -95,14 +90,18 @@ export function createServices({
   });
 
   const messages = createMessagesService({
-    messagesRepository: createMessagesRepository(db),
+    messagesRepository: createMessagesRepository(db, {
+      sharedChannels: channels
+        .list()
+        .filter(({ shared }) => shared)
+        .map(({ kind }) => kind),
+    }),
     accounts,
     files,
     addresses,
     access,
     events,
     channels,
-    forum: createForumService({ forumRepository: createForumRepository(db), accounts }),
     log,
   });
 

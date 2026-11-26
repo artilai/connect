@@ -64,8 +64,7 @@ export function createAddressesService({
   }
 
   // The address a person means on the channel: one of the server's accounts, by its name or id,
-  // stands for its address there, and anything else is as the channel reads it, like a topic on the
-  // forum.
+  // stands for its address there, and anything else is as the channel reads it.
   function readAddress({ channel, input, parse }: ReadAddressOptions) {
     const account = accounts.findByIdOrName(input);
 

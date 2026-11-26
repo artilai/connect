@@ -51,6 +51,9 @@
       "name": "@artil/forum-channel",
       "dependencies": {
         "@artil/channels": "workspace:*",
+        "@artil/errors": "workspace:*",
+        "@artil/utils": "workspace:*",
+        "zod": "^4.6.7",
       },
     },
     "packages/slack-channel": {

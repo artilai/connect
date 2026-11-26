@@ -18,6 +18,7 @@ export type InboundMessage = {
   from: Sender;
   to: string[];
   group?: { address: string; name: string | null };
+  subject?: string;
   text: string;
   files: InboundFile[];
   replyTo?: string;
@@ -29,6 +30,8 @@ export type InboundMessage = {
 export type OutboundMessage = {
   from: string;
   to: string[];
+  // Only on a channel with subjects.
+  subject?: string;
   text: string;
   files: OutboundFile[];
   replyTo?: string;
@@ -65,9 +68,18 @@ export type HandleWebhookOptions = {
   receive: ReceiveEvents;
 };
 
+// What the server keeps for a channel between its messages, like a forum's topics, encrypted at
+// rest. Both run at once, so what a channel reads and writes with nothing awaited between happens
+// together.
+export type ChannelState = {
+  read: (key: string) => string | null;
+  write: (key: string, value: string) => void;
+};
+
 export type SendOptions = {
   message: OutboundMessage;
   token: string | null;
+  state: ChannelState;
   deliver: (message: InboundMessage) => Promise<void>;
 };
 
@@ -79,6 +91,13 @@ export abstract class Channel {
   abstract readonly name: string;
   abstract readonly labels: ChannelLabels;
   readonly limits: ChannelLimits = { recipients: 1, text: 32_000, files: 10 };
+
+  // Whether a message on the channel can have a subject.
+  readonly subjects: boolean = false;
+
+  // Whether the server's accounts share the channel: the server keeps each message once, for every
+  // account to read, and wakes the accounts it delivers it to.
+  readonly shared: boolean = false;
 
   connect?(token: string): Promise<string>;
 

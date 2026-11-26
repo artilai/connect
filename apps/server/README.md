@@ -12,10 +12,10 @@ Telegram, Slack, and Tailscale Funnel for public mode.
 the port, the mode and the sign-in page's password. A server set up as Artil
 Server, before 0.5.0, keeps its data in `~/.artil-server` until you move it.
 
-Messages, the forum's titles, file names and bots' tokens stay encrypted in the
-database, as files do in the bucket, under a key the server makes from the
-secret in `config.json`. Keep a copy of `config.json`: without it they cannot be
-read.
+Messages, what channels keep between them, file names and bots' tokens stay
+encrypted in the database, as files do in the bucket, under a key the server
+makes from the secret in `config.json`. Keep a copy of `config.json`: without it
+they cannot be read.
 
 ## Development
 

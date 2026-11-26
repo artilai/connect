@@ -1,13 +1,11 @@
 import { and, asc, desc, eq, gt, inArray, isNotNull, lt, max, or, type SQL } from "drizzle-orm";
 
-import { channel as forumChannel } from "@artil/forum-channel";
-
 import type { Database } from "../../platform/db/connection";
 import { messages } from "../../platform/db/schema";
 import type { Refusal } from "../access/schema";
 import type { ChannelKind } from "../channels/schema";
-import { messageListLimit, type MessageRow, type NewMessage, subjectOf } from "./schema";
-import { createSearchIndex, type IndexedMessage } from "./search";
+import { messageListLimit, type MessageRow, type NewMessage } from "./schema";
+import { createSearchIndex } from "./search";
 
 export type MessageFilter = {
   channel?: ChannelKind;
@@ -58,21 +56,27 @@ type ListRefusedSendersOptions = {
   refusals: readonly Refusal[];
 };
 
-// The forum's posts are the whole team's, which every account reads. Any other message is only its
-// account's.
-function readableBy(accountId: string) {
-  return or(eq(messages.accountId, accountId), eq(messages.channel, forumChannel.kind));
-}
-
 // How many messages the index takes from the database at a time when it fills, so the server does
 // not decrypt every one of them at once.
 const indexPage = 1000;
 
-function toIndexed(row: MessageRow): IndexedMessage {
-  return { ...row, subject: subjectOf(row) };
-}
+type CreateMessagesRepositoryOptions = {
+  // The channels the server's accounts share, whose messages every account reads.
+  sharedChannels: readonly ChannelKind[];
+};
 
-export function createMessagesRepository(db: Database) {
+export function createMessagesRepository(
+  db: Database,
+  { sharedChannels }: CreateMessagesRepositoryOptions,
+) {
+  const shared = new Set(sharedChannels);
+
+  // A message on a shared channel is the whole team's, which every account reads. Any other message
+  // is only its account's.
+  function readableBy(accountId: string) {
+    return or(eq(messages.accountId, accountId), inArray(messages.channel, [...shared]));
+  }
+
   const searchIndex = createSearchIndex();
   let indexFilled = false;
 
@@ -85,7 +89,7 @@ export function createMessagesRepository(db: Database) {
     let page = db.select().from(messages).orderBy(asc(messages.id)).limit(indexPage).all();
 
     while (page.length > 0) {
-      for (const row of page) searchIndex.add(toIndexed(row));
+      for (const row of page) searchIndex.add(row);
 
       const last = page.at(-1)?.id ?? "";
 
@@ -156,8 +160,8 @@ export function createMessagesRepository(db: Database) {
         .from(messages)
         .where(
           and(
-            // The forum lists everyone's posts, and the rest of the messages are the account's.
-            channel === forumChannel.kind ? undefined : eq(messages.accountId, accountId),
+            // A shared channel lists everyone's messages, and the rest of them are the account's.
+            channel && shared.has(channel) ? undefined : eq(messages.accountId, accountId),
             channel ? eq(messages.channel, channel) : undefined,
             direction && eq(messages.direction, direction),
             counterpart ? eq(messages.counterpart, counterpart) : undefined,
@@ -194,8 +198,8 @@ export function createMessagesRepository(db: Database) {
     }: FindLastClientThreadByExternalThreadOptions) =>
       findLastClientThread({ addressId, where: eq(messages.externalThread, externalThread) }),
 
-    // The thread of the account's client that last wrote in a group of the channel, like a topic on
-    // the forum, of the messages that named one.
+    // The thread of the account's client that last wrote in a group of the channel, of the messages
+    // that named one.
     findLastClientThreadByGroup: ({
       accountId,
       channel,
@@ -219,7 +223,7 @@ export function createMessagesRepository(db: Database) {
     add(message: NewMessage) {
       const added = db.insert(messages).values(message).returning().get();
 
-      if (indexFilled) searchIndex.add(toIndexed(added));
+      if (indexFilled) searchIndex.add(added);
 
       return added;
     },
@@ -231,8 +235,8 @@ export function createMessagesRepository(db: Database) {
 
       const query = {
         ...filter,
-        // The forum lists everyone's posts, and the rest of the messages are the account's.
-        accountId: channel === forumChannel.kind ? undefined : accountId,
+        // A shared channel lists everyone's messages, and the rest of them are the account's.
+        accountId: channel && shared.has(channel) ? undefined : accountId,
         limit,
       };
 

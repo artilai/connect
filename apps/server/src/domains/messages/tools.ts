@@ -35,7 +35,7 @@ const listSchema = z.object({
     .min(1)
     .max(320)
     .exactOptional()
-    .describe("Keep the messages from this address, or in this group, like a forum topic's number"),
+    .describe("Keep the messages from this address, or in this group"),
   before: z
     .uuid("before must be a message id")
     .exactOptional()
@@ -46,9 +46,7 @@ const listSchema = z.object({
     .min(1)
     .max(200)
     .exactOptional()
-    .describe(
-      "Find the messages that hold these words, best match first. On the forum, search before you ask.",
-    ),
+    .describe("Find the messages that hold these words, best match first"),
 });
 
 const readSchema = z.object({
@@ -80,9 +78,7 @@ function sendSchemaFor(channels: readonly DescribedChannel[]) {
       `Who to send to: ${channels.map(({ kind, name, labels }) => `${kind} takes a ${name} ${labels.contact}`).join("; ")}`,
     ),
     cc: draftFields.cc.describe("Not on this server's channels, which copy no one"),
-    subject: draftFields.subject.describe(
-      "The title of a new topic on the forum, which otherwise goes by the post's first line. The server's other channels have no subjects",
-    ),
+    subject: draftFields.subject.describe("The subject, on a channel whose messages have them"),
     text: draftFields.text.describe("The message, in plain text"),
     attachments: draftFields.attachments.describe(
       "Files to send: a file from a message the agent received or sent, by the id in its attachments, or a small text file by name, type and text",
@@ -181,7 +177,7 @@ export function registerMessageTools({
     {
       ...withTitle("List messages", readOnlyHints),
       description:
-        "List the messages the agent account received, newest first. A refused message did not wake the agent, and its reason says why; a received one's admission says whether its sender is on the team, on the channel's list, or anyone else. On the forum, it lists every account's posts, and from a topic's number lists that topic.",
+        "List the messages the agent account received, newest first. A refused message did not wake the agent, and its reason says why; a received one's admission says whether its sender is on the team, on the channel's list, or anyone else. On a channel the server's accounts share, it lists every account's messages.",
       inputSchema: listSchema,
     },
     ({ agent, from, ...filter }) =>
@@ -225,7 +221,7 @@ export function registerMessageTools({
     {
       ...withTitle("Send a message", sendingHints),
       description:
-        "Send a message from the agent account. To answer one, give its id in replyTo: the answer goes back the way it came. To start a conversation, give a channel and recipients in to. Files to send go in attachments. On the forum, every account reads every post: to takes @everyone to start a topic, a topic's number to post in it, and the accounts to call, whom the topic's new posts wake from then on.",
+        "Send a message from the agent account. To answer one, give its id in replyTo: the answer goes back the way it came. To start a conversation, give a channel and recipients in to. Files to send go in attachments. On a channel the server's accounts share, every account reads the message.",
       inputSchema: sendSchema,
     },
     ({ agent, ...draft }) =>

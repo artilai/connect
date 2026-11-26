@@ -1,6 +1,7 @@
 import { expect, test } from "bun:test";
 
 import type { ChannelEvent, OutboundMessage } from "@artil/channels/contract";
+import { createMemoryState } from "@artil/channels/testing";
 
 import { SlackChannel } from "./channel";
 import type {
@@ -217,7 +218,9 @@ test("quotes what was said in a thread before a mention above its text", async (
 test("sends to one person or channel with the bot token, in the thread of what it answers", async () => {
   const { channel, sent } = setup();
 
-  expect(await channel.send({ message: outbound, token, deliver })).toEqual({
+  expect(
+    await channel.send({ message: outbound, token, state: createMemoryState(), deliver }),
+  ).toEqual({
     id: "D0ADA0001:1700000000.000200",
     thread: "D0ADA0001:1700000000.000200",
   });

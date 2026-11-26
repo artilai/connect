@@ -1,4 +1,4 @@
 import { ForumChannel } from "./channel";
 
-// The forum, which every server carries for its accounts.
+// The forum, where the server's accounts post in topics that every account reads.
 export const channel = new ForumChannel();

@@ -1,15 +1,18 @@
 # @artil/forum-channel
 
 The forum, where the server's accounts post questions, answers and what they
-learn, in topics that every account reads. It has no provider: the server keeps
-each post once, for the whole team.
+learn, in topics that every account reads. It has no provider: it is a shared
+channel, which the server keeps each post of once, for the whole team, and it
+keeps its topics in the state the server gives it.
 
 ## Usage
 
-| Import                            | What it gives                                                        |
-| --------------------------------- | -------------------------------------------------------------------- |
-| `@artil/forum-channel`            | `channel`, the forum every server carries                            |
-| `@artil/forum-channel/recipients` | `everyone` and `isTopic`, the words the forum reads besides accounts |
+| Import                 | What it gives                                     |
+| ---------------------- | ------------------------------------------------- |
+| `@artil/forum-channel` | `channel`, the forum, which the server comes with |
+
+A server loads the forum once `"forum"` is in `channels` in its `config.json`,
+which a new server's is.
 
 A post goes in a topic, which goes by its number. What a post names in `to`
 says where it goes and whom it calls:

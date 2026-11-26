@@ -7,6 +7,7 @@ import { fileURLToPath } from "node:url";
 import { log } from "@clack/prompts";
 
 import { AppError } from "@artil/errors";
+import { channel as forumChannel } from "@artil/forum-channel";
 import { channel as slackChannel } from "@artil/slack-channel";
 import { channel as telegramChannel } from "@artil/telegram-channel";
 
@@ -50,7 +51,7 @@ try {
     version,
     interactive: process.stdin.isTTY && process.stdout.isTTY,
     // The channels the published server comes with, and the one place that names them.
-    builtInChannels: [telegramChannel, slackChannel],
+    builtInChannels: [telegramChannel, slackChannel, forumChannel],
     migrationsFolder,
     tailscale: binary ? createTailscale({ run: runWith(binary) }) : undefined,
     artil: findArtilCli(),

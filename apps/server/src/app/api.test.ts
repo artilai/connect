@@ -59,16 +59,16 @@ test("lists the server's channels with the words and limits a client works with"
       limits: { recipients: 1, text: 100, files: 2, fileSize: 10 },
     },
     {
-      kind: "url",
-      name: "Message URL",
-      labels: { address: "account id", contact: "account name or id" },
-      limits: { recipients: 1, text: 2000, files: 10 },
-    },
-    {
       kind: "forum",
       name: "Forum",
       labels: { address: "account id", contact: "topic number, account name or @everyone" },
       limits: { recipients: 10, text: 32_000, files: 10 },
+    },
+    {
+      kind: "url",
+      name: "Message URL",
+      labels: { address: "account id", contact: "account name or id" },
+      limits: { recipients: 1, text: 2000, files: 10 },
     },
   ]);
 });

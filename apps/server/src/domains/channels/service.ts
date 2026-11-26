@@ -1,9 +1,10 @@
 import { createHmac } from "node:crypto";
 
-import type { Channel, OutboundFile } from "@artil/channels/contract";
+import type { Channel, ChannelState, OutboundFile } from "@artil/channels/contract";
 import { AppError } from "@artil/errors";
 import { formatBytes } from "@artil/utils/text";
 
+import type { ChannelStateRepository } from "./repository";
 import type { ChannelKind } from "./schema";
 
 function invalid(message: string) {
@@ -40,6 +41,7 @@ export function checkLimits({ channel, text, files }: CheckLimitsOptions) {
 
 type CreateChannelsServiceOptions = {
   channels: ReadonlyMap<ChannelKind, Channel>;
+  stateRepository: ChannelStateRepository;
   // The server's address on the internet, where providers post; none in local mode.
   publicUrl?: string;
   secret: string;
@@ -48,11 +50,20 @@ type CreateChannelsServiceOptions = {
 // The server's channels, which the rest of the server reaches by their kind.
 export function createChannelsService({
   channels,
+  stateRepository,
   publicUrl,
   secret,
 }: CreateChannelsServiceOptions) {
   return {
     list: () => [...channels.values()],
+
+    // What the server keeps for the channel between its messages, which only the channel reads.
+    stateOf: (kind: ChannelKind): ChannelState => ({
+      read: (key) => stateRepository.findValue({ channel: kind, key }),
+      write: (key, value) => {
+        stateRepository.setValue({ channel: kind, key, value });
+      },
+    }),
 
     find: (kind: ChannelKind) => channels.get(kind),
 

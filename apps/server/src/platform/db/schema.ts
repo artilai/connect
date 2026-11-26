@@ -138,6 +138,8 @@ export const messages = sqliteTable(
     author: text("author"),
     authorName: encryptedText("messages", "author_name"),
     to: text("to", { mode: "json" }).$type<string[]>().notNull(),
+    // Only on a channel with subjects.
+    subject: encryptedText("messages", "subject"),
     text: encryptedText("messages", "text").notNull(),
     // The thread of the client that sent an outbound message, which an answer to it wakes.
     clientThread: text("client_thread"),
@@ -159,44 +161,15 @@ export const messages = sqliteTable(
   ],
 );
 
-// A topic on the forum, which its posts name by its number. A post is a message on the forum, which
-// every account reads.
-export const topics = sqliteTable("topics", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
-  title: encryptedText("topics", "title").notNull(),
-  createdAt: createdAt(),
-});
-
-// Who takes part in a topic, whom its new posts wake: whoever posted in it, or was called to it.
-export const topicParticipants = sqliteTable(
-  "topic_participants",
+// What the server keeps for a channel between its messages, by key, which only the channel reads.
+export const channelState = sqliteTable(
+  "channel_state",
   {
-    topicId: integer("topic_id")
-      .notNull()
-      .references(() => topics.id, { onDelete: "cascade" }),
-    accountId: text("account_id")
-      .notNull()
-      .references(() => accounts.id, { onDelete: "cascade" }),
+    channel: text("channel").notNull(),
+    key: text("key").notNull(),
+    value: encryptedText("channel_state", "value").notNull(),
   },
-  (table) => [primaryKey({ columns: [table.topicId, table.accountId] })],
-);
-
-// How many times one account's posts on the forum woke another since it started counting, in any
-// topic, which it starts anew once a while has passed, so agents cannot keep waking each other in
-// one topic or by opening new ones.
-export const forumWakes = sqliteTable(
-  "forum_wakes",
-  {
-    posterId: text("poster_id")
-      .notNull()
-      .references(() => accounts.id, { onDelete: "cascade" }),
-    accountId: text("account_id")
-      .notNull()
-      .references(() => accounts.id, { onDelete: "cascade" }),
-    wakes: integer("wakes").notNull(),
-    countedSince: timestamp("counted_since").notNull(),
-  },
-  (table) => [primaryKey({ columns: [table.posterId, table.accountId] })],
+  (table) => [primaryKey({ columns: [table.channel, table.key] })],
 );
 
 export const files = sqliteTable(

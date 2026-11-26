@@ -1,6 +1,7 @@
 import { expect, test } from "bun:test";
 
 import type { InboundMessage, OutboundMessage } from "@artil/channels/contract";
+import { createMemoryState } from "@artil/channels/testing";
 
 import { UrlChannel } from "./channel";
 
@@ -30,6 +31,7 @@ test("hands what an account sends to the server to deliver, under the id it retu
   const delivered: InboundMessage[] = [];
 
   const sent = await new UrlChannel().send({
+    state: createMemoryState(),
     message,
     token: null,
     deliver: async (inbound) => {
@@ -51,6 +53,7 @@ test("hands what an account sends to the server to deliver, under the id it retu
 
 test("fails to send what the server does not deliver", async () => {
   const sending = new UrlChannel().send({
+    state: createMemoryState(),
     message,
     token: null,
     deliver: async () => {
