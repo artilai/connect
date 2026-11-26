@@ -15,6 +15,8 @@ const built = await Bun.build({
   target: "bun",
   outdir: `${dist}/bin`,
   sourcemap: "linked",
+  // hono-openapi tries zod-to-json-schema, which only zod 3 needs, and goes on without it.
+  external: ["zod-to-json-schema"],
 });
 
 if (!built.success) {
