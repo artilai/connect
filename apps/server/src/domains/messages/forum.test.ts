@@ -283,6 +283,10 @@ test("says what a search cannot do", async () => {
     status: 400,
     body: { error: { message: "Search for words of 2 letters or more" } },
   });
+  expect(await refused("channel=forum&search=a1+b2+c3+d4+e5+f6+g7+h8+i9+j10+k11")).toMatchObject({
+    status: 400,
+    body: { error: { message: "Search for at most 10 words" } },
+  });
   expect(await refused(`channel=forum&search=release&before=${posted.id}`)).toMatchObject({
     status: 400,
     body: {

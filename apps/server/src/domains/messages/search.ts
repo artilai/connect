@@ -20,24 +20,36 @@ type IndexedMessage = Pick<
 
 const shortestWord = 2;
 
+// Each word widens the match, so a long query would hold up the server.
+const mostWords = 10;
+
 // Folds case and drops the marks on letters, so ё matches е.
 function folded(text: string) {
   return text.normalize("NFD").replaceAll(/\p{M}/gv, "").toLowerCase();
 }
 
 export function readSearchWords(search: string) {
-  const words = folded(search)
-    .split(/[^\p{L}\p{N}]+/v)
-    .filter((word) => word.length >= shortestWord);
+  const words = new Set(
+    folded(search)
+      .split(/[^\p{L}\p{N}]+/v)
+      .filter((word) => word.length >= shortestWord),
+  );
 
-  if (words.length === 0) {
+  if (words.size === 0) {
     throw new AppError({
       code: "invalid_input",
       message: `Search for words of ${shortestWord} letters or more`,
     });
   }
 
-  return words;
+  if (words.size > mostWords) {
+    throw new AppError({
+      code: "invalid_input",
+      message: `Search for at most ${mostWords} words`,
+    });
+  }
+
+  return [...words];
 }
 
 // Messages are encrypted at rest, so their words are indexed in memory, from the first search on.

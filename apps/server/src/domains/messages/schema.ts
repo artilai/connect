@@ -43,7 +43,7 @@ export const searchSchema = z
   .min(1)
   .max(200)
   .exactOptional()
-  .describe("Find the messages that hold these words, best match first");
+  .describe("Find the messages that hold any of these words, up to 10, best match first");
 
 const maxRecipients = 10;
 
