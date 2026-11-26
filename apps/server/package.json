@@ -32,7 +32,7 @@
     "@modelcontextprotocol/server": "2.4.0",
     "drizzle-kit": "^0.31.11",
     "drizzle-orm": "^0.45.4",
-    "hono": "^4.13.19",
+    "hono": "^4.13.21",
     "hono-openapi": "1.6.0",
     "terminal-link": "^5.0.0",
     "zod": "^4.6.7"
