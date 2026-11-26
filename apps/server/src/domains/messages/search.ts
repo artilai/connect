@@ -1,11 +1,12 @@
 import { Database as Sqlite } from "bun:sqlite";
 
-import { and, asc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, inArray, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/bun-sqlite";
 import { sqliteTable, text } from "drizzle-orm/sqlite-core";
 
 import { AppError } from "@artil/errors";
 
+import { eqIfGiven } from "../../platform/db/conditions";
 import type { Database } from "../../platform/db/connection";
 import { messages } from "../../platform/db/schema";
 import type { MessageFilter, MessageRow } from "./schema";
@@ -87,9 +88,13 @@ function toEntry(message: IndexedMessage) {
   };
 }
 
-// Messages are encrypted at rest, so their words are indexed in memory. The first search indexes
-// every message, and each message added after it joins the index.
-export function createMessageSearch(db: Database) {
+// Any of the words, each as the start of a word. They hold only letters and digits, so they need no
+// escaping.
+function matchesAny(words: readonly string[]) {
+  return sql`${entries} match ${words.map((word) => `"${word}"*`).join(" OR ")}`;
+}
+
+function createIndex() {
   const client = new Sqlite(":memory:");
 
   client.run(`create virtual table entries using fts5(
@@ -97,19 +102,49 @@ export function createMessageSearch(db: Database) {
     counterpart unindexed, words
   )`);
 
-  const index = drizzle({ client });
+  return drizzle({ client });
+}
 
-  let filled = false;
+// Messages are encrypted at rest, so their words are indexed in memory. The first search indexes
+// every message, and each message added after it joins the index.
+export class MessageSearch {
+  readonly #db: Database;
+
+  readonly #index = createIndex();
+
+  #filled = false;
+
+  constructor(db: Database) {
+    this.#db = db;
+  }
+
+  add(message: MessageRow) {
+    if (this.#filled) this.#index.insert(entries).values(toEntry(message)).run();
+  }
+
+  find(query: SearchQuery) {
+    if (!this.#filled) this.#fill();
+
+    const found = this.#search(query);
+
+    if (!found.stale) return found.rows;
+
+    // A message removed from the database, as with its account, stays in the index until a search
+    // finds it gone, and then the index is built anew.
+    this.#fill();
+
+    return this.#search(query).rows;
+  }
 
   // Oldest first, so the newer of two messages has the greater rowid.
-  function fill() {
-    const stored = db
+  #fill() {
+    const stored = this.#db
       .select(indexedColumns)
       .from(messages)
       .orderBy(asc(messages.createdAt), asc(messages.id))
       .all();
 
-    index.transaction((tx) => {
+    this.#index.transaction((tx) => {
       tx.delete(entries).run();
 
       for (let start = 0; start < stored.length; start += entriesPerInsert) {
@@ -119,22 +154,21 @@ export function createMessageSearch(db: Database) {
       }
     });
 
-    filled = true;
+    this.#filled = true;
   }
 
   // The messages the index finds, best match first, and whether the database still has them all.
-  function search({ words, limit, accountId, channel, direction, counterpart }: SearchQuery) {
-    const ids = index
+  #search({ words, limit, accountId, channel, direction, counterpart }: SearchQuery) {
+    const ids = this.#index
       .select({ id: entries.id })
       .from(entries)
       .where(
         and(
-          // Words hold only letters and digits, so they need no escaping.
-          sql`${entries} match ${words.map((word) => `"${word}"*`).join(" OR ")}`,
-          accountId === null ? undefined : eq(entries.accountId, accountId),
-          channel ? eq(entries.channel, channel) : undefined,
-          direction && eq(entries.direction, direction),
-          counterpart ? eq(entries.counterpart, counterpart) : undefined,
+          matchesAny(words),
+          eqIfGiven(entries.accountId, accountId),
+          eqIfGiven(entries.channel, channel),
+          eqIfGiven(entries.direction, direction),
+          eqIfGiven(entries.counterpart, counterpart),
         ),
       )
       // Of equally good matches, the newest first.
@@ -143,29 +177,9 @@ export function createMessageSearch(db: Database) {
       .all()
       .map(({ id }) => id);
 
-    const rows = db.select().from(messages).where(inArray(messages.id, ids)).all();
+    const rows = this.#db.select().from(messages).where(inArray(messages.id, ids)).all();
     const byId = new Map(rows.map((row) => [row.id, row]));
 
     return { rows: ids.flatMap((id) => byId.get(id) ?? []), stale: rows.length < ids.length };
   }
-
-  return {
-    add(message: MessageRow) {
-      if (filled) index.insert(entries).values(toEntry(message)).run();
-    },
-
-    find(query: SearchQuery) {
-      if (!filled) fill();
-
-      const found = search(query);
-
-      if (!found.stale) return found.rows;
-
-      // A message removed from the database, as with its account, stays in the index until a
-      // search finds it gone, and then the index is built anew.
-      fill();
-
-      return search(query).rows;
-    },
-  };
 }

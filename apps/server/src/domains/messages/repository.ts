@@ -1,11 +1,12 @@
 import { and, desc, eq, inArray, isNotNull, lt, max, or, type SQL } from "drizzle-orm";
 
+import { eqIfGiven } from "../../platform/db/conditions";
 import type { Database } from "../../platform/db/connection";
 import { messages } from "../../platform/db/schema";
 import type { Refusal } from "../access/schema";
 import type { ChannelKind } from "../channels/schema";
 import { type MessageFilter, messageListLimit, type MessageRow, type NewMessage } from "./schema";
-import { createMessageSearch, type SearchQuery } from "./search";
+import { MessageSearch, type SearchQuery } from "./search";
 
 type FindLastClientThreadOptions = { addressId: string; where: SQL };
 
@@ -28,7 +29,7 @@ type ListRefusedSendersOptions = {
 };
 
 export function createMessagesRepository(db: Database) {
-  const messageSearch = createMessageSearch(db);
+  const messageSearch = new MessageSearch(db);
 
   function findById(id: string) {
     return db.select().from(messages).where(eq(messages.id, id)).get();
@@ -75,7 +76,7 @@ export function createMessagesRepository(db: Database) {
         limit = messageListLimit,
       } = filter;
 
-      const owned = accountId === null ? undefined : eq(messages.accountId, accountId);
+      const owned = eqIfGiven(messages.accountId, accountId);
 
       const anchor = before
         ? db
@@ -94,9 +95,9 @@ export function createMessagesRepository(db: Database) {
         .where(
           and(
             owned,
-            channel ? eq(messages.channel, channel) : undefined,
-            direction && eq(messages.direction, direction),
-            counterpart ? eq(messages.counterpart, counterpart) : undefined,
+            eqIfGiven(messages.channel, channel),
+            eqIfGiven(messages.direction, direction),
+            eqIfGiven(messages.counterpart, counterpart),
             anchor && olderThan(anchor),
           ),
         )
