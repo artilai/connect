@@ -19,6 +19,7 @@ export type MessageRecord = Omit<
   MessageRow,
   "accountId" | "externalId" | "externalThread" | "clientThread" | "answeredAt"
 > & {
+  toNames: (string | null)[];
   attachments: MessageAttachment[];
 };
 
@@ -98,6 +99,11 @@ export const messageSchema = z
       .nullable()
       .describe("The name the author goes by, when the channel tells it"),
     to: z.array(z.string()).describe("Whom the message names as its recipients"),
+    toNames: z
+      .array(z.string().nullable())
+      .describe(
+        "The name each recipient in to goes by, in the same order: one of the server's accounts by its name, or else null",
+      ),
     cc: z.array(z.string()).describe("Empty: copies are email's, which only Artil Cloud carries"),
     subject: z.string().nullable().describe("The subject, on a channel whose messages have them"),
     text: z.string(),

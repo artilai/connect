@@ -137,6 +137,15 @@ export function createMessagesService({
   channels,
   log,
 }: CreateMessagesServiceOptions) {
+  type AccountNameAtOptions = { channel: ChannelKind; value: string };
+
+  // The name of the server's account an address on the channel belongs to, if one does.
+  function accountNameAt({ channel, value }: AccountNameAtOptions) {
+    const address = channels.find(channel) && addresses.findByValue({ channel, value });
+
+    return (address && accounts.findById(address.accountId)?.name) ?? null;
+  }
+
   function toRecords(rows: MessageRow[]): MessageRecord[] {
     const attachmentsByMessage = files.describeByMessages(rows.map(({ id }) => id));
 
@@ -150,6 +159,7 @@ export function createMessagesService({
         ...message
       }) => ({
         ...message,
+        toNames: message.to.map((value) => accountNameAt({ channel: message.channel, value })),
         attachments: attachmentsByMessage.get(message.id) ?? [],
       }),
     );
