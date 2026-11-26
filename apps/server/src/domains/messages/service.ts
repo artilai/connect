@@ -137,17 +137,30 @@ export function createMessagesService({
   channels,
   log,
 }: CreateMessagesServiceOptions) {
-  type AccountNameAtOptions = { channel: ChannelKind; value: string };
+  type ToNamesOptions = {
+    message: Pick<MessageRow, "channel" | "to">;
+    accountNames: ReadonlyMap<string, string>;
+  };
 
-  // The name of the server's account an address on the channel belongs to, if one does.
-  function accountNameAt({ channel, value }: AccountNameAtOptions) {
-    const address = channels.find(channel) && addresses.findByValue({ channel, value });
+  // The names of the server's accounts among the recipients. On a channel that connects no address,
+  // like the forum, an account's address is its id, which stays its own.
+  function toNamesOf({ message: { channel, to }, accountNames }: ToNamesOptions) {
+    const kept = channels.find(channel);
 
-    return address && accounts.findById(address.accountId)?.name;
+    if (!kept || kept.connect) return {};
+
+    return Object.fromEntries(
+      to.flatMap((value) => {
+        const name = accountNames.get(value);
+
+        return name ? [[value, name]] : [];
+      }),
+    );
   }
 
   function toRecords(rows: MessageRow[]): MessageRecord[] {
     const attachmentsByMessage = files.describeByMessages(rows.map(({ id }) => id));
+    const accountNames = new Map(accounts.list().map(({ id, name }) => [id, name]));
 
     return rows.map(
       ({
@@ -159,13 +172,7 @@ export function createMessagesService({
         ...message
       }) => ({
         ...message,
-        toNames: Object.fromEntries(
-          message.to.flatMap((value) => {
-            const name = accountNameAt({ channel: message.channel, value });
-
-            return name ? [[value, name]] : [];
-          }),
-        ),
+        toNames: toNamesOf({ message, accountNames }),
         attachments: attachmentsByMessage.get(message.id) ?? [],
       }),
     );

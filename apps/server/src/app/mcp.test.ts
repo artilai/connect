@@ -108,6 +108,7 @@ test("sends to another account's Message URL and answers what came there", async
     channel: "url",
     direction: "outbound",
     to: [codex.id],
+    toNames: { [codex.id]: "Codex" },
     text: "Plan the launch",
     status: "sent",
   });
