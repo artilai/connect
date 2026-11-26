@@ -7,19 +7,13 @@ import type { ChannelKind } from "../channels/schema";
 import { type MessageFilter, messageListLimit, type MessageRow, type NewMessage } from "./schema";
 import { createMessageSearch, type SearchQuery } from "./search";
 
-type FindByExternalIdOptions = {
-  addressId: string;
-  direction: "inbound" | "outbound";
-  externalId: string;
-};
+type FindLastClientThreadOptions = { addressId: string; where: SQL };
 
-type FindLastClientThreadOptions = { addressId: string; conditions: SQL[] };
+type FindClientThreadByExternalIdOptions = { addressId: string; externalId: string };
 
 type FindLastClientThreadByCounterpartOptions = { addressId: string; counterpart: string };
 
 type FindLastClientThreadByExternalThreadOptions = { addressId: string; externalThread: string };
-
-type FindLastSharedClientThreadOptions = { addressId: string; counterpart: string };
 
 type MarkSentOptions = { id: string; externalId: string; externalThread?: string };
 
@@ -33,9 +27,6 @@ type ListRefusedSendersOptions = {
   refusals: readonly Refusal[];
 };
 
-// A message the server sent, as the account that sent it keeps it.
-const sent = [eq(messages.direction, "outbound"), eq(messages.status, "sent")];
-
 export function createMessagesRepository(db: Database) {
   const messageSearch = createMessageSearch(db);
 
@@ -44,15 +35,20 @@ export function createMessagesRepository(db: Database) {
     return db.select().from(messages).where(eq(messages.id, id)).get();
   }
 
-  // The thread of the client whose message from the address last met the conditions, of those that
-  // named one.
-  function findLastClientThread({ addressId, conditions }: FindLastClientThreadOptions) {
+  // The thread of the client that last wrote from the address where the condition says, of the
+  // messages a client named one for that reached where they went: sent, or kept on a shared channel.
+  function findLastClientThread({ addressId, where }: FindLastClientThreadOptions) {
     return (
       db
         .select({ clientThread: messages.clientThread })
         .from(messages)
         .where(
-          and(eq(messages.addressId, addressId), ...conditions, isNotNull(messages.clientThread)),
+          and(
+            eq(messages.addressId, addressId),
+            where,
+            isNotNull(messages.clientThread),
+            inArray(messages.status, ["sent", "received"]),
+          ),
         )
         .orderBy(desc(messages.createdAt), desc(messages.id))
         .limit(1)
@@ -111,41 +107,23 @@ export function createMessagesRepository(db: Database) {
         .all();
     },
 
-    findByExternalId: ({ addressId, direction, externalId }: FindByExternalIdOptions) =>
-      db
-        .select()
-        .from(messages)
-        .where(
-          and(
-            eq(messages.addressId, addressId),
-            eq(messages.direction, direction),
-            eq(messages.externalId, externalId),
-          ),
-        )
-        .get(),
+    findClientThreadByExternalId: ({
+      addressId,
+      externalId,
+    }: FindClientThreadByExternalIdOptions) =>
+      findLastClientThread({ addressId, where: eq(messages.externalId, externalId) }),
 
     findLastClientThreadByCounterpart: ({
       addressId,
       counterpart,
     }: FindLastClientThreadByCounterpartOptions) =>
-      findLastClientThread({
-        addressId,
-        conditions: [...sent, eq(messages.counterpart, counterpart)],
-      }),
+      findLastClientThread({ addressId, where: eq(messages.counterpart, counterpart) }),
 
     findLastClientThreadByExternalThread: ({
       addressId,
       externalThread,
     }: FindLastClientThreadByExternalThreadOptions) =>
-      findLastClientThread({
-        addressId,
-        conditions: [...sent, eq(messages.externalThread, externalThread)],
-      }),
-
-    // On a shared channel, where the server keeps each message once, as an inbound message under
-    // its author's address.
-    findLastSharedClientThread: ({ addressId, counterpart }: FindLastSharedClientThreadOptions) =>
-      findLastClientThread({ addressId, conditions: [eq(messages.counterpart, counterpart)] }),
+      findLastClientThread({ addressId, where: eq(messages.externalThread, externalThread) }),
 
     add(message: NewMessage) {
       const added = db.insert(messages).values(message).returning().get();

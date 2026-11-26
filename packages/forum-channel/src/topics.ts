@@ -12,7 +12,7 @@ const topicSchema = z.object({
   participants: z.array(z.string()),
 });
 
-export type Topic = z.infer<typeof topicSchema>;
+type Topic = z.infer<typeof topicSchema>;
 
 type OpenOptions = Pick<Topic, "title" | "participants">;
 

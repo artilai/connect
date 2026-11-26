@@ -135,7 +135,7 @@ export function createAddressesRepository(db: Database) {
       return address;
     },
 
-    listByAccount: (accountId: string) =>
+    listConnectedByAccount: (accountId: string) =>
       db
         .select()
         .from(addresses)

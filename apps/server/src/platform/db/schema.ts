@@ -155,9 +155,15 @@ export const messages = sqliteTable(
   },
   (table) => [
     index("messages_account_id_created_at_idx").on(table.accountId, table.createdAt),
+    // Lists a shared channel's messages, which are every account's.
+    index("messages_channel_created_at_idx").on(table.channel, table.createdAt),
     uniqueIndex("messages_address_id_external_id_idx")
       .on(table.addressId, table.direction, table.externalId)
       .where(sql`${table.externalId} is not null`),
+    // Finds the thread a message wakes among the few messages a client named one for.
+    index("messages_client_thread_idx")
+      .on(table.addressId, table.createdAt)
+      .where(sql`${table.clientThread} is not null`),
   ],
 );
 

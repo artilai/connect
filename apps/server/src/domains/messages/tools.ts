@@ -16,7 +16,7 @@ import { describeRefusal, type Refusal } from "../access/schema";
 import type { ChannelsService } from "../channels/service";
 import { type FileLinks, toAttachment } from "../files/schema";
 import type { Actor } from "../tokens/schema";
-import { draftSchema, type MessageRecord } from "./schema";
+import { draftSchema, type MessageRecord, searchSchema } from "./schema";
 import type { MessagesService } from "./service";
 
 const listSchema = z.object({
@@ -40,13 +40,7 @@ const listSchema = z.object({
     .uuid("before must be a message id")
     .exactOptional()
     .describe("List the messages older than this one; pass the last id listed to page back"),
-  search: z
-    .string()
-    .trim()
-    .min(1)
-    .max(200)
-    .exactOptional()
-    .describe("Find the messages that hold these words, best match first"),
+  search: searchSchema,
 });
 
 const readSchema = z.object({

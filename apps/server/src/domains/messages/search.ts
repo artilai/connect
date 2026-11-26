@@ -8,6 +8,12 @@ import type { Database } from "../../platform/db/connection";
 import { messages } from "../../platform/db/schema";
 import type { MessageFilter, MessageRow } from "./schema";
 
+// What the index keeps of a message: its words, and what a list narrows by.
+type IndexedMessage = Pick<
+  MessageRow,
+  "id" | "accountId" | "channel" | "direction" | "counterpart" | "createdAt" | "subject" | "text"
+>;
+
 // Which messages a search reads, as a list narrows them, and the words it looks for.
 export type SearchQuery = Omit<MessageFilter, "before" | "limit"> & {
   words: readonly string[];
@@ -74,17 +80,22 @@ function createWordIndex() {
   const removeMessage = index.prepare("delete from messages where id = ?");
 
   return {
-    add(message: MessageRow) {
-      const { lastInsertRowid } = insertMessage.run(
-        message.id,
-        message.accountId,
-        message.channel,
-        message.direction,
-        message.counterpart,
-        message.createdAt.getTime(),
-      );
+    // Adds the messages in one transaction, which is much faster than one by one.
+    add(added: readonly IndexedMessage[]) {
+      index.transaction(() => {
+        for (const message of added) {
+          const { lastInsertRowid } = insertMessage.run(
+            message.id,
+            message.accountId,
+            message.channel,
+            message.direction,
+            message.counterpart,
+            message.createdAt.getTime(),
+          );
 
-      insertWords.run(lastInsertRowid, folded(message.subject ?? ""), folded(message.text));
+          insertWords.run(lastInsertRowid, folded(message.subject ?? ""), folded(message.text));
+        }
+      })();
     },
 
     remove(id: string) {
@@ -125,18 +136,27 @@ export function createMessageSearch(db: Database) {
 
   // Takes every message, a page at a time in the order of their ids.
   function fill() {
-    let page: MessageRow[] = [];
+    let page: IndexedMessage[] = [];
 
     do {
       page = db
-        .select()
+        .select({
+          id: messages.id,
+          accountId: messages.accountId,
+          channel: messages.channel,
+          direction: messages.direction,
+          counterpart: messages.counterpart,
+          createdAt: messages.createdAt,
+          subject: messages.subject,
+          text: messages.text,
+        })
         .from(messages)
         .where(gt(messages.id, page.at(-1)?.id ?? ""))
         .orderBy(asc(messages.id))
         .limit(fillPage)
         .all();
 
-      for (const message of page) index.add(message);
+      index.add(page);
     } while (page.length === fillPage);
 
     filled = true;
@@ -144,7 +164,7 @@ export function createMessageSearch(db: Database) {
 
   return {
     add(message: MessageRow) {
-      if (filled) index.add(message);
+      if (filled) index.add([message]);
     },
 
     // The messages that hold the words, best match first. A message removed since the index took

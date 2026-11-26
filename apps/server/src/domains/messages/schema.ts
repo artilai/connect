@@ -38,6 +38,14 @@ export type MessageFilter = {
 
 export const directionSchema = z.enum(["inbound", "outbound"]);
 
+export const searchSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(200)
+  .exactOptional()
+  .describe("Find the messages that hold these words, best match first");
+
 const maxRecipients = 10;
 
 const maxText = 32_000;

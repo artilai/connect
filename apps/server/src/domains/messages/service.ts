@@ -75,12 +75,17 @@ function replyRecipients(message: MessageRow): string[] {
   return message.direction === "inbound" ? [message.counterpart] : message.to;
 }
 
-// What no channel of this server carries: forwarding and copies are email's, in Artil Cloud.
-function checkCarried(draft: Draft, kind: ChannelKind) {
+// What the channel does not carry: forwarding and copies are email's, in Artil Cloud, and only some
+// channels' messages have subjects.
+function checkCarried(draft: Draft, { kind, subjects }: Channel) {
   if (draft.forward) throw onlyInCloud("Forwarding a message");
 
   if ((draft.cc ?? []).length > 0) {
     throw new AppError({ code: "invalid_input", message: `A message on ${kind} copies no one` });
+  }
+
+  if (draft.subject && !subjects) {
+    throw new AppError({ code: "invalid_input", message: `A message on ${kind} has no subject` });
   }
 }
 
@@ -296,8 +301,8 @@ export function createMessagesService({
   };
 
   // Keeps a message on a shared channel once, as an inbound message under its author's address, for
-  // every account to read. It wakes the accounts it went to whose lists let the team wake them, in
-  // the thread of their client that wrote what it answers, or else that last wrote in its group.
+  // every account to read, wakes the accounts it went to whose lists let the team wake them, and
+  // returns the id it keeps it by.
   async function keepShared({ channel, message, address, clientThread }: KeepSharedOptions) {
     const { from, group } = message;
 
@@ -332,54 +337,40 @@ export function createMessagesService({
         fromVerified: from.verified,
       });
 
-      if (refusal) continue;
-
-      const answered = message.replyTo
-        ? messagesRepository.findByExternalId({
-            addressId: recipient.id,
-            direction: "inbound",
-            externalId: message.replyTo,
-          })
-        : undefined;
-
-      const toThread =
-        answered?.clientThread ??
-        messagesRepository.findLastSharedClientThread({
-          addressId: recipient.id,
-          counterpart: row.counterpart,
-        });
-
-      events.add({
-        accountId: recipient.accountId,
-        event: { type: "message.received", channel, messageId: id, toThread },
-      });
+      if (!refusal) {
+        wake({ channel, message, address: recipient, messageId: id, counterpart: row.counterpart });
+      }
     }
+
+    return id;
   }
 
-  // Sends the message on a shared channel, which hands it back for the server to keep once, under
-  // the id the channel gives it, and returns the id the server keeps it by.
+  // Sends the message on a shared channel, which hands it back for the server to keep once, and
+  // returns the id the server keeps it by.
   async function sendShared({ channel, address, message, clientThread }: SendOnChannelOptions) {
-    const { id: externalId } = await channel
-      .send({
+    let keptId: string | undefined;
+
+    try {
+      await channel.send({
         message,
         token: address.token,
         state: channels.stateOf(channel.kind),
-        deliver: (delivered) =>
-          keepShared({ channel: channel.kind, message: delivered, address, clientThread }),
-      })
-      .catch((cause: unknown) => {
-        throw notTaken({ channel, cause });
+        deliver: async (delivered) => {
+          keptId = await keepShared({
+            channel: channel.kind,
+            message: delivered,
+            address,
+            clientThread,
+          });
+        },
       });
+    } catch (cause) {
+      throw notTaken({ channel, cause });
+    }
 
-    const kept = messagesRepository.findByExternalId({
-      addressId: address.id,
-      direction: "inbound",
-      externalId,
-    });
+    if (!keptId) throw new Error(`${channel.name} handed back no message to keep`);
 
-    if (!kept) throw new Error(`${channel.name} handed back no message to keep`);
-
-    return kept.id;
+    return keptId;
   }
 
   // Sends on the channel from the account's address there, and keeps the message among the
@@ -390,9 +381,7 @@ export function createMessagesService({
 
     if (!channel) throw missingChannel(kind);
 
-    if (draft.subject && !channel.subjects) {
-      throw new AppError({ code: "invalid_input", message: `A message on ${kind} has no subject` });
-    }
+    checkCarried(draft, channel);
 
     const address = addresses.findByAccount({ accountId, channel: kind });
 
@@ -442,8 +431,7 @@ export function createMessagesService({
     const sending = { accountId, channel, address, message, clientThread: draft.thread };
     const id = channel.shared ? await sendShared(sending) : await sendOutbound(sending);
 
-    // An account answers only its own copy of a message, as a shared one's is its author's.
-    if (answered?.accountId === accountId) {
+    if (answered) {
       messagesRepository.markAnswered(answered.id);
       sendReceipt({ receipt: "answered", message: answered });
     }
@@ -504,14 +492,10 @@ export function createMessagesService({
     externalThread,
   }: FindThreadToWakeOptions) {
     const answered = replyTo
-      ? messagesRepository.findByExternalId({
-          addressId,
-          direction: "outbound",
-          externalId: replyTo,
-        })
-      : undefined;
+      ? messagesRepository.findClientThreadByExternalId({ addressId, externalId: replyTo })
+      : null;
 
-    if (answered?.clientThread) return answered.clientThread;
+    if (answered) return answered;
 
     const inExternalThread = externalThread
       ? messagesRepository.findLastClientThreadByExternalThread({ addressId, externalThread })
@@ -521,6 +505,28 @@ export function createMessagesService({
       inExternalThread ??
       messagesRepository.findLastClientThreadByCounterpart({ addressId, counterpart })
     );
+  }
+
+  type WakeOptions = ReceiveOptions & {
+    // The address of the account to wake, and the message it keeps there.
+    address: AddressRecord;
+    messageId: string;
+    counterpart: string;
+  };
+
+  // Tells the account's client that the message came, in the thread of the client it is for.
+  function wake({ channel, message, address, messageId, counterpart }: WakeOptions) {
+    const toThread = findThreadToWake({
+      addressId: address.id,
+      counterpart,
+      replyTo: message.replyTo,
+      externalThread: message.thread,
+    });
+
+    events.add({
+      accountId: address.accountId,
+      event: { type: "message.received", channel, messageId, toThread },
+    });
   }
 
   type ReceiveAtOptions = ReceiveOptions & { address: AddressRecord; fromThread: boolean };
@@ -579,19 +585,7 @@ export function createMessagesService({
 
     await files.save({ accountId, messageId: id, uploads: message.files });
 
-    if (!refusal) {
-      const toThread = findThreadToWake({
-        addressId: address.id,
-        counterpart,
-        replyTo: message.replyTo,
-        externalThread: message.thread,
-      });
-
-      events.add({
-        accountId,
-        event: { type: "message.received", channel, messageId: id, toThread },
-      });
-    }
+    if (!refusal) wake({ channel, message, address, messageId: id, counterpart });
 
     return refusal;
   }
@@ -634,14 +628,12 @@ export function createMessagesService({
   }
 
   return {
-    // A message the account reads. Reading its own copy of one that woke the agent shows its sender
-    // the agent read it, until the agent answers it.
+    // A message the account reads. Reading one that woke the agent shows its sender the agent read
+    // it, until the agent answers it.
     read(options: FindOptions) {
       const row = findReadable(options);
 
-      if (row?.accountId === options.accountId && !row.answeredAt) {
-        sendReceipt({ receipt: "read", message: row });
-      }
+      if (row && !row.answeredAt) sendReceipt({ receipt: "read", message: row });
 
       return row && toRecords([row])[0];
     },
@@ -692,8 +684,6 @@ export function createMessagesService({
     // the message everyone reads. An answer goes back the way its message came.
     sendDraft({ accountId, accountName, draft, uploads }: SendDraftOptions) {
       const recipients = resolveRecipients(accountId, draft);
-
-      checkCarried(draft, recipients.channel);
 
       return send({ accountId, accountName, draft, uploads, recipients });
     },

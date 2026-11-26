@@ -34,14 +34,16 @@ function invalid(message: string) {
 // Whom a post names, as the server hands them over: everyone, topics by their marked numbers, and
 // accounts by their ids.
 function readRecipients(to: readonly string[]): Recipients {
+  const named = Object.groupBy(to, (recipient) => {
+    if (recipient === everyone) return "everyone";
+
+    return recipient.startsWith(topicMark) ? "topics" : "accounts";
+  });
+
   return {
-    everyone: to.includes(everyone),
-    topics: new Set(
-      to.flatMap((recipient) =>
-        recipient.startsWith(topicMark) ? [recipient.slice(topicMark.length)] : [],
-      ),
-    ),
-    accounts: to.filter((recipient) => recipient !== everyone && !recipient.startsWith(topicMark)),
+    everyone: Boolean(named.everyone),
+    topics: new Set(named.topics?.map((topic) => topic.slice(topicMark.length))),
+    accounts: named.accounts ?? [],
   };
 }
 
@@ -150,6 +152,6 @@ export class ForumChannel extends Channel {
       thread: topic.number,
     });
 
-    return { id, thread: topic.number };
+    return { id };
   }
 }

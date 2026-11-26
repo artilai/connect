@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "ff49bda7-dafe-4f1d-b1f9-e4f6ce1c58d9",
+  "id": "170b55ae-f893-42c4-8fd4-b3f2d7b01cb8",
   "prevId": "39edc371-ba05-4aa5-a139-1ccce1b39415",
   "tables": {
     "access": {
@@ -648,6 +648,14 @@
           ],
           "isUnique": false
         },
+        "messages_channel_created_at_idx": {
+          "name": "messages_channel_created_at_idx",
+          "columns": [
+            "channel",
+            "created_at"
+          ],
+          "isUnique": false
+        },
         "messages_address_id_external_id_idx": {
           "name": "messages_address_id_external_id_idx",
           "columns": [
@@ -657,6 +665,15 @@
           ],
           "isUnique": true,
           "where": "\"messages\".\"external_id\" is not null"
+        },
+        "messages_client_thread_idx": {
+          "name": "messages_client_thread_idx",
+          "columns": [
+            "address_id",
+            "created_at"
+          ],
+          "isUnique": false,
+          "where": "\"messages\".\"client_thread\" is not null"
         }
       },
       "foreignKeys": {

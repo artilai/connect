@@ -81,13 +81,13 @@ export function createAddressesService({
     findById: addressesRepository.findById,
     findByAccount,
     findByValue,
-    listConnectedByAccount: addressesRepository.listByAccount,
+    listConnectedByAccount: addressesRepository.listConnectedByAccount,
     listConnected: addressesRepository.listConnected,
 
     // The addresses the account connected, and the one it has by itself on each channel that
     // connects none, which a client looks for before it lists that channel's messages.
     listByAccount: (accountId: string) => [
-      ...addressesRepository.listByAccount(accountId),
+      ...addressesRepository.listConnectedByAccount(accountId),
       ...channels
         .list()
         .flatMap((channel) =>
