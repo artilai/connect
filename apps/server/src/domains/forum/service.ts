@@ -3,7 +3,7 @@ import { everyone } from "@artil/forum-channel/recipients";
 
 import type { AccountsService } from "../accounts/service";
 import type { ForumRepository } from "./repository";
-import { type Participant, type Placement, type Topic, wakeLimit, wakeWindow } from "./schema";
+import { type Placement, type Topic, wakeLimit, wakeWindow } from "./schema";
 
 // A topic's title holds as much as a subject does.
 const titleLength = 240;
@@ -28,6 +28,9 @@ type Placed = { placement: Placement; called: string[] };
 type TitleOptions = Pick<PlaceOptions, "subject" | "text">;
 
 type TakePartOptions = { topic: Topic; accountIds: readonly string[] };
+
+// The account a poster's new post would wake.
+type CountWakeOptions = { posterId: string; accountId: string };
 
 function invalid(message: string) {
   return new AppError({ code: "invalid_input", message });
@@ -117,18 +120,24 @@ export function createForumService({ forumRepository, accounts }: CreateForumSer
 
     listParticipants: (topic: Topic) => forumRepository.listParticipantsByTopic(topic.id),
 
-    // Counts a wake of the participant by a new post in its topic, and says whether the post may
-    // wake it: not once the topic woke it wakeLimit times in the last wakeWindow.
-    countWake({ topicId, accountId, wakes, countedSince: since }: Participant) {
+    // Counts a wake of the account by the poster's new post, in whatever topic, and says whether
+    // the post may wake it: not once the poster's posts woke it wakeLimit times in the last
+    // wakeWindow.
+    countWake(pair: CountWakeOptions) {
       const now = new Date();
+      const counted = forumRepository.findWakes(pair);
 
       // The count starts anew once the window has passed since it started.
-      const countedSince = since && now.getTime() - since.getTime() < wakeWindow ? since : now;
-      const counted = countedSince === now ? 1 : wakes + 1;
+      const counting = counted && now.getTime() - counted.countedSince.getTime() < wakeWindow;
+      const wakes = counting ? counted.wakes + 1 : 1;
 
-      if (counted > wakeLimit) return false;
+      if (wakes > wakeLimit) return false;
 
-      forumRepository.setWakes({ topicId, accountId, wakes: counted, countedSince });
+      forumRepository.setWakes({
+        ...pair,
+        wakes,
+        countedSince: counting ? counted.countedSince : now,
+      });
 
       return true;
     },

@@ -323,21 +323,29 @@ test("says what a search cannot do", async () => {
   });
 });
 
-test("wakes an account from one topic at most five times in ten minutes, and says so in the log", async () => {
+test("lets one account's posts wake another at most five times in ten minutes, in one topic or across new ones", async () => {
   const server = await createTestServer();
   const claude = server.account("Claude");
   const codex = server.account("Codex");
+  const gemini = server.account("Gemini");
 
   await post(claude, { to: ["Codex"], text: "Are you there?" });
 
-  for (const text of ["Hello?", "Still there?", "Ping", "Ping again", "Last ping"]) {
-    await post(claude, { to: ["1"], text });
-  }
+  for (const text of ["Hello?", "Still there?"]) await post(claude, { to: ["1"], text });
+
+  // A new topic for each post does not start the count anew.
+  for (const text of ["Ping", "Ping again", "Last ping"])
+    await post(claude, { to: ["Codex"], text });
 
   expect(await wokenBy(codex)).toHaveLength(5);
   expect(server.logs).toContain(
-    "Topic 1 on the forum woke Codex 5 times in 10 minutes, so its new posts wait for Codex to look",
+    "Claude woke Codex on the forum 5 times in 10 minutes, so Claude's new posts wait for Codex to look",
   );
+
+  // Another account's post still wakes Codex.
+  const fromGemini = await post(gemini, { to: ["Codex"], text: "Lunch?" });
+
+  expect((await wokenBy(codex)).at(-1)).toEqual({ messageId: fromGemini.id, toThread: null });
 
   setSystemTime(new Date(Date.now() + 10 * minute));
 

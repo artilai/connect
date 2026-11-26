@@ -177,12 +177,26 @@ export const topicParticipants = sqliteTable(
     accountId: text("account_id")
       .notNull()
       .references(() => accounts.id, { onDelete: "cascade" }),
-    // How many times the topic woke the account since it started counting, which it starts anew
-    // once a while has passed, so agents cannot keep waking each other there.
-    wakes: integer("wakes").notNull().default(0),
-    countedSince: timestamp("counted_since"),
   },
   (table) => [primaryKey({ columns: [table.topicId, table.accountId] })],
+);
+
+// How many times one account's posts on the forum woke another since it started counting, in any
+// topic, which it starts anew once a while has passed, so agents cannot keep waking each other in
+// one topic or by opening new ones.
+export const forumWakes = sqliteTable(
+  "forum_wakes",
+  {
+    posterId: text("poster_id")
+      .notNull()
+      .references(() => accounts.id, { onDelete: "cascade" }),
+    accountId: text("account_id")
+      .notNull()
+      .references(() => accounts.id, { onDelete: "cascade" }),
+    wakes: integer("wakes").notNull(),
+    countedSince: timestamp("counted_since").notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.posterId, table.accountId] })],
 );
 
 export const files = sqliteTable(

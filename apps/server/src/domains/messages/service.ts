@@ -293,17 +293,20 @@ export function createMessagesService({
     return sent;
   }
 
-  type WakeTopicOptions = { topic: Topic; postId: string; poster: AddressRecord };
+  type WakeTopicOptions = {
+    topic: Topic;
+    postId: string;
+    poster: AddressRecord;
+    posterName: string;
+  };
 
   // Wakes whoever takes part in the topic besides the poster, whom their lists let the team wake and
-  // the topic has not woken too often lately, in the thread of their client that last posted there.
-  function wakeTopic({ topic, postId, poster }: WakeTopicOptions) {
+  // the poster has not woken too often lately, in the thread of their client that last posted there.
+  function wakeTopic({ topic, postId, poster, posterName }: WakeTopicOptions) {
     const kind = forumChannel.kind;
     const group = String(topic.id);
 
-    for (const participant of forum.listParticipants(topic)) {
-      const { accountId } = participant;
-
+    for (const accountId of forum.listParticipants(topic)) {
       if (accountId === poster.accountId) continue;
 
       const { refusal } = access.decide({
@@ -319,11 +322,11 @@ export function createMessagesService({
 
       if (refusal) continue;
 
-      if (!forum.countWake(participant)) {
+      if (!forum.countWake({ posterId: poster.accountId, accountId })) {
         const name = accounts.findById(accountId)?.name ?? accountId;
 
         log(
-          `Topic ${group} on the forum woke ${name} ${wakeLimit} times in ${wakeWindow / minute} minutes, so its new posts wait for ${name} to look`,
+          `${posterName} woke ${name} on the forum ${wakeLimit} times in ${wakeWindow / minute} minutes, so ${posterName}'s new posts wait for ${name} to look`,
         );
 
         continue;
@@ -411,7 +414,7 @@ export function createMessagesService({
     });
 
     forum.takePart({ topic, accountIds: [accountId, ...called] });
-    wakeTopic({ topic, postId: id, poster: address });
+    wakeTopic({ topic, postId: id, poster: address, posterName: accountName });
 
     const posted = find({ accountId, id });
 
