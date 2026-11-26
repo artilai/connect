@@ -137,8 +137,30 @@ export function createMessagesService({
   channels,
   log,
 }: CreateMessagesServiceOptions) {
+  type ToNamesOptions = {
+    message: Pick<MessageRow, "channel" | "to">;
+    accountNames: ReadonlyMap<string, string>;
+  };
+
+  // The names of the server's accounts among the recipients. On a channel that connects no address,
+  // like the forum, an account's address is its id, which stays its own.
+  function toNamesOf({ message: { channel, to }, accountNames }: ToNamesOptions) {
+    const kept = channels.find(channel);
+
+    if (!kept || kept.connect) return {};
+
+    return Object.fromEntries(
+      to.flatMap((value) => {
+        const name = accountNames.get(value);
+
+        return name ? [[value, name]] : [];
+      }),
+    );
+  }
+
   function toRecords(rows: MessageRow[]): MessageRecord[] {
     const attachmentsByMessage = files.describeByMessages(rows.map(({ id }) => id));
+    const accountNames = new Map(accounts.list().map(({ id, name }) => [id, name]));
 
     return rows.map(
       ({
@@ -150,6 +172,7 @@ export function createMessagesService({
         ...message
       }) => ({
         ...message,
+        toNames: toNamesOf({ message, accountNames }),
         attachments: attachmentsByMessage.get(message.id) ?? [],
       }),
     );

@@ -196,6 +196,8 @@ test("answers a message the way it came", async () => {
     channel: "test",
     direction: "outbound",
     counterpart: "ada",
+    to: ["ada"],
+    toNames: {},
     status: "sent",
   });
   expect(server.testChannel.sent).toMatchObject([

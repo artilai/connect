@@ -87,6 +87,7 @@ test("calls accounts to a new topic, which wakes them, and names it by its first
     counterpartName: "Release checklist",
     subject: "Release checklist",
     to: [codex.id],
+    toNames: { [codex.id]: "Codex" },
   });
   expect(await wokenBy(codex)).toEqual([{ messageId: posted.id, toThread: null }]);
   expect(await wokenBy(claude)).toEqual([]);

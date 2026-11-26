@@ -137,6 +137,7 @@ function toToolMessage(
       admission,
     }),
     to: message.to,
+    toNames: message.toNames,
     text: message.text,
     attachments: attachments.map((attachment) => toAttachment(attachment, { links })),
     createdAt: message.createdAt,
