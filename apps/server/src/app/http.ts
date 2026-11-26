@@ -60,11 +60,15 @@ function createApi({ services, workspace }: Pick<CreateAppOptions, "services" | 
     .route("/", createAccountRoutes(services))
     .route("/:id", ownRoutes);
 
-  return new Hono<AuthEnv>()
+  const api = new Hono<AuthEnv>();
+
+  api
     .use(requireAuth(services.tokens))
     .route("/agents", accountRoutes)
     .route("/team", createTeamRoutes(services))
     .route("/me", createMeRoutes({ tokens: services.tokens, workspace }));
+
+  return api;
 }
 
 export function createApp({ services, hosts, password, workspace, log }: CreateAppOptions) {
