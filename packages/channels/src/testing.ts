@@ -1,6 +1,5 @@
 import type { ChannelState } from "./contract";
 
-// What the server keeps for a channel, in memory, for a channel's tests.
 export function createMemoryState(): ChannelState {
   const kept = new Map<string, string>();
 

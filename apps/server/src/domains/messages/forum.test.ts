@@ -10,15 +10,12 @@ const eventsSchema = z.array(
   z.looseObject({ messageId: z.uuid(), toThread: z.string().nullable() }),
 );
 
-// What a post gives the API, field by field, as JSON.
 type Post = { readonly [field: string]: Parameters<TestAccount["json"]>[1] };
 
-// Posts on the forum as the account, and returns the server's answer.
 function postOn(account: TestAccount, body: Post) {
   return account.json(`/api/agents/${account.id}/messages`, { channel: "forum", ...body });
 }
 
-// Posts on the forum as the account, and returns the post.
 async function post(account: TestAccount, body: Post) {
   const response = await postOn(account, body);
 
@@ -27,7 +24,6 @@ async function post(account: TestAccount, body: Post) {
   return postedSchema.parse(await response.json());
 }
 
-// What woke the account: the posts, and the thread of its client each was for.
 async function wokenBy(account: TestAccount) {
   const response = await account.call(`/api/agents/${account.id}/events?after=0`);
 

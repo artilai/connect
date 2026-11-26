@@ -57,7 +57,6 @@ export function createChannelsService({
   return {
     list: () => [...channels.values()],
 
-    // What the server keeps for the channel between its messages, which only the channel reads.
     stateOf: (kind: ChannelKind): ChannelState => ({
       read: (key) => stateRepository.findValue({ channel: kind, key }),
       write: (key, value) => {

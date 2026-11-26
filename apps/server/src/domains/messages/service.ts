@@ -60,7 +60,6 @@ type SendDraftOptions = {
 
 type SendOptions = SendDraftOptions & { recipients: Recipients };
 
-// Which messages to list, and the words to search them for.
 type ListOptions = {
   accountId: string;
   filter: Omit<MessageFilter, "accountId"> & { search?: string };
@@ -75,8 +74,7 @@ function replyRecipients(message: MessageRow): string[] {
   return message.direction === "inbound" ? [message.counterpart] : message.to;
 }
 
-// What the channel does not carry: forwarding and copies are email's, in Artil Cloud, and only some
-// channels' messages have subjects.
+// Forwarding and copies are email's, which only Artil Cloud carries.
 function checkCarried(draft: Draft, { kind, subjects }: Channel) {
   if (draft.forward) throw onlyInCloud("Forwarding a message");
 
@@ -92,14 +90,11 @@ function checkCarried(draft: Draft, { kind, subjects }: Channel) {
 type ToInboundRowOptions = {
   channel: ChannelKind;
   message: InboundMessage;
-  // The address the message reached.
   address: AddressRecord;
-  // The name its sender goes by, which for one of the server's accounts is the account's.
   fromName: string | null;
 };
 
-// What the server keeps of a message that reached an address. A message in a group is the group's,
-// which an answer goes to, and names who wrote it.
+// A message in a group is the group's, which an answer goes to, and names who wrote it.
 function toInboundRow({ channel, message, address, fromName }: ToInboundRowOptions) {
   const { from, group } = message;
 
@@ -122,7 +117,6 @@ function toInboundRow({ channel, message, address, fromName }: ToInboundRowOptio
 
 type NotTakenOptions = { channel: Channel; cause: unknown };
 
-// Why a channel did not take a message, as an error the agent reads.
 function notTaken({ channel, cause }: NotTakenOptions) {
   if (cause instanceof AppError) return cause;
 
@@ -161,12 +155,10 @@ export function createMessagesService({
     );
   }
 
-  // Whether the server's accounts share the channel, whose messages each of them reads.
   function isShared(kind: ChannelKind | undefined) {
     return Boolean(kind && channels.find(kind)?.shared);
   }
 
-  // A message the account reads: its own, or one on a shared channel.
   function findReadable({ accountId, id }: FindOptions) {
     const row = messagesRepository.findById(id);
 
@@ -244,11 +236,9 @@ export function createMessagesService({
     channel: Channel;
     address: AddressRecord;
     message: OutboundMessage;
-    // The thread of the sender's client, which an answer to the message wakes.
     clientThread: string | undefined;
   };
 
-  // Sends the message, which the account keeps a copy of, and returns the copy's id.
   async function sendOutbound({
     accountId,
     channel,
@@ -300,13 +290,11 @@ export function createMessagesService({
     message: InboundMessage;
   };
 
-  // Keeps a message on a shared channel once, as an inbound message under its author's address, for
-  // every account to read, wakes the accounts it went to whose lists let the team wake them, and
-  // returns the id it keeps it by.
+  // Keeps the message once, under its author's address, for every account to read.
   async function keepShared({ channel, message, address, clientThread }: KeepSharedOptions) {
     const { from, group } = message;
 
-    // An account removed since the channel named it is no longer there to take the message.
+    // Skips an account removed since the channel named it.
     const recipients = message.to.flatMap(
       (value) => addresses.findByValue({ channel, value }) ?? [],
     );
@@ -345,8 +333,6 @@ export function createMessagesService({
     return id;
   }
 
-  // Sends the message on a shared channel, which hands it back for the server to keep once, and
-  // returns the id the server keeps it by.
   async function sendShared({ channel, address, message, clientThread }: SendOnChannelOptions) {
     let keptId: string | undefined;
 
@@ -373,8 +359,7 @@ export function createMessagesService({
     return keptId;
   }
 
-  // Sends on the channel from the account's address there, and keeps the message among the
-  // account's, or on a shared channel, among everyone's.
+  // Sends on the channel from the account's address there.
   async function send({ accountId, accountName, draft, uploads, recipients }: SendOptions) {
     const { channel: kind, to, answered } = recipients;
     const channel = channels.find(kind);
@@ -508,13 +493,11 @@ export function createMessagesService({
   }
 
   type WakeOptions = ReceiveOptions & {
-    // The address of the account to wake, and the message it keeps there.
     address: AddressRecord;
     messageId: string;
     counterpart: string;
   };
 
-  // Tells the account's client that the message came, in the thread of the client it is for.
   function wake({ channel, message, address, messageId, counterpart }: WakeOptions) {
     const toThread = findThreadToWake({
       addressId: address.id,
@@ -643,8 +626,7 @@ export function createMessagesService({
     listKeptOut: ({ accountId, channel }: ListKeptOutOptions) =>
       messagesRepository.listRefusedSenders({ accountId, channel, refusals: [...keptOut] }),
 
-    // The account's messages, or everyone's on a shared channel, newest first, or those that hold
-    // the words searched for, best match first.
+    // A shared channel's messages are every account's.
     list({ accountId, filter: { search, before, limit, ...narrowing } }: ListOptions) {
       const filter = {
         ...narrowing,
@@ -680,8 +662,8 @@ export function createMessagesService({
       }
     },
 
-    // Sends what an agent writes, and returns the copy the account keeps, or on a shared channel,
-    // the message everyone reads. An answer goes back the way its message came.
+    // Sends what an agent writes, and returns the message the account keeps. An answer goes back
+    // the way its message came.
     sendDraft({ accountId, accountName, draft, uploads }: SendDraftOptions) {
       const recipients = resolveRecipients(accountId, draft);
 

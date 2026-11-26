@@ -84,8 +84,7 @@ export function createAddressesService({
     listConnectedByAccount: addressesRepository.listConnectedByAccount,
     listConnected: addressesRepository.listConnected,
 
-    // The addresses the account connected, and the one it has by itself on each channel that
-    // connects none, which a client looks for before it lists that channel's messages.
+    // The addresses the account connected, and its own on each channel that connects none.
     listByAccount: (accountId: string) => [
       ...addressesRepository.listConnectedByAccount(accountId),
       ...channels

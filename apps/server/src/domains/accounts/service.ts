@@ -90,8 +90,7 @@ export function createAccountsService({
     },
 
     // Removes the account with its messages and sign-ins, its files from the bucket, and itself
-    // from the other accounts' lists on the channels that connect no address, like the Message URL,
-    // where it goes by its id.
+    // from the other accounts' lists on the channels where it goes by its id.
     async remove(id: string) {
       await files.removeByAccount(id);
 

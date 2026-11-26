@@ -30,13 +30,11 @@ type ListRefusedSendersOptions = {
 export function createMessagesRepository(db: Database) {
   const messageSearch = createMessageSearch(db);
 
-  // A message of any account's.
   function findById(id: string) {
     return db.select().from(messages).where(eq(messages.id, id)).get();
   }
 
-  // The thread of the client that last wrote from the address where the condition says, of the
-  // messages a client named one for that reached where they went: sent, or kept on a shared channel.
+  // The thread of the client whose message from the address last went where the condition says.
   function findLastClientThread({ addressId, where }: FindLastClientThreadOptions) {
     return (
       db
@@ -133,7 +131,6 @@ export function createMessagesRepository(db: Database) {
       return added;
     },
 
-    // The messages that hold the words, best match first.
     listByWords: (query: SearchQuery) => messageSearch.find(query),
 
     // A provider that delivers a message twice gets the one the server already took.

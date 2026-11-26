@@ -138,7 +138,6 @@ export const messages = sqliteTable(
     author: text("author"),
     authorName: encryptedText("messages", "author_name"),
     to: text("to", { mode: "json" }).$type<string[]>().notNull(),
-    // The subject, on a channel whose messages have them.
     subject: encryptedText("messages", "subject"),
     text: encryptedText("messages", "text").notNull(),
     // The thread of the client that sent the message, which an answer to it wakes.
@@ -155,19 +154,18 @@ export const messages = sqliteTable(
   },
   (table) => [
     index("messages_account_id_created_at_idx").on(table.accountId, table.createdAt),
-    // Lists a shared channel's messages, which are every account's.
     index("messages_channel_created_at_idx").on(table.channel, table.createdAt),
     uniqueIndex("messages_address_id_external_id_idx")
       .on(table.addressId, table.direction, table.externalId)
       .where(sql`${table.externalId} is not null`),
-    // Finds the thread a message wakes among the few messages a client named one for.
+    // Finds the thread a message wakes.
     index("messages_client_thread_idx")
       .on(table.addressId, table.createdAt)
       .where(sql`${table.clientThread} is not null`),
   ],
 );
 
-// What the server keeps for a channel between its messages, by key, which only the channel reads.
+// Values a channel keeps between its messages, by key.
 export const channelState = sqliteTable(
   "channel_state",
   {

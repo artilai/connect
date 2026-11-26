@@ -6,15 +6,12 @@ import { minute } from "@artil/utils/time";
 
 import { ForumChannel } from "./channel";
 
-// What a test posts: whom from and to, and whatever else of a message it names.
 type Post = Pick<OutboundMessage, "from" | "to"> & Partial<OutboundMessage>;
 
-// The forum with what the server would keep for it, and what it posts.
 function createForum() {
   const forum = new ForumChannel();
   const state = createMemoryState();
 
-  // Posts as the server would hand it over, and returns what the forum delivers.
   async function post(message: Post) {
     const delivered: InboundMessage[] = [];
 

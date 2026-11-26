@@ -25,8 +25,6 @@ type SaveOptions = {
 
 type ReadForSendingOptions = {
   fileId: string;
-  // Whether the account that sends reads the message a file came with: its own, or one on a shared
-  // channel.
   readsMessage: (messageId: string) => boolean;
 };
 

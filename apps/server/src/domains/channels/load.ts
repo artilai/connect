@@ -54,8 +54,6 @@ function checkChannel({ specifier, channel }: CheckChannelOptions) {
   // extends Channel of this version, from whichever copy of the package it brought.
   const checked = channel as Channel;
 
-  // The server keeps what a shared channel hands back once, for every account, which a message from
-  // a provider, kept for each account it reached, cannot be.
   if (checked.shared && (checked.connect || checked.handleWebhook)) {
     throw invalid(`The ${kind} channel is shared, so it connects no address to a provider`);
   }

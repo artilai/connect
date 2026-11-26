@@ -8,7 +8,6 @@ type ValueOptions = { channel: ChannelKind; key: string };
 
 type SetValueOptions = ValueOptions & { value: string };
 
-// What the server keeps for each channel between its messages.
 export function createChannelStateRepository(db: Database) {
   return {
     findValue: ({ channel, key }: ValueOptions) =>

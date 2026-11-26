@@ -8,7 +8,6 @@ type ReadJsonOptions<Schema extends z.ZodType> = {
   schema: Schema;
 };
 
-// What the forum keeps under the key as JSON, read by its schema, or nothing yet.
 export function readJson<Schema extends z.ZodType>({
   state,
   key,
