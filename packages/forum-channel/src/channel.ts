@@ -4,37 +4,34 @@ import { AppError } from "@artil/errors";
 import { createTopics, type Topics } from "./topics";
 import { countWake } from "./wakes";
 
-const everyone = "@everyone";
-
 const topicPattern = /^#?(?<number>[1-9]\d{0,9})$/v;
 
 // The server hands a topic over as #13, so an account id made of digits never reads as a topic.
 const topicMark = "#";
 
+// @ and an account's name or id, like @codex, where it starts a word, so an email address is none.
+const mentionPattern = /(?<![\p{L}\p{N}_.@])@(?<account>[\p{L}\p{N}_\-]+(?:\.[\p{L}\p{N}_\-]+)*)/gv;
+
 const titleLength = 240;
 
-type Recipients = { everyone: boolean; topics: string[]; accounts: string[] };
-
-type TopicForOptions = { topics: Topics; recipients: Recipients; message: OutboundMessage };
+type Recipients = { topics: string[]; accounts: string[] };
 
 function invalid(message: string) {
   return new AppError({ code: "invalid_input", message });
 }
 
 function readRecipients(to: readonly string[]): Recipients {
-  const named = Object.groupBy(to, (recipient) => {
-    if (recipient === everyone) return "everyone";
-
-    return recipient.startsWith(topicMark) ? "topics" : "accounts";
-  });
+  const named = Object.groupBy(to, (recipient) =>
+    recipient.startsWith(topicMark) ? "topics" : "accounts",
+  );
 
   const topics = (named.topics ?? []).map((topic) => topic.slice(topicMark.length));
 
-  return {
-    everyone: Boolean(named.everyone),
-    topics: [...new Set(topics)],
-    accounts: named.accounts ?? [],
-  };
+  return { topics: [...new Set(topics)], accounts: named.accounts ?? [] };
+}
+
+function mentionsIn(text: string) {
+  return new Set(text.matchAll(mentionPattern).map((match) => match.groups?.account ?? ""));
 }
 
 function titleOf({ subject, text }: OutboundMessage) {
@@ -49,39 +46,41 @@ function titleOf({ subject, text }: OutboundMessage) {
   return title.length > titleLength ? `${title.slice(0, titleLength - 1)}…` : title;
 }
 
-// The topic of the post it answers, the topic it names, or a new one.
-function topicFor({ topics, recipients, message }: TopicForOptions) {
-  const { thread, subject, from } = message;
-  const accounts = [from, ...recipients.accounts];
-
-  if (thread && (recipients.everyone || recipients.topics.some((number) => number !== thread))) {
-    throw invalid(
-      "An answer stays in the topic of the post it answers. Name in to only the accounts to call.",
-    );
+// The number of the topic a post goes in: the topic of the post it answers, or the one it names.
+function topicNumberOf({ thread }: OutboundMessage, { topics }: Recipients) {
+  if (thread && topics.some((number) => number !== thread)) {
+    throw invalid("An answer stays in the topic of the post it answers");
   }
 
-  if (recipients.topics.length > 1) throw invalid("A post goes in one topic");
+  if (topics.length > 1) throw invalid("A post goes in one topic");
 
-  const number = thread ?? recipients.topics[0];
-
-  if (!number) return topics.open({ title: titleOf(message), participants: accounts });
-
-  if (recipients.everyone) {
-    throw invalid(`@everyone starts a new topic. Leave it out to post in topic ${number}.`);
-  }
-
-  if (subject) throw invalid("Only a new topic takes a subject");
-
-  return topics.join({ topic: topics.get(number), accounts });
+  return thread ?? topics[0];
 }
 
-// Topics every account reads. A post wakes everyone who posted in its topic or was called to it.
+type OpenOrJoinOptions = {
+  topics: Topics;
+  topic: string | undefined;
+  message: OutboundMessage;
+  accounts: string[];
+};
+
+// The topic the post goes in, which takes part the accounts it calls, or a new one for them.
+function openOrJoin({ topics, topic, message, accounts }: OpenOrJoinOptions) {
+  if (!topic) return topics.open({ title: titleOf(message), participants: accounts });
+
+  if (message.subject) throw invalid("Only a new topic takes a subject");
+
+  return topics.join({ topic: topics.get(topic), accounts });
+}
+
+// Topics every account reads. A post wakes everyone who posted in its topic or was called to it, by
+// to or by a mention.
 export class ForumChannel extends Channel {
   readonly kind = "forum";
 
   readonly name = "Forum";
 
-  readonly labels = { address: "account id", contact: "topic number, account name or @everyone" };
+  readonly labels = { address: "account id", contact: "topic number or account name" };
 
   override readonly limits = { recipients: 10, text: 32_000, files: 10 };
 
@@ -94,22 +93,21 @@ export class ForumChannel extends Channel {
   }
 
   override parseRecipient(input: string) {
-    const trimmed = input.trim();
-
-    if (trimmed.toLowerCase() === everyone) return everyone;
-
-    const number = topicPattern.exec(trimmed)?.groups?.number;
+    const number = topicPattern.exec(input.trim())?.groups?.number;
 
     return number ? `${topicMark}${number}` : null;
   }
 
-  async send({ message, state, deliver }: SendOptions) {
+  async send({ message, state, addressOf, deliver }: SendOptions) {
     const { from, text, files, replyTo } = message;
+    const recipients = readRecipients(message.to);
+    const mentioned = [...mentionsIn(text)].flatMap((account) => addressOf(account) ?? []);
 
-    const topic = topicFor({
+    const topic = openOrJoin({
       topics: createTopics(state),
-      recipients: readRecipients(message.to),
+      topic: topicNumberOf(message, recipients),
       message,
+      accounts: [from, ...recipients.accounts, ...mentioned],
     });
 
     const woken = topic.participants.filter(

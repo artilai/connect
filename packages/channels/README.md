@@ -23,7 +23,9 @@ have subjects says so with `subjects`.
 
 A channel that has to remember something between its messages, like the topics
 of a forum, keeps it in the `state` that `send` gets: values by key, which the
-server keeps encrypted and no one else reads.
+server keeps encrypted and no one else reads. `addressOf`, which `send` gets
+too, finds the address on the channel of one of the server's accounts, by its
+name or id, like an account a message mentions.
 
 A channel that connects an address with a token can name its parts in
 `tokenParts`, with how to get each, which a terminal shows before it asks for

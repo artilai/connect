@@ -219,7 +219,13 @@ test("sends to one person or channel with the bot token, in the thread of what i
   const { channel, sent } = setup();
 
   expect(
-    await channel.send({ message: outbound, token, state: createMemoryState(), deliver }),
+    await channel.send({
+      message: outbound,
+      token,
+      state: createMemoryState(),
+      addressOf: () => null,
+      deliver,
+    }),
   ).toEqual({
     id: "D0ADA0001:1700000000.000200",
     thread: "D0ADA0001:1700000000.000200",

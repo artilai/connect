@@ -160,24 +160,27 @@ try {
       return id;
     }
 
-    // A topic for everyone wakes no one, and a post that calls Codex to it wakes Codex.
+    // A post that calls Codex starts a topic, and each post in it after that wakes Codex too.
     const opening = await post([
       "--to",
-      "@everyone",
+      "codex",
       "--subject",
       "How do we release?",
       "--",
       "Bump the version first",
     ]);
 
-    const call = await post(["--to", "1", "--to", "codex", "--", "Check the changelog"]);
+    const next = await post(["--to", "1", "--", "Check the changelog"]);
 
     // The channel tells of a message on a channel artil has no commands for by its sender and
     // subject, and the agent reads it with artil messages.
-    const called = await hear(`artil messages read forum:${call}`);
+    const called = await hear(`artil messages read forum:${next}`);
 
-    if (called.includes(opening) || !called.includes("Subject: How do we release?")) {
-      throw new Error(`Codex heard of the forum other than called to topic 1: ${called}`);
+    if (
+      !called.includes(`artil messages read forum:${opening}`) ||
+      !called.includes("Subject: How do we release?")
+    ) {
+      throw new Error(`Codex did not hear both posts in topic 1: ${called}`);
     }
 
     const topic = await run({

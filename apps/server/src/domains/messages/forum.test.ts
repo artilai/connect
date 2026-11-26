@@ -40,13 +40,12 @@ async function listForum(account: TestAccount, query = "") {
   return z.array(postedSchema).parse(await response.json());
 }
 
-test("starts a topic for everyone, which every account reads and none is woken by", async () => {
+test("starts a topic that calls no one, which every account reads and none is woken by", async () => {
   const server = await createTestServer();
   const claude = server.account("Claude");
   const codex = server.account("Codex");
 
   const posted = await post(claude, {
-    to: ["@everyone"],
     subject: "How do we release?",
     text: "Bump the version in apps/server/package.json, then merge.",
   });
@@ -99,16 +98,15 @@ test("wakes whoever takes part in a topic, in the thread of their client that la
   const gemini = server.account("Gemini");
 
   const opening = await post(claude, {
-    to: ["@everyone"],
     subject: "Flaky test",
     text: "messages.test.ts fails on CI",
     thread: "ci",
   });
 
-  // Codex takes part by posting, and calls Gemini besides.
+  // Codex takes part by posting, and calls Gemini with a mention.
   const fromCodex = await post(codex, {
-    to: ["1", "Gemini"],
-    text: "It waits on a stream that never ends",
+    to: ["1"],
+    text: "It waits on a stream that never ends, @gemini",
     thread: "flaky",
   });
 
@@ -165,7 +163,7 @@ test("keeps the forum apart from an account's own messages, and gives it an addr
   const claude = server.account("Claude");
   const codex = server.account("Codex");
 
-  const posted = await post(claude, { to: ["@everyone"], text: "The bucket moved to R2" });
+  const posted = await post(claude, { text: "The bucket moved to R2" });
 
   const own = await (await codex.call(`/api/agents/${codex.id}/messages`)).json();
   const addresses = await (await codex.call(`/api/agents/${codex.id}/addresses`)).json();
@@ -196,9 +194,9 @@ test("says what a post on the forum cannot name, as the forum and the server say
     error(404, "There is no topic 9 on the forum"),
   );
   expect(await refused({ to: ["@claude"], text: "Hi" })).toMatchObject(
-    error(400, "@claude is not a Forum topic number, account name or @everyone"),
+    error(400, "@claude is not a Forum topic number or account name"),
   );
-  expect(await refused({ to: ["@everyone"], cc: ["Claude"], text: "Hi" })).toMatchObject(
+  expect(await refused({ cc: ["Claude"], text: "Hi" })).toMatchObject(
     error(400, "A message on forum copies no one"),
   );
 });
@@ -207,7 +205,7 @@ test("keeps what the forum keeps of its topics encrypted at rest", async () => {
   const server = await createTestServer();
   const claude = server.account("Claude");
 
-  await post(claude, { to: ["@everyone"], subject: "Where the keys live", text: "In 1Password" });
+  await post(claude, { subject: "Where the keys live", text: "In 1Password" });
 
   const stored = server.database.db.$client
     .query<{ value: string }, []>("select value from channel_state")
@@ -235,14 +233,13 @@ test("finds the posts that hold the words searched for, on the whole forum or in
   const codex = server.account("Codex");
 
   const release = await post(claude, {
-    to: ["@everyone"],
     subject: "How do we release?",
     text: "Bump the version, then merge.",
   });
 
-  const bucket = await post(codex, { to: ["@everyone"], text: "The bucket moved to R2" });
+  const bucket = await post(codex, { text: "The bucket moved to R2" });
   const notes = await post(codex, { to: ["1"], text: "Write the notes in the PR" });
-  const deploy = await post(codex, { to: ["@everyone"], text: "Как деплоить сервер\nЁлка" });
+  const deploy = await post(codex, { text: "Как деплоить сервер\nЁлка" });
 
   expect(await search({ account: codex, words: "release" })).toEqual(
     [release.id, notes.id].toSorted(),
@@ -262,8 +259,8 @@ test("puts the post that holds more of the words searched for first", async () =
   const server = await createTestServer();
   const claude = server.account("Claude");
 
-  await post(claude, { to: ["@everyone"], text: "The bucket moved" });
-  const both = await post(claude, { to: ["@everyone"], text: "The bucket for the release moved" });
+  await post(claude, { text: "The bucket moved" });
+  const both = await post(claude, { text: "The bucket for the release moved" });
 
   expect((await listForum(claude, "&search=release+bucket"))[0]?.id).toBe(both.id);
 });
@@ -271,7 +268,7 @@ test("puts the post that holds more of the words searched for first", async () =
 test("says what a search cannot do", async () => {
   const server = await createTestServer();
   const claude = server.account("Claude");
-  const posted = await post(claude, { to: ["@everyone"], text: "Release" });
+  const posted = await post(claude, { text: "Release" });
 
   async function refused(query: string) {
     const response = await claude.call(`/api/agents/${claude.id}/messages?${query}`);
@@ -300,7 +297,7 @@ test("finds a post made after the first search", async () => {
   const claude = server.account("Claude");
   const codex = server.account("Codex");
 
-  const early = await post(claude, { to: ["@everyone"], text: "The release is out" });
+  const early = await post(claude, { text: "The release is out" });
 
   expect(await search({ account: codex, words: "release" })).toEqual([early.id]);
 
@@ -316,10 +313,10 @@ test("finds the posts that remain when removed ones would have ranked first", as
   const claude = server.account("Claude");
   const codex = server.account("Codex");
 
-  const kept = await post(codex, { to: ["@everyone"], text: "The release is out" });
+  const kept = await post(codex, { text: "The release is out" });
 
   for (const text of ["The release notes", "The release date", "The release plan"]) {
-    await post(claude, { to: ["@everyone"], text });
+    await post(claude, { text });
   }
 
   // The first search fills the index, which still holds Claude's posts once Claude is removed.
@@ -339,7 +336,6 @@ test("sends on a file that came with another account's post", async () => {
 
   const posted = z.looseObject({ attachments: z.array(z.object({ id: z.uuid() }).loose()) }).parse(
     await post(claude, {
-      to: ["@everyone"],
       text: "The checklist",
       attachments: [{ name: "checklist.txt", type: "text/plain", text: "Bump the version" }],
     }),
@@ -381,7 +377,7 @@ test("pages back through every account's posts", async () => {
   const claude = server.account("Claude");
   const codex = server.account("Codex");
 
-  const fromClaude = await post(claude, { to: ["@everyone"], text: "Release" });
+  const fromClaude = await post(claude, { text: "Release" });
   const fromCodex = await post(codex, { to: ["1"], text: "Notes" });
 
   const [newest] = await listForum(claude, "&limit=1");

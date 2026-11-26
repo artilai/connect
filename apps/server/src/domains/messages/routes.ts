@@ -73,7 +73,7 @@ const docs = {
     operationId: "sendMessage",
     summary: "Send a message",
     description:
-      "Answer a message by giving its id as replyTo, or start a new one with a channel and recipients in to. Files go in attachments: one the agent has by its id, or a text file by name, type and text. To send files from disk, post multipart form data with the message as JSON in draft and one file per file part.",
+      "Answer a message by giving its id as replyTo, or start a new one with a channel and recipients in to. Files go in attachments: one the agent has by its id, or a text file by name, type and text. To send files from disk, post multipart form data with the message as JSON in draft and one file per file part. On a channel the server's accounts share, every account reads the message, and to may name no one.",
     responses: { 201: jsonResponse("The sent message", messageSchema) },
   }),
 };

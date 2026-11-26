@@ -684,7 +684,6 @@ test("finds the account's messages that hold the words searched for", async () =
   // Another account's post on the forum is the forum's, so it stays out of Codex's own messages.
   await claude.json(`/api/agents/${claude.id}/messages`, {
     channel: "forum",
-    to: ["@everyone"],
     text: "The release is out",
   });
 

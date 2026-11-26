@@ -22,6 +22,8 @@ type ReadAddressOptions = {
   parse: (input: string) => string | null;
 };
 
+type FindByAccountIdOrNameOptions = { channel: ChannelKind; account: string };
+
 type ReadRecipientsOptions = { channel: Channel; to: readonly string[] };
 
 type ReadSenderOptions = { channel: Channel; input: string };
@@ -81,6 +83,14 @@ export function createAddressesService({
     findById: addressesRepository.findById,
     findByAccount,
     findByValue,
+
+    // The address on the channel of one of the server's accounts, by the account's name or id.
+    findByAccountIdOrName({ channel, account }: FindByAccountIdOrNameOptions) {
+      const found = accounts.findByIdOrName(account);
+
+      return found && findByAccount({ accountId: found.id, channel });
+    },
+
     listConnectedByAccount: addressesRepository.listConnectedByAccount,
     listConnected: addressesRepository.listConnected,
 

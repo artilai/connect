@@ -6,7 +6,14 @@ import { minute } from "@artil/utils/time";
 
 import { ForumChannel } from "./channel";
 
-type Post = Pick<OutboundMessage, "from" | "to"> & Partial<OutboundMessage>;
+type Post = Pick<OutboundMessage, "from"> & Partial<OutboundMessage>;
+
+// The server's accounts, by name, and their addresses on the forum.
+const accounts = new Map([
+  ["claude", "claude01"],
+  ["codex", "codex001"],
+  ["gemini", "gemini01"],
+]);
 
 function createForum() {
   const forum = new ForumChannel();
@@ -16,9 +23,10 @@ function createForum() {
     const delivered: InboundMessage[] = [];
 
     const sent = await forum.send({
-      message: { text: "Hi", files: [], ...message },
+      message: { to: [], text: "Hi", files: [], ...message },
       token: null,
       state,
+      addressOf: (account) => accounts.get(account.toLowerCase()) ?? null,
       deliver: async (inbound) => {
         delivered.push(inbound);
       },
@@ -34,23 +42,21 @@ function createForum() {
   return { forum, post };
 }
 
-test("reads a topic by its number, with or without a #, and everyone, besides the server's accounts", () => {
+test("reads a topic by its number, with or without a #, besides the server's accounts", () => {
   const { forum } = createForum();
 
   expect(forum.parseRecipient(" 7 ")).toBe("#7");
   expect(forum.parseRecipient("#7")).toBe("#7");
-  expect(forum.parseRecipient("@Everyone")).toBe("@everyone");
   expect(forum.parseRecipient("07")).toBeNull();
-  expect(forum.parseRecipient("@codex")).toBeNull();
+  expect(forum.parseRecipient("@everyone")).toBeNull();
   expect(forum.parseSender("7")).toBeNull();
 });
 
-test("starts a topic for everyone under its subject, which wakes no one", async () => {
+test("starts a topic under its subject, which wakes no one", async () => {
   const { post } = createForum();
 
   const opened = await post({
     from: "claude01",
-    to: ["@everyone"],
     subject: "How do we release?",
     text: "Bump the version first",
   });
@@ -68,17 +74,17 @@ test("starts a topic for everyone under its subject, which wakes no one", async 
   });
 });
 
-test("calls accounts to a new topic under its first line, and wakes them", async () => {
+test("calls accounts to a new topic under its first line, by to or by a mention, and wakes them", async () => {
   const { post } = createForum();
 
   const opened = await post({
     from: "claude01",
-    to: ["codex001", "claude01"],
-    text: "Release checklist\nWhat goes in it?",
+    to: ["codex001"],
+    text: "Release checklist\n@Gemini, @claude: what goes in it? Not @types/node, nor ada@codex.dev",
   });
 
   expect(opened).toMatchObject({
-    to: ["codex001"],
+    to: ["codex001", "gemini01"],
     group: { address: "1", name: "Release checklist" },
     subject: "Release checklist",
   });
@@ -87,9 +93,9 @@ test("calls accounts to a new topic under its first line, and wakes them", async
 test("wakes whoever takes part in a topic, and keeps an answer in it", async () => {
   const { post } = createForum();
 
-  await post({ from: "claude01", to: ["@everyone"], text: "Flaky test" });
+  await post({ from: "claude01", text: "Flaky test" });
 
-  const fromCodex = await post({ from: "codex001", to: ["#1", "gemini01"], text: "It hangs" });
+  const fromCodex = await post({ from: "codex001", to: ["#1"], text: "It hangs, @gemini?" });
 
   expect(fromCodex).toMatchObject({ to: ["claude01", "gemini01"], subject: "Flaky test" });
 
@@ -102,20 +108,16 @@ test("wakes whoever takes part in a topic, and keeps an answer in it", async () 
 test("says what a post cannot name", async () => {
   const { post } = createForum();
 
-  await post({ from: "claude01", to: ["@everyone"], text: "Release" });
-  await post({ from: "claude01", to: ["@everyone"], text: "Bucket" });
+  await post({ from: "claude01", text: "Release" });
+  await post({ from: "claude01", text: "Bucket" });
 
   const refusals: [Omit<Post, "from">, string][] = [
     [{ to: ["#1", "#2"] }, "A post goes in one topic"],
     [{ to: ["#9"] }, "There is no topic 9 on the forum"],
-    [{ to: ["#1", "@everyone"] }, "@everyone starts a new topic. Leave it out to post in topic 1."],
     [{ to: ["#1"], subject: "Renamed" }, "Only a new topic takes a subject"],
+    [{ to: ["#2"], thread: "1" }, "An answer stays in the topic of the post it answers"],
     [
-      { to: ["#2"], thread: "1" },
-      "An answer stays in the topic of the post it answers. Name in to only the accounts to call.",
-    ],
-    [
-      { to: ["@everyone"], text: " \n " },
+      { text: " \n " },
       "A new topic takes a title: give a subject, or start the post with a line of text",
     ],
   ];

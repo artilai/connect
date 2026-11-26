@@ -78,6 +78,9 @@ export type SendOptions = {
   message: OutboundMessage;
   token: string | null;
   state: ChannelState;
+  // The address on the channel of one of the server's accounts, by the account's name or id, like
+  // an account a message mentions.
+  addressOf: (account: string) => string | null;
   deliver: (message: InboundMessage) => Promise<void>;
 };
 

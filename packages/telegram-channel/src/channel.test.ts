@@ -246,6 +246,7 @@ test("sends to one chat as the bot, answering by Telegram's id for the message",
     message: outbound,
     token: "123456:ABC",
     state: createMemoryState(),
+    addressOf: () => null,
     deliver,
   });
 
@@ -330,6 +331,7 @@ test("carries one chat, 4096 characters and up to 10 files of up to 50 MB each",
     message: { ...outbound, files: [photo] },
     token: "123456:ABC",
     state: createMemoryState(),
+    addressOf: () => null,
     deliver,
   });
 

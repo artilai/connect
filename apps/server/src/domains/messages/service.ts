@@ -174,14 +174,17 @@ export function createMessagesService({
   // An answer goes where its message came from, a new message where the draft says.
   function resolveRecipients(accountId: string, draft: Draft): Recipients {
     if (!draft.replyTo) {
-      if (!draft.channel || !draft.to) {
+      const { channel, to = [] } = draft;
+
+      // Every account reads a shared channel, so a message there may name no one.
+      if (!channel || (to.length === 0 && !isShared(channel))) {
         throw new AppError({
           code: "invalid_input",
           message: "Give replyTo to answer a message, or a channel and recipients in to",
         });
       }
 
-      return { channel: draft.channel, to: draft.to };
+      return { channel, to };
     }
 
     const repliedMessage = findReadable({ accountId, id: draft.replyTo });
@@ -231,6 +234,11 @@ export function createMessagesService({
     receiptsInFlight.set(id, shown);
   }
 
+  function addressOn(channel: ChannelKind) {
+    return (account: string) =>
+      addresses.findByAccountIdOrName({ channel, account })?.value ?? null;
+  }
+
   type SendOnChannelOptions = {
     accountId: string;
     channel: Channel;
@@ -269,6 +277,7 @@ export function createMessagesService({
         message,
         token: address.token,
         state: channels.stateOf(channel.kind),
+        addressOf: addressOn(channel.kind),
         // A channel without a provider, like the Message URL, hands the message back to reach the
         // server's own accounts.
         deliver: (delivered) =>
@@ -341,6 +350,7 @@ export function createMessagesService({
         message,
         token: address.token,
         state: channels.stateOf(channel.kind),
+        addressOf: addressOn(channel.kind),
         deliver: async (delivered) => {
           keptId = await keepShared({
             channel: channel.kind,

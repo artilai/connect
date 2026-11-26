@@ -148,7 +148,6 @@ test("posts on the forum and finds what the forum's posts say", async () => {
 
   await codex.json(`/api/agents/${codex.id}/messages`, {
     channel: "forum",
-    to: ["@everyone"],
     subject: "The bucket",
     text: "It moved to R2",
   });
@@ -217,6 +216,9 @@ test("refuses a message its channel cannot carry, before it keeps one", async ()
     return { name, type: "text/plain", text };
   }
 
+  expect(await send({ to: undefined })).toBe(
+    "Give replyTo to answer a message, or a channel and recipients in to",
+  );
   expect(await send({ to: ["@ada", "@eve"] })).toBe("A Test message goes to one recipient");
   expect(await send({ to: ["not a recipient!"] })).toBe(
     "not a recipient! is not a Test name, @handle or -group",

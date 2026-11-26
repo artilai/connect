@@ -31,9 +31,20 @@ export const channelSchema = z
         fileSize: z.int().optional().describe("The most bytes in one file; none without a limit"),
       })
       .describe("The most a message on the channel carries"),
+    shared: z
+      .boolean()
+      .describe(
+        "Whether the server's accounts share the channel, like a forum: each reads every message on it, and a message there may name no recipient",
+      ),
   })
   .meta({ id: "Channel" });
 
-export function toChannel({ kind, name, labels, limits }: Channel): z.infer<typeof channelSchema> {
-  return { kind, name, labels, limits };
+export function toChannel({
+  kind,
+  name,
+  labels,
+  limits,
+  shared,
+}: Channel): z.infer<typeof channelSchema> {
+  return { kind, name, labels, limits, shared };
 }

@@ -32,6 +32,7 @@ test("hands what an account sends to the server to deliver, under the id it retu
 
   const sent = await new UrlChannel().send({
     state: createMemoryState(),
+    addressOf: () => null,
     message,
     token: null,
     deliver: async (inbound) => {
@@ -54,6 +55,7 @@ test("hands what an account sends to the server to deliver, under the id it retu
 test("fails to send what the server does not deliver", async () => {
   const sending = new UrlChannel().send({
     state: createMemoryState(),
+    addressOf: () => null,
     message,
     token: null,
     deliver: async () => {

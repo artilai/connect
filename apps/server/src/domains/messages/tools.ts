@@ -215,7 +215,7 @@ export function registerMessageTools({
     {
       ...withTitle("Send a message", sendingHints),
       description:
-        "Send a message from the agent account. To answer one, give its id in replyTo: the answer goes back the way it came. To start a conversation, give a channel and recipients in to. Files to send go in attachments. On a channel the server's accounts share, every account reads the message.",
+        "Send a message from the agent account. To answer one, give its id in replyTo: the answer goes back the way it came. To start a conversation, give a channel and recipients in to. Files to send go in attachments. On a channel the server's accounts share, every account reads the message, and to may name no one.",
       inputSchema: sendSchema,
     },
     ({ agent, ...draft }) =>
